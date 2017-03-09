@@ -20,8 +20,9 @@ defmodule Ecto.Adapters.DynamoDB do
 
 
   # I don't think this is necessary: Probably under child_spec and ensure_all_started
-  def start_link(_repo, _opts) do
-
+  def start_link(repo, opts) do
+    IO.puts("start_link repo: #{inspect repo} opts: #{inspect opts}")
+    Agent.start_link fn -> [] end
   end
 
 
@@ -31,7 +32,6 @@ defmodule Ecto.Adapters.DynamoDB do
   Returns the childspec that starts the adapter process.
   """
   def child_spec(repo, opts) do
-    IO.puts("child spec. repo: #{inspect repo} opts: #{inspect opts}")
     # TODO: need something here...
     # * Pull dynamo db connection options from config
     # * Start dynamo connector/aws libraries
@@ -39,7 +39,9 @@ defmodule Ecto.Adapters.DynamoDB do
     # an app here, we only need to ensure that our dependencies such as aws libs are started.
     # 
     import Supervisor.Spec
-    [worker(DynamoDB.Ecto, [[repo, opts], []])]
+    child_spec = worker(__MODULE__, [repo, opts])
+    IO.puts("child spec3. REPO: #{inspect repo}\n CHILD_SPEC: #{inspect child_spec}\nOPTS: #{inspect opts}")
+    child_spec
   end
 
 
@@ -50,6 +52,12 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts("ensure all started: type: #{inspect type} #{inspect repo}")
     {:ok, [repo]}
   end
+
+
+  def in_transaction?(_repo), do: false
+
+  def rollback(_repo, _value), do:
+    raise BadFunctionError, message: "#{inspect __MODULE__} does not support transactions."
 
 
   @doc """
