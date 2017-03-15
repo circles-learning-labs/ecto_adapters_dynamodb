@@ -16,7 +16,9 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   def application do
     # Specify extra applications you'll use from Erlang/Elixir
     [extra_applications: [:logger],
-     mod: {Ecto.Adapters.DynamoDB.Application, []}]
+     mod: {Ecto.Adapters.DynamoDB.Application, []},
+     applications: [:ex_aws, :hackney, :poison]
+   ]
   end
 
   # Dependencies can be Hex packages:
@@ -31,7 +33,6 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   defp deps do
     [     
       {:ecto, ">= 2.1.4"},
-      #{:ex_aws, git: "https://github.com/CargoSense/ex_aws.git", branch: "master"}
       {:ex_aws, "~> 1.0"},
       {:poison, "~> 2.0"},
       {:hackney, "~> 1.6"}
