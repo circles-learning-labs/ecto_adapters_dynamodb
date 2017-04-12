@@ -5,6 +5,14 @@ defmodule Ecto.Adapters.DynamoDB do
 
   Currently fairly limited subset of Ecto, enough for basic operations.
 
+  NOTE: in ecto, Repo.get[!] ends up calling: 
+    -> querable.get
+    -> queryable.one
+    -> queryable.all
+    -> queryable.execute
+    -> adapter.execute (possibly prepare somewhere in their too? trace.)
+
+
   """
 
 
@@ -141,6 +149,7 @@ defmodule Ecto.Adapters.DynamoDB do
   #          {:cache, prepared} | {:nocache, prepared}
   def prepare(:all, query) do
     # 'preparing' is more a SQL concept - Do we really need to do anything here or just pass the params through?
+    IO.puts("PREPARE:::")
     IO.inspect(query)
     {:nocache, query}
   end
@@ -173,13 +182,17 @@ defmodule Ecto.Adapters.DynamoDB do
   #                 {:cache, (cached -> :ok), prepared}
 
   def execute(_repo, _meta, {:nocache, _prepared}, _params, _process = nil, _opts) do
+    #Logger.error "EXECUTE... EXECUTING!"
+    IO.puts "EXECUTE... EXECUTING1!"
+    IO.puts("execute: \nprepared:#{inspect _prepared}\nparams: #{inspect _params}\nopts: #{inspect _opts}")
     num = 0
     rows = []
     {num, rows}
   end
 
   def execute(repo, meta, {:nocache, prepared}, params, process, opts) do
-    IO.inspect(repo)
+    IO.puts "EXECUTE... EXECUTING!"
+    IO.puts "REPO::: #{inspect _prepared}"
     IO.inspect(meta)
     IO.inspect(prepared)
     IO.inspect(params)
