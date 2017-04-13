@@ -192,7 +192,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   def execute(repo, meta, {:nocache, prepared}, params, process, opts) do
     IO.puts "EXECUTE... EXECUTING!"
-    IO.puts "REPO::: #{inspect _prepared}"
+    IO.puts "REPO::: #{inspect repo}"
     IO.inspect(meta)
     IO.inspect(prepared)
     IO.inspect(params)
