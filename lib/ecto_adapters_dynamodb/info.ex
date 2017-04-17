@@ -27,8 +27,8 @@ defmodule Ecto.Adapters.DynamoDB.Info do
 	describing the index - {HASH_KEY, RANGE_KEY}. Primary key is always the first element in this
 	"""
 	def indexes(tablename) do
-		#raw_indexes = index_details(tablename)
-		#indexes = []
+		raw_indexes = index_details(tablename)
+		indexes = []
 
 		# Prepand the primary index to the secondary, and return it.
 		#[ raw_indexes[:primary]: primary| indexes]
@@ -52,6 +52,23 @@ defmodule Ecto.Adapters.DynamoDB.Info do
 			^key -> true
 			_ -> false
 		end
+	end
+
+
+	@doc "return true is this is a secondary key (HASH/{HASH,SORT}) for the table"
+	def secondary_key?(tablename, key) do
+		indexes = secondary_indexes(tablename)
+		Enum.member?(indexes, key)
+	end
+
+
+	@doc """
+	returns a simple list of the secondary indexes (global and local) for the table. Uses same format
+	for each member of the list as 'primary_key!'.
+	"""
+	def secondary_indexes(tablename) do
+		%{:secondary => indexes} = index_details(tablename)
+		for index <- indexes, do: normalise_dynamo_index!( index["KeySchema"] )
 	end
 
 
