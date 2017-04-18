@@ -191,13 +191,15 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   def execute(repo, meta, {:nocache, prepared}, params, process, opts) do
-    IO.puts "EXECUTE... EXECUTING!"
+    IO.puts "EXECUTE... EXECUTING!============================="
     IO.puts "REPO::: #{inspect repo}"
-    IO.inspect(meta)
-    IO.inspect(prepared)
-    IO.inspect(params)
-    IO.inspect(process)
-    IO.inspect(opts)
+    IO.puts "META::: #{inspect meta}"
+    IO.puts "PREPARED::: #{inspect prepared}"
+    IO.puts "PARAMS::: #{inspect params}"
+    IO.puts "PROCESS::: #{inspect process}"
+    IO.puts "OPTS::: #{inspect opts}"
+
+    dump_query_struct(prepared)
 
     raise BadFunctionError, message: "#{inspect __MODULE__}.execute is not implemented."
 
@@ -234,4 +236,29 @@ defmodule Ecto.Adapters.DynamoDB do
   def insert_all(_,_,_,_,_,_,_), do: raise BadFunctionError, message: "#{inspect __MODULE__}.insert_all is not implemented."
   def update(_,_,_,_,_,_), do: raise BadFunctionError, message: "#{inspect __MODULE__}.update is not implemented."
 
+
+
+defp dump_query_struct(struct) do
+  IO.puts("DUMPING QUERY STRUCT - ")
+IO.puts("   struct.prefix: #{inspect  struct.prefix}")
+IO.puts("   struct.sources: #{inspect  struct.sources}")
+IO.puts("   struct.from: #{inspect  struct.from}")
+IO.puts("   struct.joins: #{inspect  struct.joins}")
+IO.puts("   struct.wheres: #{inspect  struct.wheres}")
+IO.puts("   struct.select: #{inspect  struct.select}")
+IO.puts("   struct.order_bys: #{inspect  struct.order_bys}")
+IO.puts("   struct.limit: #{inspect  struct.limit}")
+IO.puts("   struct.offset: #{inspect  struct.offset}")
+IO.puts("   struct.group_bys: #{inspect  struct.group_bys}")
+IO.puts("   struct.updates: #{inspect  struct.updates}")
+IO.puts("   struct.havings: #{inspect  struct.havings}")
+IO.puts("   struct.preloads: #{inspect  struct.preloads}")
+IO.puts("   struct.assocs: #{inspect  struct.assocs}")
+IO.puts("   struct.distinct: #{inspect  struct.distinct}")
+IO.puts("    struct.lock: #{inspect   struct.lock}")
 end
+
+end
+
+
+
