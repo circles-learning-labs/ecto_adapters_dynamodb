@@ -72,9 +72,62 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   end
 
 
+  @doc """
+  Given a map with a search criteria, finds the best index to search against it.
+  Returns a tuple indicating whether it's a primary key index, or a secondaray index.
+  (Since we need to know for dynamo DB searches.)
 
-  def get_matching_index!(table, search) do
-    
+  {:primary, index} | {:secondary, index}
+
+  Exception if the index doesn't exist.
+  """
+  def get_best_index!(tablename, search) do
+    case get_matching_primary_index(tablename, search) do
+      [hash, range] ->
+        # if we found a primary index with hash+range match, it's probably the best index.
+        {:primary, [hash, range]}
+
+      [] ->
+        # no primary found, so try for a secondary.
+        # no case match exception will be triggered if none is found.
+        case get_matching_secondary_index(tablename, search) do
+          [hash, range] -> {:secondary, [hash, range]}
+          [hash]      -> {:secondary, [hash]}
+        end
+
+      primary_hash ->
+        # we've found a primary hash index, but lets check if there's a more specific
+        # secondary index with hash+sort available...
+        case get_matching_secondary_index(tablename, search) do
+          [hash, range] -> {:secondary, [hash, range]}
+          _           -> {:primary, [primary_hash]}
+        end
+    end
+  end
+
+
+  def get_matching_primary_index(tablename, search) do
+    case primary_key!(tablename) do
+      [hash, range] ->
+        if Map.has_key?(search, hash) and Map.has_key(search, range), do: [hash, range], else: []
+
+      [hash] ->
+        if Map.has_key?(search, hash), do: [hash], else: []
+    end
+
+  end
+
+  @doc """
+  Given a map containing key values representing a search field and value to search for
+  (eg %{id => "franko"}, or %{circle_id => "123", person_id =>"abc"}), will return the
+  dynamo db index description that will help us match this search. Fire exception
+  if there is no matching index we can use.
+  Does not help with range queries.
+  """
+  def get_matching_secondary_index(tablename, search) do
+    for {k, v} <- search do
+
+    end
   end
 
   # dynamo raw index data is complex, and can contain either one or two fields. This just takes that
