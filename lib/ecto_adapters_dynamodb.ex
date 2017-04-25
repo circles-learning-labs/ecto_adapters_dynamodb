@@ -180,14 +180,18 @@ defmodule Ecto.Adapters.DynamoDB do
   #                 {:cached, (prepared -> :ok), cached} |
   #                 {:cache, (cached -> :ok), prepared}
 
-  def execute(_repo, _meta, {:nocache, _prepared}, _params, _process = nil, _opts) do
+  def execute(_repo, _meta, {:nocache, prepared}, params, _process = nil, opts) do
     #Logger.error "EXECUTE... EXECUTING!"
     IO.puts "EXECUTE... EXECUTING1!"
-    IO.puts("execute: \nprepared:#{inspect _prepared}\nparams: #{inspect _params}\nopts: #{inspect _opts}")
+    IO.puts("execute: \nprepared:#{inspect prepared}\nparams: #{inspect params}\nopts: #{inspect opts}")
+
+    raise BadFunctionError, message: "#{inspect __MODULE__}.execute is not implemented."
+
     num = 0
     rows = []
     {num, rows}
   end
+
 
   def execute(repo, meta, {:nocache, prepared}, params, process, opts) do
     IO.puts "EXECUTE... EXECUTING!============================="
