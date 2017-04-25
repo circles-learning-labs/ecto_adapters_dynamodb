@@ -179,7 +179,7 @@ defmodule Ecto.Adapters.DynamoDB do
   #          query: {:nocache, prepared} |
   #                 {:cached, (prepared -> :ok), cached} |
   #                 {:cache, (cached -> :ok), prepared}
-
+  # TODO: What about dynamo db batch_get_item for sql 'where x in [1,2,3,4]' style queries?
   def execute(_repo, _meta, {:nocache, prepared}, params, _process = nil, opts) do
     #Logger.error "EXECUTE... EXECUTING!"
     IO.puts "EXECUTE... EXECUTING1!"
