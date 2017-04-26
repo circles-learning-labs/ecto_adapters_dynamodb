@@ -149,7 +149,7 @@ defmodule Ecto.Adapters.DynamoDB do
   def prepare(:all, query) do
     # 'preparing' is more a SQL concept - Do we really need to do anything here or just pass the params through?
     IO.puts("PREPARE:::")
-    IO.inspect(query)
+    IO.inspect(query, structs: false)
     {:nocache, query}
   end
   #def prepare(:update_all, query),
@@ -182,10 +182,12 @@ defmodule Ecto.Adapters.DynamoDB do
   # TODO: What about dynamo db batch_get_item for sql 'where x in [1,2,3,4]' style queries?
   def execute(_repo, _meta, {:nocache, prepared}, params, _process = nil, opts) do
     #Logger.error "EXECUTE... EXECUTING!"
-    IO.puts "EXECUTE... EXECUTING1!"
-    IO.puts("execute: \nprepared:#{inspect prepared}\nparams: #{inspect params}\nopts: #{inspect opts}")
+    IO.puts "EXECUTE:::"
+    IO.puts "prepared: #{inspect prepared, structs: false}"
+    IO.puts "params:   #{inspect params, structs: false}"
+    IO.puts "opts:     #{inspect opts, structs: false}"
 
-    raise BadFunctionError, message: "#{inspect __MODULE__}.execute is not implemented."
+    raise ArgumentError, message: "#{inspect __MODULE__}.execute is not implemented."
 
     num = 0
     rows = []
@@ -195,17 +197,14 @@ defmodule Ecto.Adapters.DynamoDB do
 
   def execute(repo, meta, {:nocache, prepared}, params, process, opts) do
     IO.puts "EXECUTE... EXECUTING!============================="
-    IO.puts "REPO::: #{inspect repo}"
-    IO.puts "META::: #{inspect meta}"
-    IO.puts "PREPARED::: #{inspect prepared}"
-    IO.puts "PARAMS::: #{inspect params}"
-    IO.puts "PROCESS::: #{inspect process}"
-    IO.puts "OPTS::: #{inspect opts}"
+    IO.puts "REPO::: #{inspect repo, structs: false}"
+    IO.puts "META::: #{inspect meta, structs: false}"
+    IO.puts "PREPARED::: #{inspect prepared, structs: false}"
+    IO.puts "PARAMS::: #{inspect params, structs: false}"
+    IO.puts "PROCESS::: #{inspect process, structs: false}"
+    IO.puts "OPTS::: #{inspect opts, structs: false}"
 
-    dump_query_struct(prepared)
-
-    raise BadFunctionError, message: "#{inspect __MODULE__}.execute is not implemented."
-
+    raise ArgumentError, message: "#{inspect __MODULE__}.execute is not implemented."
 
     num = 0
     rows = []
@@ -232,34 +231,12 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts("\ton_conflict: #{inspect on_conflict}")
     IO.puts("\treturning: #{inspect returning}")
     IO.puts("\toptions: #{inspect options}")
-    raise BadFunctionError, message: "#{inspect __MODULE__}.insert is not implemented."
+    raise ArgumentError, message: "#{inspect __MODULE__}.insert is not implemented."
   end
 
-  def delete(_,_,_,_), do: raise BadFunctionError, message: "#{inspect __MODULE__}.delete is not implemented."
-  def insert_all(_,_,_,_,_,_,_), do: raise BadFunctionError, message: "#{inspect __MODULE__}.insert_all is not implemented."
-  def update(_,_,_,_,_,_), do: raise BadFunctionError, message: "#{inspect __MODULE__}.update is not implemented."
-
-
-
-  defp dump_query_struct(struct) do
-    IO.puts("DUMPING QUERY STRUCT - ")
-    IO.puts("   struct.prefix: #{inspect  struct.prefix}")
-    IO.puts("   struct.sources: #{inspect  struct.sources}")
-    IO.puts("   struct.from: #{inspect  struct.from}")
-    IO.puts("   struct.joins: #{inspect  struct.joins}")
-    IO.puts("   struct.wheres: #{inspect  struct.wheres}")
-    IO.puts("   struct.select: #{inspect  struct.select}")
-    IO.puts("   struct.order_bys: #{inspect  struct.order_bys}")
-    IO.puts("   struct.limit: #{inspect  struct.limit}")
-    IO.puts("   struct.offset: #{inspect  struct.offset}")
-    IO.puts("   struct.group_bys: #{inspect  struct.group_bys}")
-    IO.puts("   struct.updates: #{inspect  struct.updates}")
-    IO.puts("   struct.havings: #{inspect  struct.havings}")
-    IO.puts("   struct.preloads: #{inspect  struct.preloads}")
-    IO.puts("   struct.assocs: #{inspect  struct.assocs}")
-    IO.puts("   struct.distinct: #{inspect  struct.distinct}")
-    IO.puts("   struct.lock: #{inspect   struct.lock}")
-  end
+  def delete(_,_,_,_), do: raise ArgumentError, message: "#{inspect __MODULE__}.delete is not implemented."
+  def insert_all(_,_,_,_,_,_,_), do: raise ArgumentError, message: "#{inspect __MODULE__}.insert_all is not implemented."
+  def update(_,_,_,_,_,_), do: raise ArgumentError, message: "#{inspect __MODULE__}.update is not implemented."
 
 end
 
