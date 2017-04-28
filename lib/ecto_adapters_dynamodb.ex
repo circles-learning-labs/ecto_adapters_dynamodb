@@ -204,7 +204,17 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "PROCESS::: #{inspect process, structs: false}"
     IO.puts "OPTS::: #{inspect opts, structs: false}"
 
-    raise ArgumentError, message: "#{inspect __MODULE__}.execute is not implemented."
+    #raise ArgumentError, message: "#{inspect __MODULE__}.execute is not implemented."
+    {table, repo} = prepared.from
+    pkey_name = primary_key(repo)
+    lookup_key = extract_lookup_key(prepared, params)
+
+    IO.puts "table = #{inspect table}"
+    IO.puts "pkey_name = #{inspect pkey_name}"
+    IO.puts "lookup_key = #{inspect lookup_key}"
+
+    result = Ecto.Adapters.DynamoDB.Query.get_item(table, %{pkey_name => lookup_key})
+    IO.puts "result = #{inspect result}"
 
     num = 0
     rows = []
@@ -238,6 +248,19 @@ defmodule Ecto.Adapters.DynamoDB do
   def insert_all(_,_,_,_,_,_,_), do: raise ArgumentError, message: "#{inspect __MODULE__}.insert_all is not implemented."
   def update(_,_,_,_,_,_), do: raise ArgumentError, message: "#{inspect __MODULE__}.update is not implemented."
 
+  defp primary_key(repo) do
+    # TODO handle any other data model that might come in here:
+    [pkey] = repo.__schema__(:primary_key)
+    Atom.to_string(pkey)
+  end
+
+  defp extract_lookup_key(query, params) do
+    # TODO handle any other sort of query that might be submitted, instead of blindly matching:
+    [%Ecto.Query.BooleanExpr{expr: expr}] = query.wheres
+    {:==, _, [_left, right]} = expr
+    {:^, _, [idx]} = right
+    Enum.at(params, idx)
+  end
 end
 
 
