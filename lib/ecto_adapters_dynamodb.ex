@@ -249,9 +249,16 @@ defmodule Ecto.Adapters.DynamoDB do
   def update(_,_,_,_,_,_), do: raise ArgumentError, message: "#{inspect __MODULE__}.update is not implemented."
 
   defp primary_key(repo) do
-    # TODO handle any other data model that might come in here:
-    [pkey] = repo.__schema__(:primary_key)
-    Atom.to_string(pkey)
+    case repo.__schema__(:primary_key) do
+      [pkey] ->
+        Atom.to_string(pkey)
+      [] ->
+        msg = "DynamoDB repos must have a primary key, but repo #{repo} has none"
+        raise ArgumentError, message: msg
+      _ ->
+        msg = "DynamoDB repos must have a single primary key, but repo #{repo} has more than one"
+        raise ArgumentError, message: msg
+    end
   end
 
   defp extract_lookup_key(query, params) do
