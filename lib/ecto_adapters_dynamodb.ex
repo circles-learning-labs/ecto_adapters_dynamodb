@@ -25,6 +25,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   end
 
+  alias ExAws.Dynamo
 
   # I don't think this is necessary: Probably under child_spec and ensure_all_started
   def start_link(repo, opts) do
@@ -204,7 +205,6 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "PROCESS::: #{inspect process, structs: false}"
     IO.puts "OPTS::: #{inspect opts, structs: false}"
 
-    #raise ArgumentError, message: "#{inspect __MODULE__}.execute is not implemented."
     {table, repo} = prepared.from
     pkey_name = primary_key(repo)
     lookup_key = extract_lookup_key(prepared, params)
@@ -214,11 +214,11 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "lookup_key = #{inspect lookup_key}"
 
     result = Ecto.Adapters.DynamoDB.Query.get_item(table, %{pkey_name => lookup_key})
+             |> Dynamo.decode_item(as: repo)
     IO.puts "result = #{inspect result}"
 
-    num = 0
-    rows = []
-    {num, rows}
+    # TODO handle queries for other than just one item?
+    {1, [[result]]}
   end
 
 
