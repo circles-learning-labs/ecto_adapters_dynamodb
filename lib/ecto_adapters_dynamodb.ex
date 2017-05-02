@@ -188,7 +188,7 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "params:   #{inspect params, structs: false}"
     IO.puts "opts:     #{inspect opts, structs: false}"
 
-    raise ArgumentError, message: "#{inspect __MODULE__}.execute is not implemented."
+    error "#{inspect __MODULE__}.execute is not implemented."
 
     num = 0
     rows = []
@@ -241,23 +241,21 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts("\ton_conflict: #{inspect on_conflict}")
     IO.puts("\treturning: #{inspect returning}")
     IO.puts("\toptions: #{inspect options}")
-    raise ArgumentError, message: "#{inspect __MODULE__}.insert is not implemented."
+    error "#{inspect __MODULE__}.insert is not implemented."
   end
 
-  def delete(_,_,_,_), do: raise ArgumentError, message: "#{inspect __MODULE__}.delete is not implemented."
-  def insert_all(_,_,_,_,_,_,_), do: raise ArgumentError, message: "#{inspect __MODULE__}.insert_all is not implemented."
-  def update(_,_,_,_,_,_), do: raise ArgumentError, message: "#{inspect __MODULE__}.update is not implemented."
+  def delete(_,_,_,_), do: error "#{inspect __MODULE__}.delete is not implemented."
+  def insert_all(_,_,_,_,_,_,_), do: error "#{inspect __MODULE__}.insert_all is not implemented."
+  def update(_,_,_,_,_,_), do: error "#{inspect __MODULE__}.update is not implemented."
 
   defp primary_key(repo) do
     case repo.__schema__(:primary_key) do
       [pkey] ->
         Atom.to_string(pkey)
       [] ->
-        msg = "DynamoDB repos must have a primary key, but repo #{repo} has none"
-        raise ArgumentError, message: msg
+        error "DynamoDB repos must have a primary key, but repo #{repo} has none"
       _ ->
-        msg = "DynamoDB repos must have a single primary key, but repo #{repo} has more than one"
-        raise ArgumentError, message: msg
+        error "DynamoDB repos must have a single primary key, but repo #{repo} has more than one"
     end
   end
 
@@ -268,7 +266,8 @@ defmodule Ecto.Adapters.DynamoDB do
     {:^, _, [idx]} = right
     Enum.at(params, idx)
   end
+
+  defp error(msg) do
+    raise ArgumentError, message: msg
+  end
 end
-
-
-
