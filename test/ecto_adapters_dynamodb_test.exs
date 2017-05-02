@@ -1,8 +1,18 @@
-defmodule Ecto.Adapters.DynamoDBTest do
+defmodule Ecto.Adapters.DynamoDB.Test do
   use ExUnit.Case
-  doctest Ecto.Adapters.DynamoDB
 
-  test "the truth" do
-    assert 1 + 1 == 2
+  alias Ecto.Adapters.DynamoDB.TestRepo
+  alias Ecto.Adapters.DynamoDB.TestSchema.Person
+
+  setup_all do
+    IO.puts "starting test repo"
+    TestRepo.start_link()
+    :ok
+  end
+
+  test "simple get" do
+    result = TestRepo.get(Person, "person-franko")
+    assert result.first_name == "Franko"
+    assert result.last_name == "Franicevich"
   end
 end
