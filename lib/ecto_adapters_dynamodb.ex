@@ -241,7 +241,23 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts("\ton_conflict: #{inspect on_conflict}")
     IO.puts("\treturning: #{inspect returning}")
     IO.puts("\toptions: #{inspect options}")
-    error "#{inspect __MODULE__}.insert is not implemented."
+
+    {_, table} = schema_meta.source     
+    fields_map = Enum.into(fields, %{}) 
+
+    result = Ecto.Adapters.DynamoDB.Repo.insert(table, fields_map)
+      
+    IO.puts "result = #{inspect result}"
+      
+    case result do                      
+      %{} -> {:ok, fields}            
+  
+      error ->                        
+        raise ExAws.Error, """      
+        ExAws Request Error!        
+        #{inspect error}            
+        """                         
+    end
   end
 
   def delete(_,_,_,_), do: error "#{inspect __MODULE__}.delete is not implemented."
