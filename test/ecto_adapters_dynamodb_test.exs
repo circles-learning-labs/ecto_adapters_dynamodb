@@ -15,4 +15,9 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert result.first_name == "Franko"
     assert result.last_name == "Franicevich"
   end
+
+  test "get not found" do
+    result = TestRepo.get(Person, "person-faketestperson")
+    assert result == nil
+  end
 end
