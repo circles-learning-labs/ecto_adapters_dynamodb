@@ -214,11 +214,15 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "lookup_key = #{inspect lookup_key}"
 
     result = Ecto.Adapters.DynamoDB.Query.get_item(table, %{pkey_name => lookup_key})
-             |> Dynamo.decode_item(as: repo)
     IO.puts "result = #{inspect result}"
 
-    # TODO handle queries for other than just one item?
-    {1, [[result]]}
+    if result == %{} do
+      # Empty map means "not found"
+      {0, []}
+    else
+      # TODO handle queries for more than just one item?
+      {1, [[Dynamo.decode_item(result, as: repo)]]}
+    end
   end
 
 
