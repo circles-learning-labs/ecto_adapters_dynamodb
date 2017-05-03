@@ -247,20 +247,12 @@ defmodule Ecto.Adapters.DynamoDB do
     {_, table} = schema_meta.source     
     fields_map = Enum.into(fields, %{}) 
 
-    result = Ecto.Adapters.DynamoDB.Repo.insert(table, fields_map)
-      
-    IO.puts "result = #{inspect result}"
-      
-    case result do                      
-      %{} -> {:ok, fields}            
-  
-      error ->                        
-        raise ExAws.Error, """      
-        ExAws Request Error!        
-        #{inspect error}            
-        """                         
+    case Ecto.Adapters.DynamoDB.Repo.insert(table, fields_map) do
+        {:ok, _} -> {:ok, fields}       
+        {:error, error} -> raise "Error inserting into DynamoDB. Error: #{inspect error}"
     end
   end
+
 
   def delete(_,_,_,_), do: error "#{inspect __MODULE__}.delete is not implemented."
   def insert_all(_,_,_,_,_,_,_), do: error "#{inspect __MODULE__}.insert_all is not implemented."
