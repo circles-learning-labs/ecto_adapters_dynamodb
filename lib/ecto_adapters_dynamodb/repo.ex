@@ -6,12 +6,20 @@ defmodule Ecto.Adapters.DynamoDB.Repo do
   """
 
   alias ExAws.Dynamo                    
-  
+
 
   def insert(table, fields_map) do
     case Dynamo.put_item(table, fields_map) |> ExAws.request! do
-      %{}   -> {:ok, %{}}               
-      error -> {:error, error}          
+      %{}   -> {:ok, []}
+      error -> {:error, error}         
     end
-  end  
+  end
+ 
+
+  def delete(table, filters) do
+    case Dynamo.delete_item(table, filters) |> ExAws.request! do
+      %{}   -> {:ok, []}
+      error -> {:error, error}
+    end
+  end
 end

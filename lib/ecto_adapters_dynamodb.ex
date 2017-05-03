@@ -254,7 +254,23 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  def delete(_,_,_,_), do: error "#{inspect __MODULE__}.delete is not implemented."
+  # In testing, 'filters' contained only the primary key and value 
+  # TODO: handle cases of more than one tuple in 'filters'?
+  def delete(repo, schema_meta, filters, options) do
+    IO.puts("INSERT::\n\trepo: #{inspect repo}")
+    IO.puts("\tschema_meta: #{inspect schema_meta}")
+    IO.puts("\tfilters: #{inspect filters}")
+    IO.puts("\toptions: #{inspect options}")
+
+    {_, table} = schema_meta.source
+
+    case Ecto.Adapters.DynamoDB.Repo.delete(table, filters) do
+        {:ok, _} -> {:ok, []}
+        {:error, error} -> raise "Error deleting in DynamoDB. Error: #{inspect error}"
+    end
+  end
+
+
   def insert_all(_,_,_,_,_,_,_), do: error "#{inspect __MODULE__}.insert_all is not implemented."
   def update(_,_,_,_,_,_), do: error "#{inspect __MODULE__}.update is not implemented."
 
