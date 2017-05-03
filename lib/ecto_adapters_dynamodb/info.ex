@@ -66,6 +66,17 @@ defmodule Ecto.Adapters.DynamoDB.Info do
     {:primary, normalise_dynamo_index!(indexes[:primary])}
   end
 
+  def repo_primary_key(repo) do
+    case repo.__schema__(:primary_key) do
+      [pkey] ->
+        Atom.to_string(pkey)
+      [] ->
+        error "DynamoDB repos must have a primary key, but repo #{repo} has none"
+      _ ->
+        error "DynamoDB repos must have a single primary key, but repo #{repo} has more than one"
+    end
+  end
+
 
   #@doc "return true if this HASH key/{HASH/SORT} key is the table primary key"
   #def primary_key?(tablename, key) do
@@ -117,5 +128,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
     end
   end
 
-
+  defp error(msg) do
+    raise ArgumentError, message: msg
+  end
 end

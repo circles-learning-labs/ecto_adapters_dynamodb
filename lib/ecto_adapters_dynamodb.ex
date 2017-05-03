@@ -206,14 +206,12 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "OPTS::: #{inspect opts, structs: false}"
 
     {table, repo} = prepared.from
-    pkey_name = primary_key(repo)
-    lookup_key = extract_lookup_key(prepared, params)
+    lookup_keys = extract_lookup_keys(prepared, params)
 
     IO.puts "table = #{inspect table}"
-    IO.puts "pkey_name = #{inspect pkey_name}"
-    IO.puts "lookup_key = #{inspect lookup_key}"
+    IO.puts "lookup_keys = #{inspect lookup_keys}"
 
-    result = Ecto.Adapters.DynamoDB.Query.get_item(table, %{pkey_name => lookup_key})
+    result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_keys)
     IO.puts "result = #{inspect result}"
 
     if result == %{} do
@@ -268,23 +266,30 @@ defmodule Ecto.Adapters.DynamoDB do
   def insert_all(_,_,_,_,_,_,_), do: error "#{inspect __MODULE__}.insert_all is not implemented."
   def update(_,_,_,_,_,_), do: error "#{inspect __MODULE__}.update is not implemented."
 
-  defp primary_key(repo) do
-    case repo.__schema__(:primary_key) do
-      [pkey] ->
-        Atom.to_string(pkey)
-      [] ->
-        error "DynamoDB repos must have a primary key, but repo #{repo} has none"
-      _ ->
-        error "DynamoDB repos must have a single primary key, but repo #{repo} has more than one"
+  defp extract_lookup_keys(query, params) do
+    for w <- query.wheres, into: %{} do
+      get_eq_clause(w, params)
     end
   end
 
-  defp extract_lookup_key(query, params) do
-    # TODO handle any other sort of query that might be submitted, instead of blindly matching:
-    [%Ecto.Query.BooleanExpr{expr: expr}] = query.wheres
-    {:==, _, [_left, right]} = expr
-    {:^, _, [idx]} = right
-    Enum.at(params, idx)
+  defp get_eq_clause(%Ecto.Query.BooleanExpr{expr: expr}, params) do
+    {:==, _, [left, right]} = expr
+    field = left |> get_field |> Atom.to_string
+    value = get_value(right, params)
+    {field, value}
+  end
+  defp get_eq_clause(other, _params) do
+    error "Query expression not supported in DynamoDB adapter: #{other}"
+  end
+
+  defp get_field({{:., _, [{:&, _, [0]}, field]}, _, []}), do: field
+  defp get_field(other_clause) do
+    error "Unsupported where clause, left hand side: #{other_clause}"
+  end
+
+  defp get_value({:^, _, [idx]}, params), do: Enum.at(params, idx)
+  defp get_value(other_clause, _params) do
+    error "Unsupported where clause, right hand side: #{other_clause}"
   end
 
   defp error(msg) do
