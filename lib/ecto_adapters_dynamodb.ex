@@ -257,7 +257,7 @@ defmodule Ecto.Adapters.DynamoDB do
   # In testing, 'filters' contained only the primary key and value 
   # TODO: handle cases of more than one tuple in 'filters'?
   def delete(repo, schema_meta, filters, options) do
-    IO.puts("INSERT::\n\trepo: #{inspect repo}")
+    IO.puts("DELETE::\n\trepo: #{inspect repo}")
     IO.puts("\tschema_meta: #{inspect schema_meta}")
     IO.puts("\tfilters: #{inspect filters}")
     IO.puts("\toptions: #{inspect options}")
@@ -272,7 +272,26 @@ defmodule Ecto.Adapters.DynamoDB do
 
 
   def insert_all(_,_,_,_,_,_,_), do: error "#{inspect __MODULE__}.insert_all is not implemented."
-  def update(_,_,_,_,_,_), do: error "#{inspect __MODULE__}.update is not implemented."
+
+
+  # Again we rely on filters having the correct primary key value.
+  # TODO: any aditional checks missing here?
+  def update(repo, schema_meta, fields, filters, returning, options) do
+    IO.puts("UPDATE::\n\trepo: #{inspect repo}")
+    IO.puts("\tschema_meta: #{inspect schema_meta}")
+    IO.puts("\tfields: #{inspect fields}")
+    IO.puts("\tfilters: #{inspect filters}")
+    IO.puts("\treturning: #{inspect returning}")
+    IO.puts("\toptions: #{inspect options}")
+
+    {_, table} = schema_meta.source
+
+    case Ecto.Adapters.DynamoDB.Repo.update(table, filters, fields) do
+        {:ok, _} -> {:ok, []}
+        {:error, error} -> raise "Error updating item in DynamoDB. Error: #{inspect error}"
+    end
+  end
+
 
   defp extract_lookup_keys(query, params) do
     for w <- query.wheres, into: %{} do

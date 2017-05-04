@@ -22,4 +22,15 @@ defmodule Ecto.Adapters.DynamoDB.Repo do
       error -> {:error, error}
     end
   end
+
+
+  def update(table, filters, fields) do
+    key_val_string = Enum.map(fields, fn {key, _} -> "#{Atom.to_string(key)}=:#{Atom.to_string(key)}" end)
+    update_expression = "SET " <> Enum.join(key_val_string, ", ")
+    
+    case Dynamo.update_item(table, filters, expression_attribute_values: fields, update_expression: update_expression) |> ExAws.request! do
+      %{}   -> {:ok, []}                
+      error -> {:error, error}
+    end
+  end
 end
