@@ -247,9 +247,9 @@ defmodule Ecto.Adapters.DynamoDB do
     {_, table} = schema_meta.source     
     fields_map = Enum.into(fields, %{}) 
 
-    case Ecto.Adapters.DynamoDB.Repo.insert(table, fields_map) do
-        {:ok, _} -> {:ok, fields}       
-        {:error, error} -> raise "Error inserting into DynamoDB. Error: #{inspect error}"
+    case Dynamo.put_item(table, fields_map) |> ExAws.request! do
+      %{}   -> {:ok, []}
+      error -> raise "Error inserting into DynamoDB. Error: #{inspect error}"
     end
   end
 
@@ -264,9 +264,9 @@ defmodule Ecto.Adapters.DynamoDB do
 
     {_, table} = schema_meta.source
 
-    case Ecto.Adapters.DynamoDB.Repo.delete(table, filters) do
-        {:ok, _} -> {:ok, []}
-        {:error, error} -> raise "Error deleting in DynamoDB. Error: #{inspect error}"
+    case Dynamo.delete_item(table, filters) |> ExAws.request! do
+        %{} -> {:ok, []}
+        error -> raise "Error deleting in DynamoDB. Error: #{inspect error}"
     end
   end
 
@@ -285,10 +285,12 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts("\toptions: #{inspect options}")
 
     {_, table} = schema_meta.source
-
-    case Ecto.Adapters.DynamoDB.Repo.update(table, filters, fields) do
-        {:ok, _} -> {:ok, []}
-        {:error, error} -> raise "Error updating item in DynamoDB. Error: #{inspect error}"
+    key_val_string = Enum.map(fields, fn {key, _} -> "#{Atom.to_string(key)}=:#{Atom.to_string(key)}" end)
+    update_expression = "SET " <> Enum.join(key_val_string, ", ")
+ 
+    case Dynamo.update_item(table, filters, expression_attribute_values: fields, update_expression: update_expression) |> ExAws.request! do
+        %{} -> {:ok, []}
+        error -> raise "Error updating item in DynamoDB. Error: #{inspect error}"
     end
   end
 
