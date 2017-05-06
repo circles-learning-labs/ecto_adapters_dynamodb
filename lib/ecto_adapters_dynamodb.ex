@@ -313,7 +313,27 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  def insert_all(_,_,_,_,_,_,_), do: error "#{inspect __MODULE__}.insert_all is not implemented."
+  def insert_all(repo, schema_meta, field_list, fields, on_conflict, returning, options) do
+    IO.puts("INSERT ALL::\n\trepo: #{inspect repo}")
+    IO.puts("\tschema_meta: #{inspect schema_meta}")
+    IO.puts("\tfield_list: #{inspect field_list}")
+    IO.puts("\tfields: #{inspect fields}")
+    IO.puts("\ton_conflict: #{inspect on_conflict}")
+    IO.puts("\treturning: #{inspect returning}")
+    IO.puts("\toptions: #{inspect options}")
+
+    {_, table} = schema_meta.source
+
+    prepared_fields = Enum.map(fields, fn(field) ->
+      prepared_field = Enum.into(field, %{})
+      [put_request: [item: prepared_field]]
+    end)
+
+    case Dynamo.batch_write_item([{table, prepared_fields}]) |> ExAws.request! do
+      %{} -> {:ok, []}
+      error -> raise "Error batch inserting into DynamoDB. Error: #{inspect error}"
+    end
+  end
 
 
   # Again we rely on filters having the correct primary key value.
