@@ -324,9 +324,9 @@ defmodule Ecto.Adapters.DynamoDB do
 
     {_, table} = schema_meta.source
 
-    prepared_fields = Enum.map(fields, fn(field) ->
-      prepared_field = Enum.into(field, %{})
-      [put_request: [item: prepared_field]]
+    prepared_fields = Enum.map(fields, fn(field_set) ->
+      prepared_fields = Enum.into(field_set, %{})
+      [put_request: [item: prepared_fields]]
     end)
 
     case Dynamo.batch_write_item([{table, prepared_fields}]) |> ExAws.request! do
