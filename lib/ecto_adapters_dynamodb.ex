@@ -194,7 +194,7 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "params:   #{inspect params, structs: false}"
     IO.puts "opts:     #{inspect opts, structs: false}"
 
-    {table, _model} = prepared.from
+    {table, model} = prepared.from
 	lookup_keys = extract_lookup_keys(:update_all, prepared)
 	update_params = extract_update_params(prepared.updates, params)
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
@@ -209,7 +209,7 @@ defmodule Ecto.Adapters.DynamoDB do
       _  -> 
 	    results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_keys)
 		IO.puts "results_to_update: #{inspect results_to_update}"
-		update_all(table, key_list, results_to_update, update_params)
+		update_all(table, key_list, results_to_update, update_params, model)
     end
 
     #error "#{inspect __MODULE__}.execute is not implemented."
@@ -249,20 +249,33 @@ defmodule Ecto.Adapters.DynamoDB do
 
 
   # :update_all for only one result
-  defp update_all(table, key_list, %{"Item" => result_to_update}, update_params) do
+  defp update_all(table, key_list, %{"Item" => result_to_update}, update_params, model) do
 	filters = get_key_values_dynamo_map(result_to_update, key_list)
     update_expression = construct_set_statement(update_params)
     attribute_names = construct_expression_attribute_names(update_params)
 
-    case Dynamo.update_item(table, filters, expression_attribute_names: attribute_names, expression_attribute_values: update_params, update_expression: update_expression) |> ExAws.request! do
-      %{} -> {1, []}
+    case Dynamo.update_item(table, filters, expression_attribute_names: attribute_names, expression_attribute_values: update_params, update_expression: update_expression, return_values: :all_new) |> ExAws.request! do
+      %{} = update_query_result -> {1, [Dynamo.decode_item(update_query_result["Attributes"], as: model)]}
       error -> raise "#{inspect __MODULE__}.update_all, single item, error: #{inspect error}"
     end 
   end
 
   # :update_all for multiple results
-  defp update_all(table, key_list, %{"Items" => results_to_update}, update_params) do
-    raise "#{inspect __MODULE__}.update_all, multiple items ... TODO (same as single just reduce it)"
+  defp update_all(table, key_list, %{"Items" => results_to_update}, update_params, model) do
+    Enum.reduce results_to_update, {0, []}, fn(result_to_update, acc) ->
+      filters = get_key_values_dynamo_map(result_to_update, key_list)
+      update_expression = construct_set_statement(update_params)
+      attribute_names = construct_expression_attribute_names(update_params)
+
+      case Dynamo.update_item(table, filters, expression_attribute_names: attribute_names, expression_attribute_values: update_params, update_expression: update_expression, return_values: :all_new) |> ExAws.request! do
+        %{} = update_query_result -> 
+		  {count, result_list} = acc
+		  {count + 1, [Dynamo.decode_item(update_query_result["Attributes"], as: model) | result_list]}
+        error -> 
+		  {count, _} = acc
+		  raise "#{inspect __MODULE__}.update_all, multiple items. Error: #{inspect error} filters: #{inspect filters} update_expression: #{inspect update_expression} attribute_names: #{inspect attribute_names} Count: #{inspect count}" 
+      end
+    end
   end
 
 
@@ -296,23 +309,6 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  # In testing, 'filters' contained only the primary key and value 
-  # TODO: handle cases of more than one tuple in 'filters'?
-  def delete(repo, schema_meta, filters, options) do
-    IO.puts("DELETE::\n\trepo: #{inspect repo}")
-    IO.puts("\tschema_meta: #{inspect schema_meta}")
-    IO.puts("\tfilters: #{inspect filters}")
-    IO.puts("\toptions: #{inspect options}")
-
-    {_, table} = schema_meta.source
-
-    case Dynamo.delete_item(table, filters) |> ExAws.request! do
-        %{} -> {:ok, []}
-        error -> raise "Error deleting in DynamoDB. Error: #{inspect error}"
-    end
-  end
-
-
   def insert_all(repo, schema_meta, field_list, fields, on_conflict, returning, options) do
     IO.puts("INSERT ALL::\n\trepo: #{inspect repo}")
     IO.puts("\tschema_meta: #{inspect schema_meta}")
@@ -334,6 +330,26 @@ defmodule Ecto.Adapters.DynamoDB do
       error -> raise "Error batch inserting into DynamoDB. Error: #{inspect error}"
     end
   end
+
+
+  # In testing, 'filters' contained only the primary key and value 
+  # TODO: handle cases of more than one tuple in 'filters'?
+  def delete(repo, schema_meta, filters, options) do
+    IO.puts("DELETE::\n\trepo: #{inspect repo}")
+    IO.puts("\tschema_meta: #{inspect schema_meta}")
+    IO.puts("\tfilters: #{inspect filters}")
+    IO.puts("\toptions: #{inspect options}")
+
+    {_, table} = schema_meta.source
+
+    case Dynamo.delete_item(table, filters) |> ExAws.request! do
+        %{} -> {:ok, []}
+        error -> raise "Error deleting in DynamoDB. Error: #{inspect error}"
+    end
+  end
+
+
+  def insert_all(_,_,_,_,_,_,_), do: error "#{inspect __MODULE__}.insert_all is not implemented."
 
 
   # Again we rely on filters having the correct primary key value.
@@ -382,7 +398,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
 
   defp construct_expression_attribute_names(fields) do
-    for {f, val} <- fields, into: %{}, do: {"##{Atom.to_string(f)}", Atom.to_string(f)}
+    for {f, _} <- fields, into: %{}, do: {"##{Atom.to_string(f)}", Atom.to_string(f)}
   end
 
   # fields::[{:field, val}]
