@@ -153,7 +153,13 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.inspect(query, structs: false)
     {:nocache, query}
   end
-  #def prepare(:update_all, query),
+  
+  def prepare(:update_all, query) do
+    IO.puts("PREPARE::UPDATE_ALL:::")
+    IO.inspect(query, structs: false)
+    {:nocache, query}
+  end
+  
   # do: {:cache, {System.unique_integer([:positive]), @conn.update_all(query)}}
   #def prepare(:delete_all, query),
   # do: {:cache, {System.unique_integer([:positive]), @conn.delete_all(query)}}
@@ -188,11 +194,29 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "params:   #{inspect params, structs: false}"
     IO.puts "opts:     #{inspect opts, structs: false}"
 
-    error "#{inspect __MODULE__}.execute is not implemented."
+    {table, _model} = prepared.from
+	lookup_keys = extract_lookup_keys(:update_all, prepared)
+	update_params = extract_update_params(prepared.updates, params)
+    key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
 
-    num = 0
-    rows = []
-    {num, rows}
+	IO.puts "table = #{inspect table}"
+    IO.puts "lookup keys: #{inspect lookup_keys}"
+    IO.puts "update_params: #{inspect update_params}"
+    IO.puts "key_list: #{inspect key_list}"
+
+    case prepared.updates do
+      [] -> error "#{inspect __MODULE__}.execute: Updates list empty."
+      _  -> 
+	    results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_keys)
+		IO.puts "results_to_update: #{inspect results_to_update}"
+		update_all(table, key_list, results_to_update, update_params)
+    end
+
+    #error "#{inspect __MODULE__}.execute is not implemented."
+
+    #num = 0
+    #rows = []
+    #{num, rows}
   end
 
 
@@ -206,7 +230,7 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "OPTS::: #{inspect opts, structs: false}"
 
     {table, repo} = prepared.from
-    lookup_keys = extract_lookup_keys(prepared, params)
+    lookup_keys = extract_lookup_keys(:process_not_nil, prepared, params)
 
     IO.puts "table = #{inspect table}"
     IO.puts "lookup_keys = #{inspect lookup_keys}"
@@ -221,6 +245,24 @@ defmodule Ecto.Adapters.DynamoDB do
       # TODO handle queries for more than just one item?
       {1, [[Dynamo.decode_item(result, as: repo)]]}
     end
+  end
+
+
+  # :update_all for only one result
+  defp update_all(table, key_list, %{"Item" => result_to_update}, update_params) do
+	filters = get_key_values_dynamo_map(result_to_update, key_list)
+    update_expression = construct_set_statement(update_params)
+    attribute_names = construct_expression_attribute_names(update_params)
+
+    case Dynamo.update_item(table, filters, expression_attribute_names: attribute_names, expression_attribute_values: update_params, update_expression: update_expression) |> ExAws.request! do
+      %{} -> {1, []}
+      error -> raise "#{inspect __MODULE__}.update_all, single item, error: #{inspect error}"
+    end 
+  end
+
+  # :update_all for multiple results
+  defp update_all(table, key_list, %{"Items" => results_to_update}, update_params) do
+    raise "#{inspect __MODULE__}.update_all, multiple items ... TODO (same as single just reduce it)"
   end
 
 
@@ -285,20 +327,67 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts("\toptions: #{inspect options}")
 
     {_, table} = schema_meta.source
-    key_val_string = Enum.map(fields, fn {key, _} -> "#{Atom.to_string(key)}=:#{Atom.to_string(key)}" end)
-    update_expression = "SET " <> Enum.join(key_val_string, ", ")
+    update_expression = construct_set_statement(fields)
+    attribute_names = construct_expression_attribute_names(fields)
  
-    case Dynamo.update_item(table, filters, expression_attribute_values: fields, update_expression: update_expression) |> ExAws.request! do
+    case Dynamo.update_item(table, filters, expression_attribute_names: attribute_names, expression_attribute_values: fields, update_expression: update_expression) |> ExAws.request! do
         %{} -> {:ok, []}
         error -> raise "Error updating item in DynamoDB. Error: #{inspect error}"
     end
   end
 
+  # Used in update_all
+  def extract_update_params([], _params), do: error "#{inspect __MODULE__}.extract_update_params: Updates list is empty."
+  
+  def extract_update_params([%{expr: key_list}], params) do
+    case List.keyfind(key_list, :set, 0) do
+	  {_, set_list} ->
+	    for s <- set_list, into: [] do
+          {field_atom, {:^, _, [idx]}} = s
+		  {field_atom, Enum.at(params,idx)}
+		end
+      _ -> error "#{inspect __MODULE__}.extract_update_params: Updates query :expr key list does not contain a :set key." 
+	end
+  end
 
-  defp extract_lookup_keys(query, params) do
+  def extract_update_params([a], _params), do: error "#{inspect __MODULE__}.extract_update_params: Updates is either missing the :expr key or does not contain a struct or map: #{inspect a}"
+  def extract_update_params(_, _params), do: error "#{inspect __MODULE__}.extract_update_params: More than one Ecto.Query.QueryExpr is not supported."
+
+
+  # used in :update_all
+  def get_key_values_dynamo_map(dynamo_map, {:primary, keys}) do
+	# We assume that keys will be labled as "S" (String)
+    for k <- keys, into: [], do: {String.to_atom(k), dynamo_map[k]["S"]}
+  end
+
+
+  defp construct_expression_attribute_names(fields) do
+    for {f, val} <- fields, into: %{}, do: {"##{Atom.to_string(f)}", Atom.to_string(f)}
+  end
+
+  # fields::[{:field, val}]
+  defp construct_set_statement(fields) do
+    key_val_string = Enum.map(fields, fn {key, _} -> "##{Atom.to_string(key)}=:#{Atom.to_string(key)}" end)
+    "SET " <> Enum.join(key_val_string, ", ")
+  end
+
+
+  defp extract_lookup_keys(:update_all, query) do
+    for w <- query.wheres, into: %{} do
+      get_eq_clause(:update_all, w)
+    end
+  end
+
+  defp extract_lookup_keys(:process_not_nil, query, params) do
     for w <- query.wheres, into: %{} do
       get_eq_clause(w, params)
     end
+  end
+
+
+  defp get_eq_clause(:update_all, %Ecto.Query.BooleanExpr{expr: expr}) do
+    {:==, _, [{{:., _, [{:&, _, [_idx]}, field_atom]}, _, _}, val]} = expr
+	{Atom.to_string(field_atom), val}
   end
 
   defp get_eq_clause(%Ecto.Query.BooleanExpr{expr: expr}, params) do

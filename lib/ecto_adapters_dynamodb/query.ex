@@ -43,14 +43,17 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     criteria ++ case index_fields do
       [hash, range] ->
         [
-          expression_attribute_values: [hash_key: search[hash], range_key: search[range]],
-          key_condition_expression: "#{hash} = :hash_key AND #{range} = :range_key"
+		  # We need ExpressionAttributeNames when field-names are reserved, for example "name" or "role"
+		  expression_attribute_names: %{"##{hash}" => hash, "##{range}" => range},
+          expression_attribute_values: [hash_key: search[hash], range: search[range]],
+          key_condition_expression: "##{hash} = :hash_key AND ##{range} = :range_key"
         ]
 
       [hash] ->
         [
+		  expression_attribute_names: %{"##{hash}" => hash},
           expression_attribute_values: [hash_key: search[hash]],
-          key_condition_expression: "#{hash} = :hash_key"
+          key_condition_expression: "##{hash} = :hash_key"
         ]
       
     end
