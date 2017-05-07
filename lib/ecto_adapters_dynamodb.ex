@@ -349,9 +349,6 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  def insert_all(_,_,_,_,_,_,_), do: error "#{inspect __MODULE__}.insert_all is not implemented."
-
-
   # Again we rely on filters having the correct primary key value.
   # TODO: any aditional checks missing here?
   def update(repo, schema_meta, fields, filters, returning, options) do
