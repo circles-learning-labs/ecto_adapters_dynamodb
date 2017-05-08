@@ -195,11 +195,11 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "opts:     #{inspect opts, structs: false}"
 
     {table, model} = prepared.from
-	lookup_keys = extract_lookup_keys(:update_all, prepared)
-	update_params = extract_update_params(prepared.updates, params)
+    lookup_keys = extract_lookup_keys(:update_all, prepared)
+    update_params = extract_update_params(prepared.updates, params)
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
 
-	IO.puts "table = #{inspect table}"
+    IO.puts "table = #{inspect table}"
     IO.puts "lookup keys: #{inspect lookup_keys}"
     IO.puts "update_params: #{inspect update_params}"
     IO.puts "key_list: #{inspect key_list}"
@@ -207,9 +207,9 @@ defmodule Ecto.Adapters.DynamoDB do
     case prepared.updates do
       [] -> error "#{inspect __MODULE__}.execute: Updates list empty."
       _  -> 
-	    results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_keys)
-		IO.puts "results_to_update: #{inspect results_to_update}"
-		update_all(table, key_list, results_to_update, update_params, model)
+        results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_keys)
+        IO.puts "results_to_update: #{inspect results_to_update}"
+        update_all(table, key_list, results_to_update, update_params, model)
     end
 
     #error "#{inspect __MODULE__}.execute is not implemented."
@@ -250,7 +250,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # :update_all for only one result
   defp update_all(table, key_list, %{"Item" => result_to_update}, update_params, model) do
-	filters = get_key_values_dynamo_map(result_to_update, key_list)
+    filters = get_key_values_dynamo_map(result_to_update, key_list)
     update_expression = construct_set_statement(update_params)
     attribute_names = construct_expression_attribute_names(update_params)
 
@@ -269,11 +269,11 @@ defmodule Ecto.Adapters.DynamoDB do
 
       case Dynamo.update_item(table, filters, expression_attribute_names: attribute_names, expression_attribute_values: update_params, update_expression: update_expression, return_values: :all_new) |> ExAws.request! do
         %{} = update_query_result -> 
-		  {count, result_list} = acc
-		  {count + 1, [Dynamo.decode_item(update_query_result["Attributes"], as: model) | result_list]}
+          {count, result_list} = acc
+          {count + 1, [Dynamo.decode_item(update_query_result["Attributes"], as: model) | result_list]}
         error -> 
-		  {count, _} = acc
-		  raise "#{inspect __MODULE__}.update_all, multiple items. Error: #{inspect error} filters: #{inspect filters} update_expression: #{inspect update_expression} attribute_names: #{inspect attribute_names} Count: #{inspect count}" 
+          {count, _} = acc
+          raise "#{inspect __MODULE__}.update_all, multiple items. Error: #{inspect error} filters: #{inspect filters} update_expression: #{inspect update_expression} attribute_names: #{inspect attribute_names} Count: #{inspect count}" 
       end
     end
   end
@@ -343,8 +343,8 @@ defmodule Ecto.Adapters.DynamoDB do
     {_, table} = schema_meta.source
 
     case Dynamo.delete_item(table, filters) |> ExAws.request! do
-        %{} -> {:ok, []}
-        error -> raise "Error deleting in DynamoDB. Error: #{inspect error}"
+      %{} -> {:ok, []}
+      error -> raise "Error deleting in DynamoDB. Error: #{inspect error}"
     end
   end
 
@@ -364,8 +364,8 @@ defmodule Ecto.Adapters.DynamoDB do
     attribute_names = construct_expression_attribute_names(fields)
  
     case Dynamo.update_item(table, filters, expression_attribute_names: attribute_names, expression_attribute_values: fields, update_expression: update_expression) |> ExAws.request! do
-        %{} -> {:ok, []}
-        error -> raise "Error updating item in DynamoDB. Error: #{inspect error}"
+      %{} -> {:ok, []}
+      error -> raise "Error updating item in DynamoDB. Error: #{inspect error}"
     end
   end
 
@@ -374,13 +374,13 @@ defmodule Ecto.Adapters.DynamoDB do
   
   def extract_update_params([%{expr: key_list}], params) do
     case List.keyfind(key_list, :set, 0) do
-	  {_, set_list} ->
-	    for s <- set_list, into: [] do
+      {_, set_list} ->
+        for s <- set_list, into: [] do
           {field_atom, {:^, _, [idx]}} = s
-		  {field_atom, Enum.at(params,idx)}
-		end
+          {field_atom, Enum.at(params,idx)}
+        end
       _ -> error "#{inspect __MODULE__}.extract_update_params: Updates query :expr key list does not contain a :set key." 
-	end
+    end
   end
 
   def extract_update_params([a], _params), do: error "#{inspect __MODULE__}.extract_update_params: Updates is either missing the :expr key or does not contain a struct or map: #{inspect a}"
@@ -389,7 +389,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # used in :update_all
   def get_key_values_dynamo_map(dynamo_map, {:primary, keys}) do
-	# We assume that keys will be labled as "S" (String)
+    # We assume that keys will be labled as "S" (String)
     for k <- keys, into: [], do: {String.to_atom(k), dynamo_map[k]["S"]}
   end
 
@@ -420,7 +420,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   defp get_eq_clause(:update_all, %Ecto.Query.BooleanExpr{expr: expr}) do
     {:==, _, [{{:., _, [{:&, _, [_idx]}, field_atom]}, _, _}, val]} = expr
-	{Atom.to_string(field_atom), val}
+    {Atom.to_string(field_atom), val}
   end
 
   defp get_eq_clause(%Ecto.Query.BooleanExpr{expr: expr}, params) do
