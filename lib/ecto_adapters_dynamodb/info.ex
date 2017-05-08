@@ -30,9 +30,8 @@ defmodule Ecto.Adapters.DynamoDB.Info do
     "TableStatus" => "ACTIVE"}}  
   """
   def table_info(tablename) do
-    # Fetch the raw schema definition from DynamoDB - We should cache this...
-    %{"Table" => schema} = ExAws.Dynamo.describe_table(tablename) |> ExAws.request!
-    schema
+    # Fetch the raw schema definition from DynamoDB - We should cache this...now cached :)
+    TableInfoCacheServer.Server.describe_table(tablename)
   end
 
 
