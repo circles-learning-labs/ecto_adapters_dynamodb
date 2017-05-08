@@ -242,8 +242,13 @@ defmodule Ecto.Adapters.DynamoDB do
       # Empty map means "not found"
       {0, []}
     else
-      # TODO handle queries for more than just one item?
-      {1, [[Dynamo.decode_item(result, as: repo)]]}
+      # TODO handle queries for more than just one item? -> Yup, like Repo.get_by, which could call a secondary index.
+      case result["Count"] do
+        nil   -> {1, [[Dynamo.decode_item(result, as: repo)]]}
+        # Repo.get_by only returns the head of the result list, although we could perhaps
+        # support multiple wheres to filter the result list further?
+        count -> {count, [[Dynamo.decode_item(hd(result["Items"]), as: repo)]]}
+      end
     end
   end
 
