@@ -12,7 +12,7 @@ defmodule Ecto.Adapters.DynamoDB.Application do
     children = [
       # Starts a worker by calling: Ecto.Adapters.DynamoDB.Worker.start_link(arg1, arg2, arg3)
       # worker(Ecto.Adapters.DynamoDB.Worker, [arg1, arg2, arg3]),
-      supervisor(TableInfoCacheServer.Supervisor, [Map.new])
+      worker(Ecto.Adapters.DynamoDB.TableInfoCacheAgent, [Map.new])
     ]
 
     # See http://elixir-lang.org/docs/stable/elixir/Supervisor.html
