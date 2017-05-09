@@ -340,7 +340,7 @@ defmodule Ecto.Adapters.DynamoDB do
     end)
 
     case Dynamo.batch_write_item([{table, prepared_fields}], options) |> ExAws.request! do
-      %{} -> {:ok, []}
+      %{"UnprocessedItems" => %{}} -> {:ok, []}
       error -> raise "Error batch inserting into DynamoDB. Error: #{inspect error}"
     end
   end

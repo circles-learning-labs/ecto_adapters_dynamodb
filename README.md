@@ -1,6 +1,8 @@
 # Ecto.Adapters.DynamoDB
 
-**TODO: Add description**
+DynamoDB Adapter for Ecto ORM.
+
+Before pushing commits, run `$ mix test` and confirm that processes are error-free.
 
 ## Installation
 

@@ -6,6 +6,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
   schema "person" do
     field :first_name, :string
     field :last_name,  :string
+    field :age,        :integer
     field :email,      :string
     field :password,   :string
     field :circles,    {:array, :string}
