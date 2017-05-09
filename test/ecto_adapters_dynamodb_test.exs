@@ -60,8 +60,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert result.last_name == "Tested"
   end
 
-
-
   test "get not found" do
     result = TestRepo.get(Person, "person-faketestperson")
     assert result == nil
