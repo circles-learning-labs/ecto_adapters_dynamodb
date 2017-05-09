@@ -8,7 +8,6 @@ defmodule Ecto.Adapters.DynamoDB.TableInfoCacheAgent do
   def get_cache,
   do: Agent.get(__MODULE__, &(&1))
 
-
   defp do_describe_table(cache, table_name) do
     case cache[table_name] do
       nil ->

@@ -143,9 +143,7 @@ defmodule Ecto.Adapters.DynamoDB do
   def dumpers(_primative, type), do: [type]
 
   defp to_iso_string(datetime) do
-    {{year, month, day}, {hour, min, sec, usec}} = datetime
-    parsed = %Ecto.DateTime{year: year, month: month, day: day, hour: hour, min: min, sec: sec, usec: usec}
-    {:ok, Ecto.DateTime.to_iso8601 parsed}
+    {:ok, datetime |> Ecto.DateTime.load |> elem(1) |> Ecto.DateTime.to_iso8601}
   end
 
 
