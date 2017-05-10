@@ -15,7 +15,6 @@ defmodule Ecto.Adapters.DynamoDB do
   """
 
 
-
   @behaviour Ecto.Adapter
   #@behaviour Ecto.Adapter.Storage
   #@behaviour Ecto.Adapter.Migration
@@ -254,7 +253,13 @@ defmodule Ecto.Adapters.DynamoDB do
         nil   -> {1, [[Dynamo.decode_item(result, as: repo)]]}
         # Repo.get_by only returns the head of the result list, although we could perhaps
         # support multiple wheres to filter the result list further?
-        count -> {count, [[Dynamo.decode_item(hd(result["Items"]), as: repo)]]}
+        count ->
+            decoded = Enum.map(result["Items"], fn(item) -> 
+              [Dynamo.decode_item(%{"Item" => item}, as: repo)]
+            end)
+          {count, decoded}
+
+        # count -> {count, [[Dynamo.decode_item(hd(result["Items"]), as: repo)]]}
       end
     end
   end
@@ -451,9 +456,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp get_value({:^, _, [idx]}, params), do: Enum.at(params, idx)
-  defp get_value(other_clause, _params) do
-    error "Unsupported where clause, right hand side: #{other_clause}"
-  end
+  defp get_value(other_clause, _params), do: other_clause
 
   defp error(msg) do
     raise ArgumentError, message: msg
