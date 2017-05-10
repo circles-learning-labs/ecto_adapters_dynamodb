@@ -1,6 +1,8 @@
 defmodule Ecto.Adapters.DynamoDB.Test do
   use ExUnit.Case
 
+  import Ecto.Query
+
   alias Ecto.Adapters.DynamoDB.TestRepo
   alias Ecto.Adapters.DynamoDB.TestSchema.Person
 
@@ -58,6 +60,18 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     result = TestRepo.get(Person, "person-update")
     assert result.first_name == "Updated"
     assert result.last_name == "Tested"
+  end
+
+  test "insert_all and query all: single condition, global secondary index" do
+    TestRepo.insert_all(Person, [%{id: "person-tomtest", circles: nil, first_name: "Tom", last_name: "Jones", age: 70, email: "jones@test.com", password: "password"}, %{id: "person-caseytest", circles: nil, first_name: "Casey", last_name: "Jones", age: 114, email: "jones@test.com", password: "password"}, %{id: "person-jamestest", circles: nil, first_name: "James", last_name: "Jones", age: 71, email: "jones@test.com", password: "password"}])
+    result = TestRepo.all(from p in Person, where: p.email == "jones@test.com")
+    assert length(result) == 3
+  end
+
+  test "query all: multi condition, primary key/global secondary index" do
+    result = TestRepo.all(from p in Person, where: p.id == "person-franko", where: p.email == "franko@circl.es")
+    assert Enum.at(result, 0).first_name == "Franko"
+    assert Enum.at(result, 0).last_name == "Franicevich"
   end
 
   test "get not found" do
