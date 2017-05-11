@@ -254,9 +254,10 @@ defmodule Ecto.Adapters.DynamoDB do
         # Repo.get_by only returns the head of the result list, although we could perhaps
         # support multiple wheres to filter the result list further?
         count ->
-            decoded = Enum.map(result["Items"], fn(item) -> 
-              [Dynamo.decode_item(%{"Item" => item}, as: repo)]
-            end)
+          # HANDLE .all(query) QUERIES
+          decoded = Enum.map(result["Items"], fn(item) -> 
+            [Dynamo.decode_item(%{"Item" => item}, as: repo)]
+          end)
           {count, decoded}
 
         # count -> {count, [[Dynamo.decode_item(hd(result["Items"]), as: repo)]]}
@@ -464,6 +465,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp get_value({:^, _, [idx]}, params), do: Enum.at(params, idx)
+  # HANDLE .all(query) QUERIES
   defp get_value(other_clause, _params), do: other_clause
 
   defp error(msg) do
