@@ -272,7 +272,12 @@ defmodule Ecto.Adapters.DynamoDB do
     update_expression = construct_set_statement(update_params)
     attribute_names = construct_expression_attribute_names(update_params)
 
-    case Dynamo.update_item(table, filters, expression_attribute_names: attribute_names, expression_attribute_values: update_params, update_expression: update_expression, return_values: :all_new) |> ExAws.request! do
+    result = Dynamo.update_item(table, filters,
+                                expression_attribute_names: attribute_names,
+                                expression_attribute_values: update_params,
+                                update_expression: update_expression, return_values: :all_new) |> ExAws.request!
+
+    case result do 
       %{} = update_query_result -> {1, [Dynamo.decode_item(update_query_result["Attributes"], as: model)]}
       error -> raise "#{inspect __MODULE__}.update_all, single item, error: #{inspect error}"
     end 
@@ -389,7 +394,12 @@ defmodule Ecto.Adapters.DynamoDB do
     update_expression = construct_set_statement(fields)
     attribute_names = construct_expression_attribute_names(fields)
  
-    case Dynamo.update_item(table, filters, expression_attribute_names: attribute_names, expression_attribute_values: fields, update_expression: update_expression) |> ExAws.request! do
+    result = Dynamo.update_item(table, filters,
+                                expression_attribute_names: attribute_names,
+                                expression_attribute_values: fields,
+                                update_expression: update_expression) |> ExAws.request!
+
+    case result do
       %{} -> {:ok, []}
       error -> raise "Error updating item in DynamoDB. Error: #{inspect error}"
     end
@@ -401,7 +411,7 @@ defmodule Ecto.Adapters.DynamoDB do
   def extract_update_params([%{expr: key_list}], params) do
     case List.keyfind(key_list, :set, 0) do
       {_, set_list} ->
-        for s <- set_list, into: [] do
+        for s <- set_list do
           {field_atom, {:^, _, [idx]}} = s
           {field_atom, Enum.at(params,idx)}
         end
@@ -410,13 +420,13 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   def extract_update_params([a], _params), do: error "#{inspect __MODULE__}.extract_update_params: Updates is either missing the :expr key or does not contain a struct or map: #{inspect a}"
-  def extract_update_params(_, _params), do: error "#{inspect __MODULE__}.extract_update_params: More than one Ecto.Query.QueryExpr is not supported."
+  def extract_update_params(unsupported, _params), do: error "#{inspect __MODULE__}.extract_update_params: unsupported parameter construction. #{inspect unsupported}"
 
 
   # used in :update_all
   def get_key_values_dynamo_map(dynamo_map, {:primary, keys}) do
     # We assume that keys will be labled as "S" (String)
-    for k <- keys, into: [], do: {String.to_atom(k), dynamo_map[k]["S"]}
+    for k <- keys, do: {String.to_atom(k), dynamo_map[k]["S"]}
   end
 
 
