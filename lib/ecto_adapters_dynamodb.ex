@@ -201,7 +201,7 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "opts:     #{inspect opts, structs: false}"
 
     {table, model} = prepared.from
-    lookup_keys = extract_lookup_keys(:update_all, prepared)
+    lookup_keys = extract_lookup_keys(prepared, params)
     update_params = extract_update_params(prepared.updates, params)
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
 
@@ -236,7 +236,7 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "OPTS::: #{inspect opts, structs: false}"
 
     {table, repo} = prepared.from
-    lookup_keys = extract_lookup_keys(:process_not_nil, prepared, params)
+    lookup_keys = extract_lookup_keys(prepared, params)
 
     IO.puts "table = #{inspect table}"
     IO.puts "lookup_keys = #{inspect lookup_keys}"
@@ -441,22 +441,10 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  defp extract_lookup_keys(:update_all, query) do
-    for w <- query.wheres, into: %{} do
-      get_eq_clause(:update_all, w)
-    end
-  end
-
-  defp extract_lookup_keys(:process_not_nil, query, params) do
+  defp extract_lookup_keys(query, params) do
     for w <- query.wheres, into: %{} do
       get_eq_clause(w, params)
     end
-  end
-
-
-  defp get_eq_clause(:update_all, %Ecto.Query.BooleanExpr{expr: expr}) do
-    {:==, _, [{{:., _, [{:&, _, [_idx]}, field_atom]}, _, _}, val]} = expr
-    {Atom.to_string(field_atom), val}
   end
 
   defp get_eq_clause(%Ecto.Query.BooleanExpr{expr: expr}, params) do
@@ -465,6 +453,7 @@ defmodule Ecto.Adapters.DynamoDB do
     value = get_value(right, params)
     {field, value}
   end
+
   defp get_eq_clause(other, _params) do
     error "Query expression not supported in DynamoDB adapter: #{other}"
   end
