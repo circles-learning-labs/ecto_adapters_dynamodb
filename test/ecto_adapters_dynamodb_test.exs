@@ -89,6 +89,13 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert Enum.at(result, 0).last_name == "Franicevich"
   end
 
+  test "query all, filter out via is_nil" do
+    TestRepo.insert %Person{id: "person-frednil", first_name: "Fred", last_name: nil, email: "fred@frederson.fr"}
+    TestRepo.insert %Person{id: "person-frednotnil", first_name: "Fred", last_name: "Frederson", email: "fred@frederson.fr"}
+    result = TestRepo.all(from p in Person, where: p.email == "fred@frederson.fr", where: is_nil(p.last_name))
+    assert result == [%Person{id: "person-frednil"}]
+  end
+
   test "get not found" do
     result = TestRepo.get(Person, "person-faketestperson")
     assert result == nil
