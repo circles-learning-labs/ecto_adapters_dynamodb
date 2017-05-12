@@ -25,6 +25,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   alias ExAws.Dynamo
+  alias Ecto.Query.BooleanExpr
 
   # I don't think this is necessary: Probably under child_spec and ensure_all_started
   def start_link(repo, opts) do
@@ -201,6 +202,7 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "opts:     #{inspect opts, structs: false}"
 
     {table, model} = prepared.from
+    validate_where_clauses!(prepared)
     lookup_keys = extract_lookup_keys(prepared, params)
     update_params = extract_update_params(prepared.updates, params)
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
@@ -236,7 +238,9 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "OPTS::: #{inspect opts, structs: false}"
 
     {table, repo} = prepared.from
+    validate_where_clauses!(prepared)
     lookup_keys = extract_lookup_keys(prepared, params)
+    _is_nil_clauses = extract_is_nil_clauses(prepared)
 
     IO.puts "table = #{inspect table}"
     IO.puts "lookup_keys = #{inspect lookup_keys}"
@@ -440,22 +444,32 @@ defmodule Ecto.Adapters.DynamoDB do
     "SET " <> Enum.join(key_val_string, ", ")
   end
 
+  defp validate_where_clauses!(query) do
+    for w <- query.wheres do
+      validate_where_clause! w
+    end
+  end
+  defp validate_where_clause!(%BooleanExpr{expr: {:==, _, _}}) do
+    :ok
+  end
+  defp validate_where_clause!(unsupported) do
+    error "unsupported where clause: #{inspect unsupported}"
+  end
 
   defp extract_lookup_keys(query, params) do
-    for w <- query.wheres, into: %{} do
-      get_eq_clause(w, params)
+    for %BooleanExpr{expr: {:==, _, [left, right]}} <- query.wheres, into: %{} do
+      get_eq_clause(left, right, params)
     end
   end
 
-  defp get_eq_clause(%Ecto.Query.BooleanExpr{expr: expr}, params) do
-    {:==, _, [left, right]} = expr
+  defp extract_is_nil_clauses(_query) do
+    :todo
+  end
+
+  defp get_eq_clause(left, right, params) do
     field = left |> get_field |> Atom.to_string
     value = get_value(right, params)
     {field, value}
-  end
-
-  defp get_eq_clause(other, _params) do
-    error "Query expression not supported in DynamoDB adapter: #{other}"
   end
 
   defp get_field({{:., _, [{:&, _, [0]}, field]}, _, []}), do: field
