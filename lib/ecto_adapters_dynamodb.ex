@@ -449,12 +449,9 @@ defmodule Ecto.Adapters.DynamoDB do
       validate_where_clause! w
     end
   end
-  defp validate_where_clause!(%BooleanExpr{expr: {:==, _, _}}) do
-    :ok
-  end
-  defp validate_where_clause!(unsupported) do
-    error "unsupported where clause: #{inspect unsupported}"
-  end
+  defp validate_where_clause!(%BooleanExpr{expr: {:==, _, _}}), do: :ok
+  defp validate_where_clause!(%BooleanExpr{expr: {:is_nil, _, _}}), do: :ok
+  defp validate_where_clause!(unsupported), do: error "unsupported where clause: #{inspect unsupported}"
 
   defp extract_lookup_keys(query, params) do
     for %BooleanExpr{expr: {:==, _, [left, right]}} <- query.wheres, into: %{} do
