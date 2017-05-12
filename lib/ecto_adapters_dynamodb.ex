@@ -240,7 +240,7 @@ defmodule Ecto.Adapters.DynamoDB do
     {table, repo} = prepared.from
     validate_where_clauses!(prepared)
     lookup_keys = extract_lookup_keys(prepared, params)
-    _is_nil_clauses = extract_is_nil_clauses(prepared)
+    is_nil_clauses = extract_is_nil_clauses(prepared)
 
     IO.puts "table = #{inspect table}"
     IO.puts "lookup_keys = #{inspect lookup_keys}"
@@ -259,10 +259,12 @@ defmodule Ecto.Adapters.DynamoDB do
         # support multiple wheres to filter the result list further?
         count ->
           # HANDLE .all(query) QUERIES
+
           decoded = Enum.map(result["Items"], fn(item) -> 
             [Dynamo.decode_item(%{"Item" => item}, as: repo)]
           end)
-          {count, decoded}
+          filtered_decoded = handle_is_nil_clauses(decoded, is_nil_clauses)
+          {length(filtered_decoded), filtered_decoded}
 
         # count -> {count, [[Dynamo.decode_item(hd(result["Items"]), as: repo)]]}
       end
@@ -459,8 +461,23 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  defp extract_is_nil_clauses(_query) do
-    :todo
+  defp extract_is_nil_clauses(query) do
+    for %BooleanExpr{expr: {:is_nil, _, [arg]}} <- query.wheres do
+      {{:., _, [_, field_name]}, _, _} = arg
+      field_name
+    end
+  end
+
+  defp handle_is_nil_clauses(results, is_nil_clauses) do
+    IO.puts "results = #{inspect results}"
+    IO.puts "is_nil_clauses = #{inspect is_nil_clauses}"
+    for [r] <- results, Enum.all?(is_nil_clauses, &(matches_is_nil(r, &1))), do: [r]
+  end
+
+  defp matches_is_nil(result, is_nil_clause) do
+    IO.puts "testing if is nil matches: #{inspect result} #{inspect is_nil_clause}"
+    result_fields = Map.from_struct(result)
+    result_fields[is_nil_clause] == nil
   end
 
   defp get_eq_clause(left, right, params) do

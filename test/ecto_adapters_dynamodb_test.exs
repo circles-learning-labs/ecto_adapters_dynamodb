@@ -90,10 +90,17 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   end
 
   test "query all, filter out via is_nil" do
-    TestRepo.insert %Person{id: "person-frednil", first_name: "Fred", last_name: nil, email: "fred@frederson.fr"}
-    TestRepo.insert %Person{id: "person-frednotnil", first_name: "Fred", last_name: "Frederson", email: "fred@frederson.fr"}
-    result = TestRepo.all(from p in Person, where: p.email == "fred@frederson.fr", where: is_nil(p.last_name))
-    assert result == [%Person{id: "person-frednil"}]
+    person_lastname_nil = %Person{id: "person-frednil", first_name: "Fred",
+                                  last_name: nil, email: "fred@frederson.fr"}
+    person_lastname_notnil = %Person{id: "person-frednotnil", first_name: "Fred",
+                                     last_name: "Frederson", email: "fred@frederson.fr"}
+
+    TestRepo.insert person_lastname_nil
+    TestRepo.insert person_lastname_notnil
+
+    result = TestRepo.all(from p in Person,
+                          where: p.email == "fred@frederson.fr", where: is_nil(p.last_name))
+    assert result == [person_lastname_nil]
   end
 
   test "get not found" do
