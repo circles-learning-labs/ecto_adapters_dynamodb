@@ -106,7 +106,7 @@ defmodule Ecto.Adapters.DynamoDB do
     def loaders(_primitive, type), do: [type]
 
   """
-  def loaders(_primative, type), do: [type]
+  def loaders(_primitive, type), do: [type]
 
 
 
@@ -136,16 +136,16 @@ defmodule Ecto.Adapters.DynamoDB do
     def dumpers(_primitive, type), do: [type]
 
   """
-  def dumpers(:utc_datetime, datetime) do
-    [datetime, &to_iso_string/1]
-  end
-
-  def dumpers(_primative, type), do: [type]
+  def dumpers(:utc_datetime, datetime), do: [datetime, &to_iso_string/1]
+  def dumpers(:naive_datetime, datetime), do: [datetime, &to_iso_string/1]
+  def dumpers(:map, map), do: [map, &to_json_string/1]
+  def dumpers(_primitive, type), do: [type]
 
   defp to_iso_string(datetime) do
     {:ok, datetime |> Ecto.DateTime.load |> elem(1) |> Ecto.DateTime.to_iso8601}
   end
 
+  defp to_json_string(map), do: {:ok, map |> Poison.encode!}
 
   @doc """
   Commands invoked to prepare a query for `all`, `update_all` and `delete_all`.
@@ -254,19 +254,18 @@ defmodule Ecto.Adapters.DynamoDB do
     else
       # TODO handle queries for more than just one item? -> Yup, like Repo.get_by, which could call a secondary index.
       case result["Count"] do
-        nil   -> {1, [[Dynamo.decode_item(result, as: repo)]]}
+        nil   -> decoded = result |> Dynamo.decode_item(as: repo) |> custom_decode(repo)
+                 {1, [[decoded]]}
         # Repo.get_by only returns the head of the result list, although we could perhaps
         # support multiple wheres to filter the result list further?
-        count ->
+        _ ->
           # HANDLE .all(query) QUERIES
 
           decoded = Enum.map(result["Items"], fn(item) -> 
-            [Dynamo.decode_item(%{"Item" => item}, as: repo)]
+            [Dynamo.decode_item(%{"Item" => item}, as: repo) |> custom_decode(repo)]
           end)
           filtered_decoded = handle_is_nil_clauses(decoded, is_nil_clauses)
           {length(filtered_decoded), filtered_decoded}
-
-        # count -> {count, [[Dynamo.decode_item(hd(result["Items"]), as: repo)]]}
       end
     end
   end
@@ -497,5 +496,22 @@ defmodule Ecto.Adapters.DynamoDB do
 
   defp error(msg) do
     raise ArgumentError, message: msg
+  end
+
+  # Decodes maps and datetime, seemingly unhandled by ExAws Dynamo decoder
+  # (timestamps() corresponds with :naive_datetime)
+  defp custom_decode(item, model) do    
+    IO.puts "Decoding maps and datetime: #{inspect item}"
+    Enum.reduce(model.__schema__(:fields), item, fn (field, acc) ->
+        field_is_nil = is_nil Map.get(item, field)
+  
+        case model.__schema__(:type, field) do   
+          field when field_is_nil -> acc
+          :map            -> Map.update!(acc, field, &Poison.decode!/1)
+          :utc_datetime   -> Map.update!(acc, field, &Ecto.DateTime.cast!/1)
+          :naive_datetime -> Map.update!(acc, field, &NaiveDateTime.from_iso8601!/1)
+          _               -> acc        
+        end                             
+      end)                              
   end
 end
