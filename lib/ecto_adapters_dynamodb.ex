@@ -506,7 +506,7 @@ defmodule Ecto.Adapters.DynamoDB do
         field_is_nil = is_nil Map.get(item, field)
   
         case model.__schema__(:type, field) do   
-          field when field_is_nil -> acc
+          _ when field_is_nil -> acc
           :map            -> Map.update!(acc, field, &Poison.decode!/1)
           :utc_datetime   -> Map.update!(acc, field, &Ecto.DateTime.cast!/1)
           :naive_datetime -> Map.update!(acc, field, &NaiveDateTime.from_iso8601!/1)

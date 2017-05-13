@@ -5,7 +5,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   """
 
-	import Ecto.Adapters.DynamoDB.Info
+  import Ecto.Adapters.DynamoDB.Info
 
 
   # examples:
@@ -13,7 +13,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   # 
 
   def get_item(table, search) do
-	
+
     results = case get_best_index!(table, search) do
       # primary key based lookup  uses the efficient 'get_item' operation
       {:primary, _} = index->
@@ -43,17 +43,19 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     criteria ++ case index_fields do
       [hash, range] ->
         [
-		  # We need ExpressionAttributeNames when field-names are reserved, for example "name" or "role"
-		  expression_attribute_names: %{"##{hash}" => hash, "##{range}" => range},
+          # We need ExpressionAttributeNames when field-names are reserved, for example "name" or "role"
+          expression_attribute_names: %{"##{hash}" => hash, "##{range}" => range},
           expression_attribute_values: [hash_key: search[hash], range: search[range]],
-          key_condition_expression: "##{hash} = :hash_key AND ##{range} = :range_key"
+          key_condition_expression: "##{hash} = :hash_key AND ##{range} = :range_key",
+          select: :all_attributes
         ]
 
       [hash] ->
         [
-		  expression_attribute_names: %{"##{hash}" => hash},
+          expression_attribute_names: %{"##{hash}" => hash},
           expression_attribute_values: [hash_key: search[hash]],
-          key_condition_expression: "##{hash} = :hash_key"
+          key_condition_expression: "##{hash} = :hash_key",
+          select: :all_attributes
         ]
       
     end
