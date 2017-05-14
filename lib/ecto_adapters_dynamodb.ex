@@ -451,13 +451,30 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
   defp validate_where_clause!(%BooleanExpr{expr: {:==, _, _}}), do: :ok
+  defp validate_where_clause!(%BooleanExpr{expr: {:and, _, _}}), do: :ok
   defp validate_where_clause!(%BooleanExpr{expr: {:is_nil, _, _}}), do: :ok
   defp validate_where_clause!(unsupported), do: error "unsupported where clause: #{inspect unsupported}"
 
   defp extract_lookup_keys(query, params) do
-    for %BooleanExpr{expr: {:==, _, [left, right]}} <- query.wheres, into: %{} do
-      get_eq_clause(left, right, params)
-    end
+    Enum.reduce(query.wheres, %{}, fn (where_statement, acc) ->
+
+      case where_statement do 
+        %BooleanExpr{expr: {:==, _, [left, right]}} ->
+          {field, value} = get_eq_clause(left, right, params)
+          Map.put(acc, field, value)
+
+		# These :and expressions have ore than one :== clause
+        %BooleanExpr{expr: {:and, _, and_group}} ->
+          for clause <- and_group, into: acc do
+            {:==, _, [left, right]} = clause
+            get_eq_clause(left, right, params)
+          end
+
+        # These clauses can, for example, contain ":is_nil" rather than ":and" or ":=="
+        # but we extract is_nil separately.
+        _ -> acc
+      end
+    end)
   end
 
   defp extract_is_nil_clauses(query) do
