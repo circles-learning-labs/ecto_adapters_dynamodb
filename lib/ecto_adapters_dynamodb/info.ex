@@ -31,7 +31,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   """
   def table_info(tablename) do
     # Fetch the raw schema definition from DynamoDB - We should cache this...now cached :)
-    Ecto.Adapters.DynamoDB.TableInfoCacheAgent.describe_table(tablename)
+    Ecto.Adapters.DynamoDB.Cache.describe_table(tablename)
   end
 
 

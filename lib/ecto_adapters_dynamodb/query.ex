@@ -12,6 +12,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   #   Ecto.Adapters.DynamoDB.Query.get_item("person", %{ "id" => "person-franko"})
   # 
 
+  # Repo.all(model), provide cached results for tables designated in :cached_tables
+  def get_item(table, search) when search == %{} do
+    Ecto.Adapters.DynamoDB.Cache.scan(table)
+  end
+
+  # Regular queries
   def get_item(table, search) do
 
     results = case get_best_index!(table, search) do
