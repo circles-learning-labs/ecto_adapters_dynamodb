@@ -14,7 +14,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
   # A BASIC GET
   test "simple get" do
-    result = TestRepo.get(Person, "person-franko")
+    result = TestRepo.get(Person, "person:franko")
     assert result.first_name == "Franko"
     assert result.last_name == "Franicevich"
   end
@@ -84,7 +84,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   end
 
   test "query all: multi condition, primary key/global secondary index" do
-    result = TestRepo.all(from p in Person, where: p.id == "person-franko", where: p.email == "franko@circl.es")
+    result = TestRepo.all(from p in Person, where: p.id == "person:franko", where: p.email == "franko@circl.es")
     assert Enum.at(result, 0).first_name == "Franko"
     assert Enum.at(result, 0).last_name == "Franicevich"
   end

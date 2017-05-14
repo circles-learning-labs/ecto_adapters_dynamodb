@@ -38,6 +38,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   # so construct a dynamo db search criteria map with only the given fields and their
   # search objects!
   def construct_search({:primary, index_fields}, search),  do: construct_search(%{}, index_fields, search)
+  def construct_search({:primary_partial, _index_fields}, _search),  do: raise ":primary_partial index search not yet implemented"
   def construct_search({index_name, index_fields}, search) do
     criteria = [index_name: index_name]
     criteria ++ case index_fields do
@@ -61,6 +62,11 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
+  # TODO: does DynamoDB perform a scan behind the scenes for a generic query such as this?
+  # Should we be constructing this as an explicit range query > "0"?
+  def construct_search({:secondary_partial, index_name , index_fields}, search) do
+    construct_search({index_name, index_fields}, search)
+  end
 
   defp construct_search(criteria, [], _), do: criteria
   defp construct_search(criteria, [index_field|index_fields], search) do
@@ -90,11 +96,11 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   def get_best_index(tablename, search) do
     case get_matching_primary_index(tablename, search) do
       # if we found a primary index with hash+range match, it's probably the best index.
-      {:primary, [_hash, _range]} = index -> index
+      {:primary, _} = index -> index
 
       # we've found a primary hash index, but lets check if there's a more specific
       # secondary index with hash+sort available...
-      {:primary, _primary_hash} = index ->
+      {:primary_partial, _primary_hash} = index ->
         case get_matching_secondary_index(tablename, search) do
           {_, [_, _]} = sec_index -> sec_index  # we've found a better, more specific index.
           _                       -> index      # :not_found, or any other hash? default back to the primary.
@@ -125,7 +131,18 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   or 
     :not_found
   """
-  def get_matching_primary_index(tablename, search), do: match_index(primary_key!(tablename), search)
+  def get_matching_primary_index(tablename, search) do
+    primary_key = primary_key!(tablename)
+
+    case match_index(primary_key, search) do
+      # We found a full primary index
+      {:primary, _} = index -> index
+
+      # We might be able to use a range query for all results with
+      # the hash part, such as all circle_member with a specific person_id (all a user's circles).
+      :not_found             -> match_index_hash_part(primary_key, search)
+    end
+  end
 
 
   @doc """
@@ -135,7 +152,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   no index is found.
 
   Returns a tuple of {"index_name", [ hash_key or hash,range_key]]} or :not_found
-  TODO: Does not help with range queries. 
+  TODO: Does not help with range queries. -> The match_index_hash_part function is
+    beginning to address this.
   """
   def get_matching_secondary_index(tablename, search) do
     # For each index, see how well it matches the search criteria.
@@ -150,7 +168,11 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     case match_index(index, search) do
       {_, [_,_]} -> index   # Matching on both hash + sort makes this the best index (as well as we can tell)
       {_, [_]}   -> find_best_match(indexes, search, index)   # we have a candidate for best match, though it's a hash key only. Look for better.
-      :not_found -> find_best_match(indexes, search, best)    # haven't found anything good, keep looking, retain our previous best match.
+      :not_found ->
+        case match_index_hash_part(index, search) do
+          :not_found    -> find_best_match(indexes, search, best)    # haven't found anything good, keep looking, retain our previous best match.
+          index_partial -> find_best_match(indexes, search, index_partial) 
+        end
     end
   end
 
@@ -162,6 +184,14 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
       {_, [hash]} ->
         if Map.has_key?(search, hash), do: index, else: :not_found
+    end
+  end
+
+  defp match_index_hash_part(index, search) do
+    case index do
+      {:primary, [hash, _range]}    -> if Map.has_key?(search, hash), do: {:primary_partial, [hash]}, else: :not_found
+      {index_name, [hash, _range]}  -> if Map.has_key?(search, hash), do: {:secondary_partial, index_name, [hash]}, else: :not_found
+      _                             -> :not_found
     end
   end
 
