@@ -139,13 +139,14 @@ defmodule Ecto.Adapters.DynamoDB do
   def dumpers(:utc_datetime, datetime), do: [datetime, &to_iso_string/1]
   def dumpers(:naive_datetime, datetime), do: [datetime, &to_iso_string/1]
   def dumpers(:map, map), do: [map, &to_json_string/1]
+  def dumpers(:array, list), do: [list, &to_json_string/1]
   def dumpers(_primitive, type), do: [type]
 
   defp to_iso_string(datetime) do
     {:ok, datetime |> Ecto.DateTime.load |> elem(1) |> Ecto.DateTime.to_iso8601}
   end
 
-  defp to_json_string(map), do: {:ok, map |> Poison.encode!}
+  defp to_json_string(jasonable), do: {:ok, jasonable |> Poison.encode!}
 
   @doc """
   Commands invoked to prepare a query for `all`, `update_all` and `delete_all`.
@@ -463,7 +464,7 @@ defmodule Ecto.Adapters.DynamoDB do
           {field, value} = get_eq_clause(left, right, params)
           Map.put(acc, field, value)
 
-		# These :and expressions have ore than one :== clause
+        # These :and expressions have ore than one :== clause
         %BooleanExpr{expr: {:and, _, and_group}} ->
           for clause <- and_group, into: acc do
             {:==, _, [left, right]} = clause
@@ -525,6 +526,7 @@ defmodule Ecto.Adapters.DynamoDB do
         case model.__schema__(:type, field) do   
           _ when field_is_nil -> acc
           :map            -> Map.update!(acc, field, &Poison.decode!/1)
+          :array          -> Map.update!(acc, field, &Poison.decode!/1)
           :utc_datetime   -> Map.update!(acc, field, &Ecto.DateTime.cast!/1)
           :naive_datetime -> Map.update!(acc, field, &NaiveDateTime.from_iso8601!/1)
           _               -> acc        
