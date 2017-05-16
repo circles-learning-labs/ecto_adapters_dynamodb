@@ -14,7 +14,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
 
   def changeset(person, params \\ %{}) do
     person
-    |> Ecto.Changeset.cast(params, [:first_name, :last_name, :age ])
+    |> Ecto.Changeset.cast(params, [:first_name, :last_name, :age, :email, :password, :circles])
     |> Ecto.Changeset.validate_required([:first_name, :last_name])
   end
 end
