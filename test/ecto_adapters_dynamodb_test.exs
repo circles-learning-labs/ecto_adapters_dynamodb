@@ -107,4 +107,18 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     result = TestRepo.get(Person, "person-faketestperson")
     assert result == nil
   end
+
+  test "update field to nil" do
+    person = %Person{id: "person:niltest", first_name: "LosingMy", last_name: "Account", email: "CloseThisAccount@test.com"}
+
+    TestRepo.insert(person)
+    res1 = TestRepo.get(Person, "person:niltest")
+    assert res1.email == "CloseThisAccount@test.com"
+
+    changeset = Person.changeset(res1, %{email: nil})
+    TestRepo.update!(changeset)
+
+    res2 = TestRepo.get(Person, "person:niltest")
+    assert res2.email == nil
+  end
 end
