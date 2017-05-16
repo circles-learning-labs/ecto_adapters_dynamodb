@@ -412,9 +412,9 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   # Used in update_all
-  def extract_update_params([], _params), do: error "#{inspect __MODULE__}.extract_update_params: Updates list is empty."
+  defp extract_update_params([], _params), do: error "#{inspect __MODULE__}.extract_update_params: Updates list is empty."
   
-  def extract_update_params([%{expr: key_list}], params) do
+  defp extract_update_params([%{expr: key_list}], params) do
     case List.keyfind(key_list, :set, 0) do
       {_, set_list} ->
         for s <- set_list do
@@ -425,8 +425,8 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  def extract_update_params([a], _params), do: error "#{inspect __MODULE__}.extract_update_params: Updates is either missing the :expr key or does not contain a struct or map: #{inspect a}"
-  def extract_update_params(unsupported, _params), do: error "#{inspect __MODULE__}.extract_update_params: unsupported parameter construction. #{inspect unsupported}"
+  defp extract_update_params([a], _params), do: error "#{inspect __MODULE__}.extract_update_params: Updates is either missing the :expr key or does not contain a struct or map: #{inspect a}"
+  defp extract_update_params(unsupported, _params), do: error "#{inspect __MODULE__}.extract_update_params: unsupported parameter construction. #{inspect unsupported}"
 
 
   # used in :update_all
