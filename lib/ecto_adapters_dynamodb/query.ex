@@ -52,7 +52,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         [
           # We need ExpressionAttributeNames when field-names are reserved, for example "name" or "role"
           expression_attribute_names: %{"##{hash}" => hash, "##{range}" => range},
-          expression_attribute_values: [hash_key: search[hash], range: search[range]],
+          expression_attribute_values: [hash_key: search[hash], range_key: search[range]],
           key_condition_expression: "##{hash} = :hash_key AND ##{range} = :range_key",
           select: :all_attributes
         ]

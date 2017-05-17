@@ -481,7 +481,7 @@ defmodule Ecto.Adapters.DynamoDB do
       {nil, _} ->
         rem_statement
       _ ->
-        "#{set_statement}, #{rem_statement}"
+        "#{set_statement} #{rem_statement}"
     end
   end
 
