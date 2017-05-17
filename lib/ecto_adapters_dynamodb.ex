@@ -142,8 +142,12 @@ defmodule Ecto.Adapters.DynamoDB do
   def dumpers(:array, list), do: [list, &to_json_string/1]
   def dumpers(_primitive, type), do: [type]
 
+  # Add UTC offset
+  # We are adding the offset here also for the :naive_datetime, this
+  # assumes we are getting a UTC date (which does correspond with the
+  # timestamps() macro but not necessarily with :naive_datetime in general)
   defp to_iso_string(datetime) do
-    {:ok, datetime |> Ecto.DateTime.load |> elem(1) |> Ecto.DateTime.to_iso8601}
+    {:ok, (datetime |> Ecto.DateTime.cast! |> Ecto.DateTime.to_iso8601) <> "Z"}
   end
 
   defp to_json_string(jasonable), do: {:ok, jasonable |> Poison.encode!}
