@@ -279,13 +279,15 @@ defmodule Ecto.Adapters.DynamoDB do
   # :update_all for only one result
   defp update_all(table, key_list, %{"Item" => result_to_update}, update_params, model) do
     filters = get_key_values_dynamo_map(result_to_update, key_list)
-    update_expression = construct_set_statement(update_params)
+    update_expression = construct_update_expression(update_params)
     attribute_names = construct_expression_attribute_names(update_params)
+    attribute_values = construct_expression_attribute_values(update_params)
 
-    result = Dynamo.update_item(table, filters,
-                                expression_attribute_names: attribute_names,
-                                expression_attribute_values: update_params,
-                                update_expression: update_expression, return_values: :all_new) |> ExAws.request!
+    base_options = [expression_attribute_names: attribute_names,
+                    update_expression: update_expression,
+                    return_values: :all_new]
+    options = maybe_add_attribute_values(base_options, attribute_values)
+    result = Dynamo.update_item(table, filters, options) |> ExAws.request!
 
     case result do 
       %{} = update_query_result -> {1, [Dynamo.decode_item(update_query_result["Attributes"], as: model)]}
@@ -297,10 +299,16 @@ defmodule Ecto.Adapters.DynamoDB do
   defp update_all(table, key_list, %{"Items" => results_to_update}, update_params, model) do
     Enum.reduce results_to_update, {0, []}, fn(result_to_update, acc) ->
       filters = get_key_values_dynamo_map(result_to_update, key_list)
-      update_expression = construct_set_statement(update_params)
+      update_expression = construct_update_expression(update_params)
       attribute_names = construct_expression_attribute_names(update_params)
+      attribute_values = construct_expression_attribute_values(update_params)
 
-      case Dynamo.update_item(table, filters, expression_attribute_names: attribute_names, expression_attribute_values: update_params, update_expression: update_expression, return_values: :all_new) |> ExAws.request! do
+      base_options = [expression_attribute_names: attribute_names,
+                      update_expression: update_expression,
+                      return_values: :all_new]
+      options = maybe_add_attribute_values(base_options, attribute_values)
+
+      case Dynamo.update_item(table, filters, options) |> ExAws.request! do
         %{} = update_query_result -> 
           {count, result_list} = acc
           {count + 1, [Dynamo.decode_item(update_query_result["Attributes"], as: model) | result_list]}
@@ -401,13 +409,15 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts("\toptions: #{inspect options}")
 
     {_, table} = schema_meta.source
-    update_expression = construct_set_statement(fields)
+    update_expression = construct_update_expression(fields)
     attribute_names = construct_expression_attribute_names(fields)
+    attribute_values = construct_expression_attribute_values(fields)
+
+    base_options = [expression_attribute_names: attribute_names,
+                    update_expression: update_expression]
+    options = maybe_add_attribute_values(base_options, attribute_values)
  
-    result = Dynamo.update_item(table, filters,
-                                expression_attribute_names: attribute_names,
-                                expression_attribute_values: fields,
-                                update_expression: update_expression) |> ExAws.request!
+    result = Dynamo.update_item(table, filters, options) |> ExAws.request!
 
     case result do
       %{} -> {:ok, []}
@@ -444,10 +454,61 @@ defmodule Ecto.Adapters.DynamoDB do
     for {f, _} <- fields, into: %{}, do: {"##{Atom.to_string(f)}", Atom.to_string(f)}
   end
 
+  defp construct_expression_attribute_values(fields) do
+    # If the value is nil, we're removing this attribute, not updating it,
+    # so filter out any such fields:
+    for {k, v} <- fields, !is_nil(v), do: {k, v}
+  end
+
+  # DynamoDB throws an error if we pass in an empty list for attribute values,
+  # so we have to implement this stupid little helper function to avoid hurting
+  # its feelings:
+  defp maybe_add_attribute_values(options, []) do
+    options
+  end
+  defp maybe_add_attribute_values(options, attribute_values) do
+    [expression_attribute_values: attribute_values] ++ options
+  end
+
+  defp construct_update_expression(fields) do
+    set_statement = construct_set_statement(fields)
+    rem_statement = construct_remove_statement(fields)
+    case {set_statement, rem_statement} do
+      {nil, nil} ->
+        error "update statements with no set or remove operations are not supported"
+      {_, nil} ->
+        set_statement
+      {nil, _} ->
+        rem_statement
+      _ ->
+        "#{set_statement}, #{rem_statement}"
+    end
+  end
+
   # fields::[{:field, val}]
   defp construct_set_statement(fields) do
-    key_val_string = Enum.map(fields, fn {key, _} -> "##{Atom.to_string(key)}=:#{Atom.to_string(key)}" end)
-    "SET " <> Enum.join(key_val_string, ", ")
+    set_clauses = for {key, val} <- fields, !is_nil(val) do
+      key_str = Atom.to_string(key)
+      "##{key_str}=:#{key_str}"
+    end
+    case set_clauses do
+      [] ->
+        nil
+      _ ->
+        "SET " <> Enum.join(set_clauses, ", ")
+    end
+  end
+
+  defp construct_remove_statement(fields) do
+    remove_clauses = for {key, val} <- fields, is_nil(val) do
+      "##{Atom.to_string(key)}"
+    end
+    case remove_clauses do
+      [] ->
+        nil
+      _ ->
+        "REMOVE " <> Enum.join(remove_clauses, ", ")
+    end
   end
 
   defp validate_where_clauses!(query) do
