@@ -222,7 +222,7 @@ defmodule Ecto.Adapters.DynamoDB do
       _  -> 
         results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_keys)
         IO.puts "results_to_update: #{inspect results_to_update}"
-        update_all(table, key_list, results_to_update, update_params, model)
+        update_all(table, key_list, results_to_update, update_params, model, opts)
     end
 
     #error "#{inspect __MODULE__}.execute is not implemented."
@@ -277,9 +277,9 @@ defmodule Ecto.Adapters.DynamoDB do
 
 
   # :update_all for only one result
-  defp update_all(table, key_list, %{"Item" => result_to_update}, update_params, model) do
+  defp update_all(table, key_list, %{"Item" => result_to_update}, update_params, model, opts) do
     filters = get_key_values_dynamo_map(result_to_update, key_list)
-    update_expression = construct_update_expression(update_params)
+    update_expression = construct_update_expression(update_params, {table, opts})
     attribute_names = construct_expression_attribute_names(update_params)
     attribute_values = construct_expression_attribute_values(update_params)
 
@@ -296,10 +296,10 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   # :update_all for multiple results
-  defp update_all(table, key_list, %{"Items" => results_to_update}, update_params, model) do
+  defp update_all(table, key_list, %{"Items" => results_to_update}, update_params, model, opts) do
     Enum.reduce results_to_update, {0, []}, fn(result_to_update, acc) ->
       filters = get_key_values_dynamo_map(result_to_update, key_list)
-      update_expression = construct_update_expression(update_params)
+      update_expression = construct_update_expression(update_params, {table, opts})
       attribute_names = construct_expression_attribute_names(update_params)
       attribute_values = construct_expression_attribute_values(update_params)
 
@@ -400,16 +400,16 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # Again we rely on filters having the correct primary key value.
   # TODO: any aditional checks missing here?
-  def update(repo, schema_meta, fields, filters, returning, options) do
+  def update(repo, schema_meta, fields, filters, returning, opts) do
     IO.puts("UPDATE::\n\trepo: #{inspect repo}")
     IO.puts("\tschema_meta: #{inspect schema_meta}")
     IO.puts("\tfields: #{inspect fields}")
     IO.puts("\tfilters: #{inspect filters}")
     IO.puts("\treturning: #{inspect returning}")
-    IO.puts("\toptions: #{inspect options}")
+    IO.puts("\toptions: #{inspect opts}")
 
     {_, table} = schema_meta.source
-    update_expression = construct_update_expression(fields)
+    update_expression = construct_update_expression(fields, {table, opts})
     attribute_names = construct_expression_attribute_names(fields)
     attribute_values = construct_expression_attribute_values(fields)
 
@@ -470,9 +470,9 @@ defmodule Ecto.Adapters.DynamoDB do
     [expression_attribute_values: attribute_values] ++ options
   end
 
-  defp construct_update_expression(fields) do
+  defp construct_update_expression(fields, {table, opts} = _) do
     set_statement = construct_set_statement(fields)
-    rem_statement = construct_remove_statement(fields)
+    rem_statement = construct_remove_statement(fields, {table, opts})
     case {set_statement, rem_statement} do
       {nil, nil} ->
         error "update statements with no set or remove operations are not supported"
@@ -499,9 +499,17 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  defp construct_remove_statement(fields) do
+  defp construct_remove_statement(fields, {table, opts} = _) do
+    indexed_fields = Ecto.Adapters.DynamoDB.Info.indexes(table)
+                   |> Enum.map(fn ({_, fields}) -> fields end) |> List.flatten |> Enum.uniq
+
+    allow_indexed_field_removal = List.keyfind(opts, :remove_indexed_fields, 0, {false, false}) |> elem(1)
+
     remove_clauses = for {key, val} <- fields, is_nil(val) do
-      "##{Atom.to_string(key)}"
+      case Enum.member?(indexed_fields, Atom.to_string(key)) and not allow_indexed_field_removal do
+        true -> error "Warning: \"#{Atom.to_string key}\" is an indexed field. Removing it will prevent this record from being searchable on this index (which could be a single index or part of a composite index).\n\nTo override this warning, use the option, \"remove_indexed_fields: true\" in the query. For example: Repo.update(record, remove_indexed_fields: true)\n\n"
+        _ -> "##{Atom.to_string(key)}"
+      end
     end
     case remove_clauses do
       [] ->
