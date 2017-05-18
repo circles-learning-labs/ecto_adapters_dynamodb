@@ -19,3 +19,5 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/ecto_adapters_dynamodb](https://hexdocs.pm/ecto_adapters_dynamodb).
 
+OPTIONS:
+An update query will set nil fields to Dynamo's 'null' value (which can generate an error if the field is indexed), unless the option 'remove_nil_fields: true' is set. For example: Repo.update(record, remove_nil_fields: true)

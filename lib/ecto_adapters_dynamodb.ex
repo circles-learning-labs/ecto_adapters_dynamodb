@@ -279,9 +279,9 @@ defmodule Ecto.Adapters.DynamoDB do
   # :update_all for only one result
   defp update_all(table, key_list, %{"Item" => result_to_update}, update_params, model, opts) do
     filters = get_key_values_dynamo_map(result_to_update, key_list)
-    update_expression = construct_update_expression(update_params, {table, opts})
+    update_expression = construct_update_expression(update_params, opts)
     attribute_names = construct_expression_attribute_names(update_params)
-    attribute_values = construct_expression_attribute_values(update_params)
+    attribute_values = construct_expression_attribute_values(update_params, opts)
 
     base_options = [expression_attribute_names: attribute_names,
                     update_expression: update_expression,
@@ -299,9 +299,9 @@ defmodule Ecto.Adapters.DynamoDB do
   defp update_all(table, key_list, %{"Items" => results_to_update}, update_params, model, opts) do
     Enum.reduce results_to_update, {0, []}, fn(result_to_update, acc) ->
       filters = get_key_values_dynamo_map(result_to_update, key_list)
-      update_expression = construct_update_expression(update_params, {table, opts})
+      update_expression = construct_update_expression(update_params, opts)
       attribute_names = construct_expression_attribute_names(update_params)
-      attribute_values = construct_expression_attribute_values(update_params)
+      attribute_values = construct_expression_attribute_values(update_params, opts)
 
       base_options = [expression_attribute_names: attribute_names,
                       update_expression: update_expression,
@@ -409,9 +409,9 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts("\toptions: #{inspect opts}")
 
     {_, table} = schema_meta.source
-    update_expression = construct_update_expression(fields, {table, opts})
+    update_expression = construct_update_expression(fields, opts)
     attribute_names = construct_expression_attribute_names(fields)
-    attribute_values = construct_expression_attribute_values(fields)
+    attribute_values = construct_expression_attribute_values(fields, opts)
 
     base_options = [expression_attribute_names: attribute_names,
                     update_expression: update_expression]
@@ -454,11 +454,20 @@ defmodule Ecto.Adapters.DynamoDB do
     for {f, _} <- fields, into: %{}, do: {"##{Atom.to_string(f)}", Atom.to_string(f)}
   end
 
-  defp construct_expression_attribute_values(fields) do
-    # If the value is nil, we're removing this attribute, not updating it,
-    # so filter out any such fields:
-    for {k, v} <- fields, !is_nil(v), do: {k, v}
+  defp construct_expression_attribute_values(fields, opts) do
+    remove_rather_than_set_to_null = List.keyfind(opts, :remove_nil_fields, 0, {false, false}) |> elem(1)
+
+    # If the value is nil and the :remove_nil_fields option is set, 
+    # we're removing this attribute, not updating it, so filter out any such fields:
+
+    case remove_rather_than_set_to_null do
+      true -> for {k, v} <- fields, !is_nil(v), do: {k, v}
+      _    -> for {k, v} <- fields, do: {k, nil_to_null(v)}
+    end
   end
+
+  defp nil_to_null(v) when is_nil(v), do: %{"NULL" => "true"}
+  defp nil_to_null(v), do: v
 
   # DynamoDB throws an error if we pass in an empty list for attribute values,
   # so we have to implement this stupid little helper function to avoid hurting
@@ -470,9 +479,14 @@ defmodule Ecto.Adapters.DynamoDB do
     [expression_attribute_values: attribute_values] ++ options
   end
 
-  defp construct_update_expression(fields, {table, opts} = _) do
-    set_statement = construct_set_statement(fields)
-    rem_statement = construct_remove_statement(fields, {table, opts})
+  defp construct_update_expression(fields, opts) do
+    remove_rather_than_set_to_null = List.keyfind(opts, :remove_nil_fields, 0, {false, false}) |> elem(1)
+
+    set_statement = construct_set_statement(fields, opts)
+    rem_statement = case remove_rather_than_set_to_null do
+                      true -> construct_remove_statement(fields)
+                      _    -> nil
+                    end
     case {set_statement, rem_statement} do
       {nil, nil} ->
         error "update statements with no set or remove operations are not supported"
@@ -486,8 +500,10 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   # fields::[{:field, val}]
-  defp construct_set_statement(fields) do
-    set_clauses = for {key, val} <- fields, !is_nil(val) do
+  defp construct_set_statement(fields, opts) do
+    remove_rather_than_set_to_null = List.keyfind(opts, :remove_nil_fields, 0, {false, false}) |> elem(1)
+
+    set_clauses = for {key, val} <- fields, not (is_nil(val) and remove_rather_than_set_to_null) do
       key_str = Atom.to_string(key)
       "##{key_str}=:#{key_str}"
     end
@@ -499,17 +515,9 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  defp construct_remove_statement(fields, {table, opts} = _) do
-    indexed_fields = Ecto.Adapters.DynamoDB.Info.indexes(table)
-                   |> Enum.map(fn ({_, fields}) -> fields end) |> List.flatten |> Enum.uniq
-
-    allow_indexed_field_removal = List.keyfind(opts, :remove_indexed_fields, 0, {false, false}) |> elem(1)
-
+  defp construct_remove_statement(fields) do
     remove_clauses = for {key, val} <- fields, is_nil(val) do
-      case Enum.member?(indexed_fields, Atom.to_string(key)) and not allow_indexed_field_removal do
-        true -> error "Warning: \"#{Atom.to_string key}\" is an indexed field. Removing it will prevent this record from being searchable on this index (which could be a single index or part of a composite index).\n\nTo override this warning, use the option, \"remove_indexed_fields: true\" in the query. For example: Repo.update(record, remove_indexed_fields: true)\n\n"
-        _ -> "##{Atom.to_string(key)}"
-      end
+      "##{Atom.to_string(key)}"
     end
     case remove_clauses do
       [] ->
