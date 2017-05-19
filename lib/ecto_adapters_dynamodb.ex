@@ -220,9 +220,12 @@ defmodule Ecto.Adapters.DynamoDB do
     case prepared.updates do
       [] -> error "#{inspect __MODULE__}.execute: Updates list empty."
       _  -> 
+        # Since update_all does not allow for arbitrary options, we set nil fields to Dynamo's
+        # 'null' value, unless the application's environment is configured to remove the fields instead.
+        remove_nil_fields = Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update_all) == true
         results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_keys)
         IO.puts "results_to_update: #{inspect results_to_update}"
-        update_all(table, key_list, results_to_update, update_params, model, opts)
+        update_all(table, key_list, results_to_update, update_params, model, [{:remove_nil_fields, remove_nil_fields} | opts])
     end
 
     #error "#{inspect __MODULE__}.execute is not implemented."
