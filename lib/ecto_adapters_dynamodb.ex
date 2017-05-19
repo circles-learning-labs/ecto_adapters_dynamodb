@@ -138,8 +138,6 @@ defmodule Ecto.Adapters.DynamoDB do
   """
   def dumpers(:utc_datetime, datetime), do: [datetime, &to_iso_string/1]
   def dumpers(:naive_datetime, datetime), do: [datetime, &to_iso_string/1]
-  def dumpers(:map, map), do: [map, &to_json_string/1]
-  def dumpers(:array, list), do: [list, &to_json_string/1]
   def dumpers(_primitive, type), do: [type]
 
   # Add UTC offset
@@ -149,8 +147,6 @@ defmodule Ecto.Adapters.DynamoDB do
   defp to_iso_string(datetime) do
     {:ok, (datetime |> Ecto.DateTime.cast! |> Ecto.DateTime.to_iso8601) <> "Z"}
   end
-
-  defp to_json_string(jasonable), do: {:ok, jasonable |> Poison.encode!}
 
   @doc """
   Commands invoked to prepare a query for `all`, `update_all` and `delete_all`.
@@ -225,6 +221,7 @@ defmodule Ecto.Adapters.DynamoDB do
         remove_nil_fields = Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update_all) == true
         results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_keys)
         IO.puts "results_to_update: #{inspect results_to_update}"
+
         update_all(table, key_list, results_to_update, update_params, model, [{:remove_nil_fields, remove_nil_fields} | opts])
     end
 
@@ -465,12 +462,12 @@ defmodule Ecto.Adapters.DynamoDB do
 
     case remove_rather_than_set_to_null do
       true -> for {k, v} <- fields, !is_nil(v), do: {k, v}
-      _    -> for {k, v} <- fields, do: {k, nil_to_null(v)}
+      _    -> for {k, v} <- fields, do: {k, format_val(v)}
     end
   end
 
-  defp nil_to_null(v) when is_nil(v), do: %{"NULL" => "true"}
-  defp nil_to_null(v), do: v
+  defp format_val(v) when is_nil(v), do: %{"NULL" => "true"}
+  defp format_val(v), do: v
 
   # DynamoDB throws an error if we pass in an empty list for attribute values,
   # so we have to implement this stupid little helper function to avoid hurting
@@ -603,14 +600,12 @@ defmodule Ecto.Adapters.DynamoDB do
   # Decodes maps and datetime, seemingly unhandled by ExAws Dynamo decoder
   # (timestamps() corresponds with :naive_datetime)
   defp custom_decode(item, model) do    
-    IO.puts "Decoding maps and datetime: #{inspect item}"
+    IO.puts "Decoding datetime: #{inspect item}"
     Enum.reduce(model.__schema__(:fields), item, fn (field, acc) ->
         field_is_nil = is_nil Map.get(item, field)
   
         case model.__schema__(:type, field) do   
           _ when field_is_nil -> acc
-          :map            -> Map.update!(acc, field, &Poison.decode!/1)
-          :array          -> Map.update!(acc, field, &Poison.decode!/1)
           :utc_datetime   -> Map.update!(acc, field, &Ecto.DateTime.cast!/1)
           :naive_datetime -> Map.update!(acc, field, &NaiveDateTime.from_iso8601!/1)
           _               -> acc        
