@@ -340,10 +340,15 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts("\treturning: #{inspect returning}")
     IO.puts("\toptions: #{inspect options}")
 
-    {_, table} = schema_meta.source     
-    fields_map = Enum.into(fields, %{}) 
+    insert_nil_field_option = List.keyfind(options, :insert_nil_fields, 0, {true, true}) |> elem(1)
+    do_not_insert_nil_fields = insert_nil_field_option == false || Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
 
-    case Dynamo.put_item(table, fields_map) |> ExAws.request! do
+    {_, table} = schema_meta.source 
+    model = schema_meta.schema
+    fields_map = Enum.into(fields, %{})
+    record = if do_not_insert_nil_fields, do: fields_map, else: build_record_map(model, fields_map)
+
+    case Dynamo.put_item(table, record) |> ExAws.request! do
       %{}   -> {:ok, []}
       error -> raise "Error inserting into DynamoDB. Error: #{inspect error}"
     end
@@ -359,11 +364,17 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts("\treturning: #{inspect returning}")
     IO.puts("\toptions: #{inspect options}")
 
+    insert_nil_field_option = List.keyfind(options, :insert_nil_fields, 0, {true, true}) |> elem(1)
+    do_not_insert_nil_fields = insert_nil_field_option == false || Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
+
     {_, table} = schema_meta.source
+    model = schema_meta.schema
 
     prepared_fields = Enum.map(fields, fn(field_set) ->
       mapped_fields = Enum.into(field_set, %{})
-      [put_request: [item: mapped_fields]]
+      record = if do_not_insert_nil_fields, do: mapped_fields, else: build_record_map(model, mapped_fields)
+
+      [put_request: [item: record]]
     end)
 
     case batch_write_attempt = Dynamo.batch_write_item([{table, prepared_fields}]) |> ExAws.request! do
@@ -378,6 +389,10 @@ defmodule Ecto.Adapters.DynamoDB do
         end
       error -> raise "Error batch inserting into DynamoDB. Error: #{inspect error}"
     end
+  end
+
+  defp build_record_map(model, fields_to_insert) do
+    model.__struct__ |> Map.delete(:__meta__) |> Map.from_struct |> Map.merge(fields_to_insert)
   end
 
 

@@ -20,6 +20,10 @@ and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/ecto_adapters_dynamodb](https://hexdocs.pm/ecto_adapters_dynamodb).
 
 OPTIONS:
+Repo.insert / Repo.insert_all: add the option, 'insert_nil_fields: false', to prevent nil fields defined in the model's schema from being inserted. For example: Repo.insert(changeset, insert_nil_fields: false)
+This can also be set globally in the application's configuration: 
+'config :ecto_adapters_dynamodb, insert_nil_fields: false'
+
 Repo.All: we are currently supporting scan only as an in-memory cache for preconfigured tables.
 Application configuration: config :ecto_adapters_dynamodb, cached_tables: [table_name, table_name...] , where table names are strings.
 
