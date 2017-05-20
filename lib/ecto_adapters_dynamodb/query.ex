@@ -14,7 +14,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   # Repo.all(model), provide cached results for tables designated in :cached_tables
   def get_item(table, search) when search == %{} do
-    Ecto.Adapters.DynamoDB.Cache.scan(table)
+    Ecto.Adapters.DynamoDB.Cache.scan!(table)
   end
 
   # Regular queries
