@@ -109,16 +109,16 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   end
 
   test "update field to nil" do
-    person = %Person{id: "person:niltest", first_name: "LosingMy", last_name: "Account", email: "CloseThisAccount@test.com"}
+    person = %Person{id: "person:niltest", first_name: "LosingMy", last_name: "Account", email: "CloseThisAccount@test.com", age: 36}
 
     TestRepo.insert(person)
     res1 = TestRepo.get(Person, "person:niltest")
-    assert res1.email == "CloseThisAccount@test.com"
+    assert res1.age == 36
 
-    changeset = Person.changeset(res1, %{email: nil})
+    changeset = Person.changeset(res1, %{age: nil})
     TestRepo.update!(changeset)
 
     res2 = TestRepo.get(Person, "person:niltest")
-    assert res2.email == nil
+    assert res2.age == nil
   end
 end
