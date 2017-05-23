@@ -348,9 +348,9 @@ defmodule Ecto.Adapters.DynamoDB do
     fields_map = Enum.into(fields, %{})
     record = if do_not_insert_nil_fields, do: fields_map, else: build_record_map(model, fields_map)
 
-    case Dynamo.put_item(table, record) |> ExAws.request! do
-      %{}   -> {:ok, []}
-      error -> raise "Error inserting into DynamoDB. Error: #{inspect error}"
+    case Dynamo.put_item(table, record) |> ExAws.request |> handle_error!(%{table: table, record: record}) do
+      %{} -> {:ok, []}
+      _   -> raise "Exception - Ex Aws either did not return an expected result or failed to raise an error. See also #{inspect __MODULE__}.handle_error!"
     end
   end
 
@@ -626,5 +626,28 @@ defmodule Ecto.Adapters.DynamoDB do
           _               -> acc        
         end                             
       end)                              
+  end
+
+  # We found one instance where DynamoDB's error message could
+  # be more instructive - when trying to set an indexed field to something
+  # other than a string or number - so we're adding a more helpful message.
+  defp handle_error!(ex_aws_request_result, params) do
+    case ex_aws_request_result do
+      {:ok, result}   -> result
+      {:error, error} ->
+        # Check for inappropriate insert into indexed field
+        indexed_fields = Ecto.Adapters.DynamoDB.Info.indexes(params.table)
+                       |> Enum.map(fn ({_, fields}) -> fields end) |> List.flatten |> Enum.uniq
+
+        forbidden_insert_on_indexed_field = Enum.any?(params.record, fn {field, val} ->
+		    [type] = ExAws.Dynamo.Encoder.encode(val) |> Map.keys
+            Enum.member?(indexed_fields, to_string(field)) and not type in ["S", "N"]
+          end)
+
+        case forbidden_insert_on_indexed_field do
+          false -> raise ExAws.Error, message: "ExAws Request Error! #{inspect error}"
+          _     -> raise "The following request error could be related to attempting to insert a type other than a string or number on an indexed field. Indexed fields: #{inspect indexed_fields}. Record: #{inspect params.record}.\n\nExAws Request Error! #{inspect error}" 
+        end
+    end    
   end
 end
