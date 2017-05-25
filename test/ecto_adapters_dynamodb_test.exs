@@ -3,20 +3,37 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
   import Ecto.Query
 
+  alias ExAws.Dynamo
   alias Ecto.Adapters.DynamoDB.TestRepo
   alias Ecto.Adapters.DynamoDB.TestSchema.Person
+
+  @test_table "test_person"
 
   setup_all do
     IO.puts "starting test repo"
     TestRepo.start_link()
-    :ok
-  end
 
-  # A BASIC GET
-  test "simple get" do
-    result = TestRepo.get(Person, "person:franko")
-    assert result.first_name == "Franko"
-    assert result.last_name == "Franicevich"
+    IO.puts "deleting any leftover test tables that may exist"
+    Dynamo.delete_table(@test_table) |> ExAws.request
+
+    IO.puts "creating test table"
+    # Only need to define types for indexed fields:
+    key_definitions = %{id: :string, email: :string}
+    indexes = [%{
+               index_name: "email",
+               key_schema: [%{
+                            attribute_name: "email",
+                            key_type: "HASH",
+               }],
+               provisioned_throughput: %{
+                 read_capacity_units: 100,
+                 write_capacity_units: 100,
+               },
+               projection: %{projection_type: "ALL"}
+    }]
+    Dynamo.create_table(@test_table, [id: :hash], key_definitions, 100, 100, indexes, []) |> ExAws.request!
+
+    :ok
   end
 
   # A BASIC INSERT
@@ -25,7 +42,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                                       last_name: "World", age: 34, email: "hello@world.com", password: "password"}
     assert result == {:ok, %Ecto.Adapters.DynamoDB.TestSchema.Person{age: 34, circles: nil, email: "hello@world.com",
                       first_name: "Hello", id: "person-hello", last_name: "World", password: "password",
-                      __meta__: %Ecto.Schema.Metadata{context: nil, source: {nil, "person"}, state: :loaded}}}
+                      __meta__: %Ecto.Schema.Metadata{context: nil, source: {nil, @test_table}, state: :loaded}}}
   end
 
   # CREATE A RECORD AND THEN RETRIEVE IT - I.E. CREATE A NEW USER AND BE REDIRECTED TO THEIR PROFILE PAGE
@@ -84,9 +101,10 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   end
 
   test "query all: multi condition, primary key/global secondary index" do
-    result = TestRepo.all(from p in Person, where: p.id == "person:franko", where: p.email == "franko@circl.es")
-    assert Enum.at(result, 0).first_name == "Franko"
-    assert Enum.at(result, 0).last_name == "Franicevich"
+    TestRepo.insert(%Person{id: "person:jamesholden", first_name: "James", last_name: "Holden", email: "jholden@expanse.com"})
+    result = TestRepo.all(from p in Person, where: p.id == "person:jamesholden", where: p.email == "jholden@expanse.com")
+    assert Enum.at(result, 0).first_name == "James"
+    assert Enum.at(result, 0).last_name == "Holden"
   end
 
   test "query all, filter out via is_nil" do

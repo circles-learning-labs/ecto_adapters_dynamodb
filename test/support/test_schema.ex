@@ -3,7 +3,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   
-  schema "person" do
+  schema "test_person" do
     field :first_name, :string
     field :last_name,  :string
     field :age,        :integer
