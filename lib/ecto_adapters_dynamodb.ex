@@ -350,7 +350,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     case Dynamo.put_item(table, record) |> ExAws.request |> handle_error!(%{table: table, record: record}) do
       %{} -> {:ok, []}
-      _   -> raise "Exception - Ex Aws either did not return an expected result or failed to raise an error. See also #{inspect __MODULE__}.handle_error!"
+      _   -> handle_error_error
     end
   end
 
@@ -431,12 +431,11 @@ defmodule Ecto.Adapters.DynamoDB do
     base_options = [expression_attribute_names: attribute_names,
                     update_expression: update_expression]
     options = maybe_add_attribute_values(base_options, attribute_values)
- 
-    result = Dynamo.update_item(table, filters, options) |> ExAws.request!
+    record = options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})
 
-    case result do
+    case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, record: record}) do
       %{} -> {:ok, []}
-      error -> raise "Error updating item in DynamoDB. Error: #{inspect error}"
+      _   -> handle_error_error
     end
   end
 
@@ -649,5 +648,9 @@ defmodule Ecto.Adapters.DynamoDB do
           _     -> raise "The following request error could be related to attempting to insert a type other than a string or number on an indexed field. Indexed fields: #{inspect indexed_fields}. Record: #{inspect params.record}.\n\nExAws Request Error! #{inspect error}" 
         end
     end    
+  end
+
+  defp handle_error_error do
+    raise "Exception - Ex Aws either did not return an expected result or failed to raise an error. See also #{inspect __MODULE__}.handle_error!"    
   end
 end
