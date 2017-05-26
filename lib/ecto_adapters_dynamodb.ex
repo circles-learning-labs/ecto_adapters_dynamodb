@@ -350,7 +350,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     case Dynamo.put_item(table, record) |> ExAws.request |> handle_error!(%{table: table, record: record}) do
       %{} -> {:ok, []}
-      _   -> handle_error_error
+      _   -> handle_error_error()
     end
   end
 
@@ -435,7 +435,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, record: record}) do
       %{} -> {:ok, []}
-      _   -> handle_error_error
+      _   -> handle_error_error()
     end
   end
 
