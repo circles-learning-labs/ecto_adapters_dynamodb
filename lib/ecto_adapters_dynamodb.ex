@@ -573,7 +573,7 @@ defmodule Ecto.Adapters.DynamoDB do
           {field, value} = get_eq_clause(left, right, params)
           Map.put(acc, field, value)
 
-        # These :and expressions have ore than one :== clause
+        # These :and expressions have more than one :== clause
         %BooleanExpr{expr: {:and, _, and_group}} ->
           for clause <- and_group, into: acc do
             {:==, _, [left, right]} = clause
@@ -594,6 +594,10 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
+  # Using DynamoDB's FilterExpression, we could have Dynamo filter
+  # out records where these attributes are set to 'null' or where
+  # the attributes are missing in the record, but not if the attribute
+  # is indexed. Handling it on our end encompasses both cases.
   defp handle_is_nil_clauses(results, is_nil_clauses) do
     IO.puts "results = #{inspect results}"
     IO.puts "is_nil_clauses = #{inspect is_nil_clauses}"
