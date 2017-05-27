@@ -574,6 +574,8 @@ defmodule Ecto.Adapters.DynamoDB do
           Map.put(acc, field, value)
 
         # These :and expressions have more than one :== clause
+        # We are matching queries of the type: 'from(p in Person, where: p.email == "g@email.com", where: p.first_name == "George")'
+        # But not of the type: 'from(p in Person, where: [email: "g@email.com", first_name: "George"])'
         %BooleanExpr{expr: {:and, _, and_group}} ->
           for clause <- and_group, into: acc do
             {:==, _, [left, right]} = clause
@@ -654,8 +656,7 @@ defmodule Ecto.Adapters.DynamoDB do
       {:ok, result}   -> result
       {:error, error} ->
         # Check for inappropriate insert into indexed field
-        indexed_fields = Ecto.Adapters.DynamoDB.Info.indexes(params.table)
-                       |> Enum.map(fn ({_, fields}) -> fields end) |> List.flatten |> Enum.uniq
+        indexed_fields = Ecto.Adapters.DynamoDB.Info.indexes_as_strings(params.table)
 
         # Repo.insert_all can present multiple records at once
         forbidden_insert_on_indexed_field = Enum.reduce(params.records, false, fn (record, acc) -> 

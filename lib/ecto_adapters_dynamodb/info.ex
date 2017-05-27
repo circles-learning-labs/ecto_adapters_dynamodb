@@ -103,6 +103,14 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   end
 
 
+  @doc """
+  returns a list of any indexed attributes in the table
+  """
+  def indexes_as_strings(table_name) do
+    indexes(table_name) |> Enum.map(fn ({_, fields}) -> fields end) |> List.flatten |> Enum.uniq
+  end
+
+
 
   # dynamo raw index data is complex, and can contain either one or two fields along with their type (hash or range)
   # This parses it and returns a simple list format. The first element of the list is the HASH key, the second
