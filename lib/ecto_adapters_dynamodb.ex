@@ -287,11 +287,12 @@ defmodule Ecto.Adapters.DynamoDB do
                     update_expression: update_expression,
                     return_values: :all_new]
     options = maybe_add_attribute_values(base_options, attribute_values)
-    result = Dynamo.update_item(table, filters, options) |> ExAws.request!
+    record = options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})
 
-    case result do 
-      %{} = update_query_result -> {1, [Dynamo.decode_item(update_query_result["Attributes"], as: model)]}
-      error -> raise "#{inspect __MODULE__}.update_all, single item, error: #{inspect error}"
+    case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: [record]}) do 
+      %{} = update_query_result ->
+        {1, [Dynamo.decode_item(update_query_result["Attributes"] |> custom_decode(model), as: model)]}
+      _ -> handle_error_error()
     end 
   end
 
@@ -307,14 +308,13 @@ defmodule Ecto.Adapters.DynamoDB do
                       update_expression: update_expression,
                       return_values: :all_new]
       options = maybe_add_attribute_values(base_options, attribute_values)
+      record = options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})
 
-      case Dynamo.update_item(table, filters, options) |> ExAws.request! do
+      case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: [record]}) do 
         %{} = update_query_result -> 
           {count, result_list} = acc
-          {count + 1, [Dynamo.decode_item(update_query_result["Attributes"], as: model) | result_list]}
-        error -> 
-          {count, _} = acc
-          raise "#{inspect __MODULE__}.update_all, multiple items. Error: #{inspect error} filters: #{inspect filters} update_expression: #{inspect update_expression} attribute_names: #{inspect attribute_names} Count: #{inspect count}" 
+          {count + 1, [Dynamo.decode_item(update_query_result["Attributes"], as: model) |> custom_decode(model) | result_list]}
+        _ -> handle_error_error()
       end
     end
   end
@@ -348,7 +348,7 @@ defmodule Ecto.Adapters.DynamoDB do
     fields_map = Enum.into(fields, %{})
     record = if do_not_insert_nil_fields, do: fields_map, else: build_record_map(model, fields_map)
 
-    case Dynamo.put_item(table, record) |> ExAws.request |> handle_error!(%{table: table, record: record}) do
+    case Dynamo.put_item(table, record) |> ExAws.request |> handle_error!(%{table: table, records: [record]}) do
       %{} -> {:ok, []}
       _   -> handle_error_error()
     end
@@ -377,7 +377,9 @@ defmodule Ecto.Adapters.DynamoDB do
       [put_request: [item: record]]
     end)
 
-    case batch_write_attempt = Dynamo.batch_write_item([{table, prepared_fields}]) |> ExAws.request! do
+    records = Enum.map(prepared_fields, fn [put_request: [item: record]] -> record end)
+
+    case batch_write_attempt = Dynamo.batch_write_item([{table, prepared_fields}]) |> ExAws.request |> handle_error!(%{table: table, records: records}) do
       # THE FORMAT OF A SUCCESSFUL BATCH INSERT IS A MAP THAT WILL INCLUDE A MAP OF ANY UNPROCESSED ITEMS
       %{"UnprocessedItems" => %{}} ->
         cond do
@@ -386,13 +388,24 @@ defmodule Ecto.Adapters.DynamoDB do
             {:ok, []}
           # TO DO: DEVELOP A STRATEGY FOR HANDLING UNPROCESSED ITEMS.
           # DOCS SUGGEST GATHERING THEM UP AND TRYING ANOTHER BATCH INSERT AFTER A SHORT DELAY
+          batch_write_attempt["UnprocessedItems"] != %{} ->
+            raise "#{inspect __MODULE__}.insert_all: Handling not yet implemented for \"UnprocessedItems\" as a non-empty map. ExAws.Dynamo.batch_write_item response: #{inspect batch_write_attempt}"
         end
-      error -> raise "Error batch inserting into DynamoDB. Error: #{inspect error}"
+      _ -> handle_error_error()
     end
   end
 
   defp build_record_map(model, fields_to_insert) do
-    model.__struct__ |> Map.delete(:__meta__) |> Map.from_struct |> Map.merge(fields_to_insert)
+    # Ecto does not convert empty strings to nil before passing them
+    # to Repo.insert_all, and ExAws will remove empty strings (as well as empty lists)
+    # when building the insertion query but not nil values. We don't mind the removal
+    # of empty lists since those cannot be inserted to indexed fields, but we'd like to
+    # catch the removal of fields with empty strings by ExAws to support our option, :remove_nil_fields,
+    # so we convert these to nil.
+    empty_strings_to_nil = fields_to_insert 
+                         |> Enum.map(fn {field, val} -> {field, (if val == "", do: nil, else: val)} end)
+                         |> Enum.into(%{})
+    model.__struct__ |> Map.delete(:__meta__) |> Map.from_struct |> Map.merge(empty_strings_to_nil)
   end
 
 
@@ -433,7 +446,7 @@ defmodule Ecto.Adapters.DynamoDB do
     options = maybe_add_attribute_values(base_options, attribute_values)
     record = options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})
 
-    case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, record: record}) do
+    case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: [record]}) do
       %{} -> {:ok, []}
       _   -> handle_error_error()
     end
@@ -474,9 +487,10 @@ defmodule Ecto.Adapters.DynamoDB do
     # If the value is nil and the :remove_nil_fields option is set, 
     # we're removing this attribute, not updating it, so filter out any such fields:
 
-    case remove_rather_than_set_to_null do
-      true -> for {k, v} <- fields, !is_nil(v), do: {k, v}
-      _    -> for {k, v} <- fields, do: {k, format_val(v)}
+    if remove_rather_than_set_to_null do
+      for {k, v} <- fields, !is_nil(v), do: {k, v}
+    else
+      for {k, v} <- fields, do: {k, format_val(v)}
     end
   end
 
@@ -630,6 +644,7 @@ defmodule Ecto.Adapters.DynamoDB do
   # We found one instance where DynamoDB's error message could
   # be more instructive - when trying to set an indexed field to something
   # other than a string or number - so we're adding a more helpful message.
+  # The parameter, 'params', has the type %{table: :string, records: [:map]}
   defp handle_error!(ex_aws_request_result, params) do
     case ex_aws_request_result do
       {:ok, result}   -> result
@@ -638,14 +653,21 @@ defmodule Ecto.Adapters.DynamoDB do
         indexed_fields = Ecto.Adapters.DynamoDB.Info.indexes(params.table)
                        |> Enum.map(fn ({_, fields}) -> fields end) |> List.flatten |> Enum.uniq
 
-        forbidden_insert_on_indexed_field = Enum.any?(params.record, fn {field, val} ->
-		    [type] = ExAws.Dynamo.Encoder.encode(val) |> Map.keys
-            Enum.member?(indexed_fields, to_string(field)) and not type in ["S", "N"]
+        # Repo.insert_all can present multiple records at once
+        forbidden_insert_on_indexed_field = Enum.reduce(params.records, false, fn (record, acc) -> 
+           acc || Enum.any?(record, fn {field, val} ->
+            [type] = ExAws.Dynamo.Encoder.encode(val) |> Map.keys
+            # Ecto does not convert Empty strings to nil before passing them to Repo.update_all or
+            # Repo.insert_all DynamoDB provides an instructive message during an update (forwarded by ExAws),
+            # but less so for batch_write_item, so we catch the empty string as well.
+            # Dynamo does not allow insertion of empty strings in any case.
+            (Enum.member?(indexed_fields, to_string(field)) and not type in ["S", "N"]) || val == ""
           end)
+        end)
 
         case forbidden_insert_on_indexed_field do
           false -> raise ExAws.Error, message: "ExAws Request Error! #{inspect error}"
-          _     -> raise "The following request error could be related to attempting to insert a type other than a string or number on an indexed field. Indexed fields: #{inspect indexed_fields}. Record: #{inspect params.record}.\n\nExAws Request Error! #{inspect error}" 
+          _     -> raise "The following request error could be related to attempting to insert an empty string or attempting to insert a type other than a string or number on an indexed field. Indexed fields: #{inspect indexed_fields}. Records: #{inspect params.records}.\n\nExAws Request Error! #{inspect error}" 
         end
     end    
   end
