@@ -106,7 +106,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   @doc """
   returns a list of any indexed attributes in the table
   """
-  def indexes_as_strings(table_name) do
+  def indexed_attributes(table_name) do
     indexes(table_name) |> Enum.map(fn ({_, fields}) -> fields end) |> List.flatten |> Enum.uniq
   end
 

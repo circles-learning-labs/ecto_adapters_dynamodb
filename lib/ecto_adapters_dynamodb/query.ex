@@ -8,8 +8,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   import Ecto.Adapters.DynamoDB.Info
 
 
+  # parameters for get_item: TABLE_NAME::string, %{ATTRIBUTE::string => {VALUE::string, OPERATOR::atom}}
   # examples:
-  #   Ecto.Adapters.DynamoDB.Query.get_item("person", %{ "id" => "person-franko"})
+  #   Ecto.Adapters.DynamoDB.Query.get_item("person", %{ "id" => {"person-franko", :==}})
   # 
 
   # Repo.all(model), provide cached results for tables designated in :cached_tables
@@ -53,19 +54,22 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     criteria = [index_name: index_name]
     criteria ++ case index_fields do
       [hash, range] ->
+        {hash_val, _op} = search[hash]
+        {range_val, _op} = search[range]
         [
           # We need ExpressionAttributeNames when field-names are reserved, for example "name" or "role"
           key_condition_expression: "##{hash} = :hash_key AND ##{range} = :range_key",
           expression_attribute_names: Map.merge(%{"##{hash}" => hash, "##{range}" => range}, expression_attribute_names),
-          expression_attribute_values: [hash_key: search[hash], range_key: search[range]] ++ expression_attribute_values,
+          expression_attribute_values: [hash_key: hash_val, range_key: range_val] ++ expression_attribute_values,
           select: :all_attributes
         ] ++ filter_expression_tuple
 
       [hash] ->
+        {hash_val, _op} = search[hash]
         [
           key_condition_expression: "##{hash} = :hash_key",
           expression_attribute_names: Map.merge(%{"##{hash}" => hash}, expression_attribute_names),
-          expression_attribute_values: [hash_key: search[hash]] ++ expression_attribute_values,
+          expression_attribute_values: [hash_key: hash_val] ++ expression_attribute_values,
           select: :all_attributes
         ] ++ filter_expression_tuple
       
@@ -79,25 +83,35 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   defp construct_search(criteria, [], _, _), do: criteria
   defp construct_search(criteria, [index_field|index_fields], table, search) do
-    Map.put(criteria, index_field, search[index_field]) |> construct_search(index_fields, table, search)
+    Map.put(criteria, index_field, elem(search[index_field], 0)) |> construct_search(index_fields, table, search)
   end
 
 
   # returns a tuple: {filter_expression_tuple, expression_attribute_names, expression_attribute_values}
   defp construct_filter_expression(table, search) do
     # We can only construct a FilterExpression on a non-indexed field.
-    indexed_fields = Ecto.Adapters.DynamoDB.Info.indexes_as_strings(table)
-    non_indexed_filters = Enum.filter(search, fn {field, _val} -> not Enum.member?(indexed_fields, field) end)
+    indexed_fields = Ecto.Adapters.DynamoDB.Info.indexed_attributes(table)
+    non_indexed_filters = Enum.filter(search, fn {field, {_val, _op}} -> not Enum.member?(indexed_fields, field) end)
 
     case non_indexed_filters do
       [] -> {[], %{}, []}
       _  ->
         # For now, we'll just handle the 'and' logical operator
-        filter_expression = Enum.map(non_indexed_filters, fn {field, val} -> "##{field} = :#{val}" end) |> Enum.join(" and ")
-        expression_attribute_names = for {field, _val} <- non_indexed_filters, into: %{}, do: {"##{field}" , field}
-        expression_attribute_values = for {_field, val} <- non_indexed_filters, do: {String.to_atom(val), val}
+        filter_expression = Enum.map(non_indexed_filters, &construct_conditional_statement/1) |> Enum.join(" and ")
+        expression_attribute_names = for {field, {_val, _op}} <- non_indexed_filters, into: %{}, do: {"##{field}" , field}
+        expression_attribute_values = for {_field, {val, op}} <- non_indexed_filters, do: format_expression_attribute_value(val, op)
         {[filter_expression: filter_expression], expression_attribute_names, expression_attribute_values}
     end
+  end
+
+  defp format_expression_attribute_value(val, :is_nil), do: {String.to_atom(val), nil}
+  defp format_expression_attribute_value(val, _op), do: {String.to_atom(val), val}
+
+  defp construct_conditional_statement({field, {val, :is_nil}}) do
+    "(##{field} = :#{val} or attribute_not_exists(##{field}))"
+  end
+  defp construct_conditional_statement({field, {val, :==}}) do
+    "##{field} = :#{val}"
   end
 
 
@@ -204,21 +218,32 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
 
+  # The parameter, 'search', is a map: %{field_name::string => {value::string, operator::atom}}
   defp match_index(index, search) do
     case index do
-      {_, [hash, range]}  ->
-        if Map.has_key?(search, hash) and Map.has_key?(search, range), do: index, else: :not_found
+      {_, [hash, range]} ->
+        # Part of the query could be a nil filter on an indexed attribute;
+        # in that case, we need a check in addition to has_key?, so we check the operator.
+        if Map.has_key?(search, hash) and elem(search[hash], 1) != :is_nil
+        and Map.has_key?(search, range) and elem(search[range], 1) != :is_nil,
+        do: index, else: :not_found
 
       {_, [hash]} ->
-        if Map.has_key?(search, hash), do: index, else: :not_found
+        if Map.has_key?(search, hash) and elem(search[hash], 1) != :is_nil, do: index, else: :not_found
     end
   end
 
   defp match_index_hash_part(index, search) do
     case index do
-      {:primary, [hash, _range]}    -> if Map.has_key?(search, hash), do: {:primary_partial, [hash]}, else: :not_found
-      {index_name, [hash, _range]}  -> if Map.has_key?(search, hash), do: {:secondary_partial, index_name, [hash]}, else: :not_found
-      _                             -> :not_found
+      {:primary, [hash, _range]} ->
+        if Map.has_key?(search, hash) and elem(search[hash], 1) != :is_nil,
+        do: {:primary_partial, [hash]}, else: :not_found
+
+      {index_name, [hash, _range]} ->
+        if Map.has_key?(search, hash) and elem(search[hash], 1) != :is_nil,
+        do: {:secondary_partial, index_name, [hash]}, else: :not_found
+
+      _ -> :not_found
     end
   end
 

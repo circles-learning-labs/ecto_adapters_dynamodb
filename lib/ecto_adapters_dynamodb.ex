@@ -204,12 +204,12 @@ defmodule Ecto.Adapters.DynamoDB do
 
     {table, model} = prepared.from
     validate_where_clauses!(prepared)
-    lookup_keys = extract_lookup_keys(prepared, params)
+    lookup_fields = extract_lookup_fields(prepared, params)
     update_params = extract_update_params(prepared.updates, params)
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
 
     IO.puts "table = #{inspect table}"
-    IO.puts "lookup keys: #{inspect lookup_keys}"
+    IO.puts "lookup_fields: #{inspect lookup_fields}"
     IO.puts "update_params: #{inspect update_params}"
     IO.puts "key_list: #{inspect key_list}"
 
@@ -219,7 +219,7 @@ defmodule Ecto.Adapters.DynamoDB do
         # Since update_all does not allow for arbitrary options, we set nil fields to Dynamo's
         # 'null' value, unless the application's environment is configured to remove the fields instead.
         remove_nil_fields = Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update_all) == true
-        results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_keys)
+        results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields)
         IO.puts "results_to_update: #{inspect results_to_update}"
 
         update_all(table, key_list, results_to_update, update_params, model, [{:remove_nil_fields, remove_nil_fields} | opts])
@@ -244,13 +244,14 @@ defmodule Ecto.Adapters.DynamoDB do
 
     {table, repo} = prepared.from
     validate_where_clauses!(prepared)
-    lookup_keys = extract_lookup_keys(prepared, params)
-    is_nil_clauses = extract_is_nil_clauses(prepared)
+    {nil_lookups_on_non_indexed_fields, is_nil_clauses_on_indexed_fields} = extract_is_nil_clauses(prepared, table)
+    # We can pass is_nil filters to DynamoDB, provided they are on non-indexed attributes
+    lookup_fields = Map.merge(extract_lookup_fields(prepared, params), nil_lookups_on_non_indexed_fields)
 
     IO.puts "table = #{inspect table}"
-    IO.puts "lookup_keys = #{inspect lookup_keys}"
+    IO.puts "lookup_fields = #{inspect lookup_fields}"
 
-    result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_keys)
+    result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields)
     IO.puts "result = #{inspect result}"
 
     if result == %{} do
@@ -269,7 +270,7 @@ defmodule Ecto.Adapters.DynamoDB do
           decoded = Enum.map(result["Items"], fn(item) -> 
             [Dynamo.decode_item(%{"Item" => item}, as: repo) |> custom_decode(repo)]
           end)
-          filtered_decoded = handle_is_nil_clauses(decoded, is_nil_clauses)
+          filtered_decoded = handle_is_nil_clauses(decoded, is_nil_clauses_on_indexed_fields)
           {length(filtered_decoded), filtered_decoded}
       end
     end
@@ -287,9 +288,10 @@ defmodule Ecto.Adapters.DynamoDB do
                     update_expression: update_expression,
                     return_values: :all_new]
     options = maybe_add_attribute_values(base_options, attribute_values)
-    record = options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})
+    # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements.
+    record = if options[:expression_attribute_values], do: [options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})], else: []
 
-    case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: [record]}) do 
+    case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []}) do 
       %{} = update_query_result ->
         {1, [Dynamo.decode_item(update_query_result["Attributes"] |> custom_decode(model), as: model)]}
       _ -> handle_error_error()
@@ -308,9 +310,10 @@ defmodule Ecto.Adapters.DynamoDB do
                       update_expression: update_expression,
                       return_values: :all_new]
       options = maybe_add_attribute_values(base_options, attribute_values)
-      record = options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})
+      # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements.
+      record = if options[:expression_attribute_values], do: [options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})], else: []
 
-      case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: [record]}) do 
+      case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []}) do 
         %{} = update_query_result -> 
           {count, result_list} = acc
           {count + 1, [Dynamo.decode_item(update_query_result["Attributes"], as: model) |> custom_decode(model) | result_list]}
@@ -444,9 +447,10 @@ defmodule Ecto.Adapters.DynamoDB do
     base_options = [expression_attribute_names: attribute_names,
                     update_expression: update_expression]
     options = maybe_add_attribute_values(base_options, attribute_values)
-    record = options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})
+    # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements.
+    record = if options[:expression_attribute_values], do: [options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})], else: []
 
-    case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: [record]}) do
+    case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []}) do
       %{} -> {:ok, []}
       _   -> handle_error_error()
     end
@@ -565,13 +569,13 @@ defmodule Ecto.Adapters.DynamoDB do
   defp validate_where_clause!(%BooleanExpr{expr: {:is_nil, _, _}}), do: :ok
   defp validate_where_clause!(unsupported), do: error "unsupported where clause: #{inspect unsupported}"
 
-  defp extract_lookup_keys(query, params) do
+  defp extract_lookup_fields(query, params) do
     Enum.reduce(query.wheres, %{}, fn (where_statement, acc) ->
 
       case where_statement do 
         %BooleanExpr{expr: {:==, _, [left, right]}} ->
           {field, value} = get_eq_clause(left, right, params)
-          Map.put(acc, field, value)
+          Map.put(acc, field, {value, :==})
 
         # These :and expressions have more than one :== clause
         # We are matching queries of the type: 'from(p in Person, where: p.email == "g@email.com", where: p.first_name == "George")'
@@ -579,7 +583,8 @@ defmodule Ecto.Adapters.DynamoDB do
         %BooleanExpr{expr: {:and, _, and_group}} ->
           for clause <- and_group, into: acc do
             {:==, _, [left, right]} = clause
-            get_eq_clause(left, right, params)
+            {field, value} = get_eq_clause(left, right, params)
+            {field, {value, :==}}
           end
 
         # These clauses can, for example, contain ":is_nil" rather than ":and" or ":=="
@@ -589,17 +594,29 @@ defmodule Ecto.Adapters.DynamoDB do
     end)
   end
 
-  defp extract_is_nil_clauses(query) do
-    for %BooleanExpr{expr: {:is_nil, _, [arg]}} <- query.wheres do
-      {{:., _, [_, field_name]}, _, _} = arg
-      field_name
-    end
+  defp extract_is_nil_clauses(query, table) do
+    indexed_fields = Ecto.Adapters.DynamoDB.Info.indexed_attributes(table)
+
+    # We perform a post-query is_nil filter on indexed fields and have DynamoDB filter
+    # for nil non-indexed fields; although post-query nil-filters on (missing) indexed 
+    # attributes could only find matches when the attributes are not the range part of 
+    # a queried partition key (hash part) (since those would not return the sought records).
+    Enum.reduce(query.wheres, {%{}, []}, fn (where_expr, {non_indexed_acc, indexed_acc} = acc) ->
+      case where_expr do
+        %BooleanExpr{expr: {:is_nil, _, [arg]}} ->
+          {{:., _, [_, field_name]}, _, _} = arg
+          if Enum.member?(indexed_fields, to_string(field_name)) do
+            {non_indexed_acc, [field_name | indexed_acc]}
+          else
+            # We give the nil value a string, "null", since it will be mapped as a DynamoDB attribute_expression_value
+            {Map.merge(%{to_string(field_name) => {"null", :is_nil}}, non_indexed_acc), indexed_acc}
+          end
+        _ -> acc
+      end
+    end)
   end
 
-  # Using DynamoDB's FilterExpression, we could have Dynamo filter
-  # out records where these attributes are set to 'null' or where
-  # the attributes are missing in the record, but not if the attribute
-  # is indexed. Handling it on our end encompasses both cases.
+
   defp handle_is_nil_clauses(results, is_nil_clauses) do
     IO.puts "results = #{inspect results}"
     IO.puts "is_nil_clauses = #{inspect is_nil_clauses}"
@@ -656,7 +673,7 @@ defmodule Ecto.Adapters.DynamoDB do
       {:ok, result}   -> result
       {:error, error} ->
         # Check for inappropriate insert into indexed field
-        indexed_fields = Ecto.Adapters.DynamoDB.Info.indexes_as_strings(params.table)
+        indexed_fields = Ecto.Adapters.DynamoDB.Info.indexed_attributes(params.table)
 
         # Repo.insert_all can present multiple records at once
         forbidden_insert_on_indexed_field = Enum.reduce(params.records, false, fn (record, acc) -> 
