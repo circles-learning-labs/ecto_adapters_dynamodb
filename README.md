@@ -19,6 +19,11 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/ecto_adapters_dynamodb](https://hexdocs.pm/ecto_adapters_dynamodb).
 
+
+Ecto :fragment and DynamoDB range "between" query:
+We currently only support the Ecto fragment of the form, 'from(m in Model, where: m.partition_key == PARTITION_KEY, where: fragment("? between ? and ?", m.range_key, ^range_start, ^range_end)'
+
+
 OPTIONS:
 Repo.insert / Repo.insert_all: add the option, 'insert_nil_fields: false', to prevent nil fields defined in the model's schema from being inserted. For example: Repo.insert(changeset, insert_nil_fields: false)
 This can also be set globally in the application's configuration: 
