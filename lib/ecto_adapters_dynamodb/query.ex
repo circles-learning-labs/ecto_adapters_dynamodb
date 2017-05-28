@@ -55,12 +55,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     criteria ++ case index_fields do
       [hash, range] ->
         {hash_val, _op} = search[hash]
-        {range_val, _op} = search[range]
+        {range_expression, range_attribute_names, range_attribute_values} = construct_range_params(range, search[range])
         [
           # We need ExpressionAttributeNames when field-names are reserved, for example "name" or "role"
-          key_condition_expression: "##{hash} = :hash_key AND ##{range} = :range_key",
-          expression_attribute_names: Map.merge(%{"##{hash}" => hash, "##{range}" => range}, expression_attribute_names),
-          expression_attribute_values: [hash_key: hash_val, range_key: range_val] ++ expression_attribute_values,
+          key_condition_expression: "##{hash} = :hash_key AND #{range_expression}",
+          expression_attribute_names: Enum.reduce([%{"##{hash}" => hash}, range_attribute_names, expression_attribute_names], &Map.merge/2),
+          expression_attribute_values: [hash_key: hash_val] ++ range_attribute_values ++ expression_attribute_values,
           select: :all_attributes
         ] ++ filter_expression_tuple
 
@@ -86,6 +86,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     Map.put(criteria, index_field, elem(search[index_field], 0)) |> construct_search(index_fields, table, search)
   end
 
+  defp construct_range_params(range, {[range_start, range_end], :between}) do
+    {"##{range} between :range_start and :range_end", %{"##{range}" => range}, [range_start: range_start, range_end: range_end]} 
+  end
+  defp construct_range_params(range, {range_val, :==}) do
+    {"##{range} = :range_key", %{"##{range}" => range}, [range_key: range_val]}
+  end
 
   # returns a tuple: {filter_expression_tuple, expression_attribute_names, expression_attribute_values}
   defp construct_filter_expression(table, search) do
@@ -224,7 +230,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       {_, [hash, range]} ->
         # Part of the query could be a nil filter on an indexed attribute;
         # in that case, we need a check in addition to has_key?, so we check the operator.
-        if Map.has_key?(search, hash) and elem(search[hash], 1) != :is_nil
+        # Also, the hash part can only accept an :== operator.
+        if Map.has_key?(search, hash) and elem(search[hash], 1) == :==
         and Map.has_key?(search, range) and elem(search[range], 1) != :is_nil,
         do: index, else: :not_found
 
@@ -236,7 +243,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp match_index_hash_part(index, search) do
     case index do
       {:primary, [hash, _range]} ->
-        if Map.has_key?(search, hash) and elem(search[hash], 1) != :is_nil,
+        if Map.has_key?(search, hash) and elem(search[hash], 1) == :==,
         do: {:primary_partial, [hash]}, else: :not_found
 
       {index_name, [hash, _range]} ->

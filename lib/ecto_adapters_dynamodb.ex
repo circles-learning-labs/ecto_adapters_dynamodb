@@ -567,6 +567,7 @@ defmodule Ecto.Adapters.DynamoDB do
   defp validate_where_clause!(%BooleanExpr{expr: {:==, _, _}}), do: :ok
   defp validate_where_clause!(%BooleanExpr{expr: {:and, _, _}}), do: :ok
   defp validate_where_clause!(%BooleanExpr{expr: {:is_nil, _, _}}), do: :ok
+  defp validate_where_clause!(%BooleanExpr{expr: {:fragment, _, _}}), do: :ok
   defp validate_where_clause!(unsupported), do: error "unsupported where clause: #{inspect unsupported}"
 
   defp extract_lookup_fields(query, params) do
@@ -587,11 +588,35 @@ defmodule Ecto.Adapters.DynamoDB do
             {field, {value, :==}}
           end
 
+        %BooleanExpr{expr: {:fragment, _, raw_expr_mixed_list}} ->
+          Map.merge(acc, parse_raw_expr_mixed_list(raw_expr_mixed_list, params))
+
         # These clauses can, for example, contain ":is_nil" rather than ":and" or ":=="
         # but we extract is_nil separately.
         _ -> acc
       end
     end)
+  end
+
+  # Specific (as opposed to generalized) parsing for Ecto :fragment - the only use for it
+  # so far is 'between' which is the only way to query 'between' on an indexed field since
+  # those accept only single conditions.
+  #
+  # Example with values as strings: [raw: "", expr: {{:., [], [{:&, [], [0]}, :person_id]}, [], []}, raw: " between ", expr: "person:a", raw: " and ", expr: "person:f", raw: ""]
+  #
+  # Example with values as part of the string itself: [raw: "", expr: {{:., [], [{:&, [], [0]}, :person_id]}, [], []}, raw: " between person:a and person:f"]
+  #
+  # Example with values in params: [raw: "", expr: {{:., [], [{:&, [], [0]}, :person_id]}, [], []}, raw: " between ", expr: {:^, [], [0]}, raw: " and ", expr: {:^, [], [1]}, raw: ""]
+  #
+  defp parse_raw_expr_mixed_list(raw_expr_mixed_list, params) do
+    # group the expression into fields, values, and operators,
+    # only supporting the example with values in params
+    case raw_expr_mixed_list do
+      [raw: _, expr: {{:., [], [{:&, [], [0]}, field_atom]}, [], []}, raw: _between_str, expr: {:^, [], [idx1]}, raw: _and_str, expr: {:^, [], [idx2]}, raw: _] ->
+        %{to_string(field_atom) => {[Enum.at(params, idx1), Enum.at(params, idx2)], :between}}
+        
+      _ -> raise "#{inspect __MODULE__}.parse_raw_expr_mixed_list parse error. We currently only support the Ecto fragment of the form, 'where: fragment(\"? between ? and ?\", FIELD_AS_VARIABLE, VALUE_AS_VARIABLE, VALUE_AS_VARIABLE)'. Received: #{inspect raw_expr_mixed_list}"
+    end
   end
 
   defp extract_is_nil_clauses(query, table) do
