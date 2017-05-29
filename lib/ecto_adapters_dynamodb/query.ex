@@ -92,6 +92,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp construct_range_params(range, {range_val, :==}) do
     {"##{range} = :range_key", %{"##{range}" => range}, [range_key: range_val]}
   end
+  defp construct_range_params(range, {range_val, op}) when op in [:<, :>, :<=, :>=] do
+    {"##{range} #{to_string(op)} :range_key", %{"##{range}" => range}, [range_key: range_val]}
+  end
 
   # returns a tuple: {filter_expression_tuple, expression_attribute_names, expression_attribute_values}
   defp construct_filter_expression(table, search) do
@@ -118,6 +121,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
   defp construct_conditional_statement({field, {val, :==}}) do
     "##{field} = :#{val}"
+  end
+  defp construct_conditional_statement({field, {val, op}}) when op in [:<, :>, :<=, :>=] do
+    "##{field} #{to_string(op)} :#{val}"
   end
 
 

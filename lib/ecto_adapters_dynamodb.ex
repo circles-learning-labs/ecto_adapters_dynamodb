@@ -564,7 +564,7 @@ defmodule Ecto.Adapters.DynamoDB do
       validate_where_clause! w
     end
   end
-  defp validate_where_clause!(%BooleanExpr{expr: {:==, _, _}}), do: :ok
+  defp validate_where_clause!(%BooleanExpr{expr: {op, _, _}}) when op in [:==, :<, :>, :<=, :>=], do: :ok
   defp validate_where_clause!(%BooleanExpr{expr: {:and, _, _}}), do: :ok
   defp validate_where_clause!(%BooleanExpr{expr: {:is_nil, _, _}}), do: :ok
   defp validate_where_clause!(%BooleanExpr{expr: {:fragment, _, _}}), do: :ok
@@ -574,9 +574,9 @@ defmodule Ecto.Adapters.DynamoDB do
     Enum.reduce(query.wheres, %{}, fn (where_statement, acc) ->
 
       case where_statement do 
-        %BooleanExpr{expr: {:==, _, [left, right]}} ->
-          {field, value} = get_eq_clause(left, right, params)
-          Map.put(acc, field, {value, :==})
+        %BooleanExpr{expr: {op, _, [left, right]}} when op in [:==, :<, :>, :<=, :>=] ->
+          {field, value} = get_op_clause(left, right, params)
+          Map.put(acc, field, {value, op})
 
         # These :and expressions have more than one :== clause
         # We are matching queries of the type: 'from(p in Person, where: p.email == "g@email.com", where: p.first_name == "George")'
@@ -584,7 +584,7 @@ defmodule Ecto.Adapters.DynamoDB do
         %BooleanExpr{expr: {:and, _, and_group}} ->
           for clause <- and_group, into: acc do
             {:==, _, [left, right]} = clause
-            {field, value} = get_eq_clause(left, right, params)
+            {field, value} = get_op_clause(left, right, params)
             {field, {value, :==}}
           end
 
@@ -654,7 +654,7 @@ defmodule Ecto.Adapters.DynamoDB do
     result_fields[is_nil_clause] == nil
   end
 
-  defp get_eq_clause(left, right, params) do
+  defp get_op_clause(left, right, params) do
     field = left |> get_field |> Atom.to_string
     value = get_value(right, params)
     {field, value}
