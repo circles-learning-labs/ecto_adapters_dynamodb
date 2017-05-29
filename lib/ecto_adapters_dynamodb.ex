@@ -576,11 +576,17 @@ defmodule Ecto.Adapters.DynamoDB do
       case where_statement do 
         %BooleanExpr{expr: {op, _, [left, right]}} when op in [:==, :<, :>, :<=, :>=] ->
           {field, value} = get_op_clause(left, right, params)
-          Map.put(acc, field, {value, op})
+          if Map.has_key?(acc, field),
+          # we assume the most ops we can apply to one field is two, otherwise this might throw an error
+          do: Map.update!(acc, field, fn {old_val, old_op} -> {[value, old_val], [op, old_op]} end),
+          else: Map.put(acc, field, {value, op})
 
         # These :and expressions have more than one :== clause
         # We are matching queries of the type: 'from(p in Person, where: p.email == "g@email.com", where: p.first_name == "George")'
         # But not of the type: 'from(p in Person, where: [email: "g@email.com", first_name: "George"])'
+        #
+        # We are not implementing the two-ops-on-one-field possibility here. TODO: under
+        # which circumstances might that apply?
         %BooleanExpr{expr: {:and, _, and_group}} ->
           for clause <- and_group, into: acc do
             {op, _, [left, right]} = clause

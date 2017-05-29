@@ -113,12 +113,22 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
+
   defp format_expression_attribute_value(val, :is_nil), do: {String.to_atom(val), nil}
-  defp format_expression_attribute_value([start_val, end_val], :between) do
+  # double op
+  defp format_expression_attribute_value([val1, val2], [_op1, _op2]) do
+    [{String.to_atom(val1), val1}, {String.to_atom(val2), val2}]
+  end
+   defp format_expression_attribute_value([start_val, end_val], :between) do
     [{String.to_atom(start_val), start_val}, {String.to_atom(end_val), end_val}]
   end
   defp format_expression_attribute_value(val, _op), do: {String.to_atom(val), val}
 
+
+  # double op (neither of them ought be :==)
+  defp construct_conditional_statement({field, {[val1, val2], [op1, op2]}}) do
+    "##{field} #{to_string(op1)} :#{val1} and ##{field} #{to_string(op2)} :#{val2}"
+  end  
   defp construct_conditional_statement({field, {val, :is_nil}}) do
     "(##{field} = :#{val} or attribute_not_exists(##{field}))"
   end
