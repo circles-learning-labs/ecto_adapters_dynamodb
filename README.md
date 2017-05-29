@@ -20,6 +20,13 @@ and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/ecto_adapters_dynamodb](https://hexdocs.pm/ecto_adapters_dynamodb).
 
 
+!IMPORTANT!
+DynamoDB Key conditions: due to our current index parsing, please place all key-condition 
+queries in separate wheres in the top level of the Ecto query.
+For example, this is ok: 'from(m in model, where: m.hash_key == "hash_val", where: m.range_key > "range_val")',
+and this is not, 'from(m in model, where: m.hash_key == "hash_val" and m.range_key > "range_val")'
+
+
 Ecto :fragment and DynamoDB range "between" query:
 We currently only support the Ecto fragment of the form, 'from(m in Model, where: m.partition_key == PARTITION_KEY, where: fragment("? between ? and ?", m.range_key, ^range_start, ^range_end)'
 

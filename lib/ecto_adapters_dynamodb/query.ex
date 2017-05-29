@@ -8,10 +8,10 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   import Ecto.Adapters.DynamoDB.Info
 
 
-  # parameters for get_item: TABLE_NAME::string, %{ATTRIBUTE::string => {VALUE::string, OPERATOR::atom}}
-  # examples:
-  #   Ecto.Adapters.DynamoDB.Query.get_item("person", %{ "id" => {"person-franko", :==}})
-  # 
+  # parameters for get_item: 
+  # TABLE_NAME::string,
+  # %{LOGICAL_OP::atom => [{ATTRIBUTE::string => {VALUE::string, OPERATOR::atom}}]} | %{ATTRIBUTE::string => {VALUE::string, OPERATOR::atom}}
+  #
 
   # Repo.all(model), provide cached results for tables designated in :cached_tables
   def get_item(table, search) when search == %{} do
@@ -100,29 +100,52 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp construct_filter_expression(table, search) do
     # We can only construct a FilterExpression on a non-indexed field.
     indexed_fields = Ecto.Adapters.DynamoDB.Info.indexed_attributes(table)
-    non_indexed_filters = Enum.filter(search, fn {field, {_val, _op}} -> not Enum.member?(indexed_fields, field) end)
+    non_indexed_filters = Enum.filter(search, fn {field, _} -> not Enum.member?(indexed_fields, field) end)
 
     case non_indexed_filters do
       [] -> {[], %{}, []}
       _  ->
-        # For now, we'll just handle the 'and' logical operator
-        filter_expression = Enum.map(non_indexed_filters, &construct_conditional_statement/1) |> Enum.join(" and ")
-        expression_attribute_names = for {field, {_val, _op}} <- non_indexed_filters, into: %{}, do: {"##{field}" , field}
-        expression_attribute_values = List.flatten(for {_field, {val, op}} <- non_indexed_filters, do: format_expression_attribute_value(val, op))
-        {[filter_expression: filter_expression], expression_attribute_names, expression_attribute_values}
+        {filter_expression_list, expression_attribute_names, expression_attribute_values} = 
+          build_filter_expression_data(non_indexed_filters, {[], %{}, %{}})
+
+        {[filter_expression: Enum.join(filter_expression_list, " and ")],
+         expression_attribute_names,
+         Enum.into(expression_attribute_values, [])}
     end
   end
 
 
-  defp format_expression_attribute_value(val, :is_nil), do: {String.to_atom(val), nil}
+  # Recursively reconstruct parentheticals
+  defp build_filter_expression_data([], acc), do: acc
+  defp build_filter_expression_data([expr | exprs], {filter_exprs, attr_names, attr_values}) do
+    case expr do
+      # a list of lookup fields; iterate.
+      {field, {val, op} = val_op_tuple} = complete_tuple when is_tuple(val_op_tuple) ->
+        updated_filter_exprs = [construct_conditional_statement(complete_tuple) | filter_exprs]
+        updated_attr_names = Map.merge(%{"##{field}" => field}, attr_names)
+        updated_attr_values = Map.merge(format_expression_attribute_value(val, op), attr_values) 
+
+        build_filter_expression_data(exprs, {updated_filter_exprs, updated_attr_names, updated_attr_values})
+
+      {logical_op, exprs_list} when is_list(exprs_list) ->
+        {deeper_filter_exprs, deeper_attr_names, deeper_attr_values} = build_filter_expression_data(exprs_list, {[], %{}, %{}})
+        updated_filter_exprs = ["(" <> Enum.join(deeper_filter_exprs, " #{to_string(logical_op)} ") <> ")" | filter_exprs]
+        updated_attr_names = Map.merge(deeper_attr_names, attr_names)
+        updated_attr_values = Map.merge(deeper_attr_values, attr_values)
+
+        build_filter_expression_data(exprs, {updated_filter_exprs, updated_attr_names, updated_attr_values})
+    end
+  end
+
+  defp format_expression_attribute_value(val, :is_nil), do: %{String.to_atom(val) => nil}
   # double op
   defp format_expression_attribute_value([val1, val2], [_op1, _op2]) do
-    [{String.to_atom(val1), val1}, {String.to_atom(val2), val2}]
+    %{String.to_atom(val1) => val1, String.to_atom(val2) => val2}
   end
    defp format_expression_attribute_value([start_val, end_val], :between) do
-    [{String.to_atom(start_val), start_val}, {String.to_atom(end_val), end_val}]
+    %{String.to_atom(start_val) => start_val, String.to_atom(end_val) => end_val}
   end
-  defp format_expression_attribute_value(val, _op), do: {String.to_atom(val), val}
+  defp format_expression_attribute_value(val, _op), do: %{String.to_atom(val) => val}
 
 
   # double op (neither of them ought be :==)
