@@ -108,12 +108,15 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         # For now, we'll just handle the 'and' logical operator
         filter_expression = Enum.map(non_indexed_filters, &construct_conditional_statement/1) |> Enum.join(" and ")
         expression_attribute_names = for {field, {_val, _op}} <- non_indexed_filters, into: %{}, do: {"##{field}" , field}
-        expression_attribute_values = for {_field, {val, op}} <- non_indexed_filters, do: format_expression_attribute_value(val, op)
+        expression_attribute_values = List.flatten(for {_field, {val, op}} <- non_indexed_filters, do: format_expression_attribute_value(val, op))
         {[filter_expression: filter_expression], expression_attribute_names, expression_attribute_values}
     end
   end
 
   defp format_expression_attribute_value(val, :is_nil), do: {String.to_atom(val), nil}
+  defp format_expression_attribute_value([start_val, end_val], :between) do
+    [{String.to_atom(start_val), start_val}, {String.to_atom(end_val), end_val}]
+  end
   defp format_expression_attribute_value(val, _op), do: {String.to_atom(val), val}
 
   defp construct_conditional_statement({field, {val, :is_nil}}) do
@@ -125,7 +128,10 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp construct_conditional_statement({field, {val, op}}) when op in [:<, :>, :<=, :>=] do
     "##{field} #{to_string(op)} :#{val}"
   end
-
+  defp construct_conditional_statement({field, {[start_val, end_val], :between}}) do
+    "##{field} between :#{start_val} and :#{end_val}"
+  end
+ 
 
   # TODO: Given the search criteria, filter out other results that were caught in the
   # index read. TODO: Can we do this on the server side dynamo query instead?

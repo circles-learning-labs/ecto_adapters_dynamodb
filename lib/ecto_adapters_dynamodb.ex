@@ -583,9 +583,9 @@ defmodule Ecto.Adapters.DynamoDB do
         # But not of the type: 'from(p in Person, where: [email: "g@email.com", first_name: "George"])'
         %BooleanExpr{expr: {:and, _, and_group}} ->
           for clause <- and_group, into: acc do
-            {:==, _, [left, right]} = clause
+            {op, _, [left, right]} = clause
             {field, value} = get_op_clause(left, right, params)
-            {field, {value, :==}}
+            {field, {value, op}}
           end
 
         %BooleanExpr{expr: {:fragment, _, raw_expr_mixed_list}} ->
