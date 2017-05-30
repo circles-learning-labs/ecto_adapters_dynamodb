@@ -27,10 +27,10 @@ For example, this is ok: 'from(m in model, where: m.hash_key == "hash_val", wher
 and this is not, 'from(m in model, where: m.hash_key == "hash_val" and m.range_key > "range_val")'
 
 
-is_nil queries: since indexed attributes cannot be queried for null or missing on DynamoDB, we separate out indexed is_nil clauses and perform them after results are returned. At this point we do not support indexed is_nil clauses in logical and, or, or parenthetical groups - they are extracted and performed after results are returned. Keep aware of this as it could break some query logic you may otherwise expect to work.
+is_nil queries: we support is_nil; please note that DynamoDB does not allow filtering for 'null' or missing-attribute on attributes that are part of the current query's key.
 
 
-Ecto :fragment and DynamoDB range "between" query:
+DynamoDB "between" query and Ecto :fragment
 We currently only support the Ecto fragment of the form, 'from(m in Model, where: m.partition_key == PARTITION_KEY, where: fragment("? between ? and ?", m.range_key, ^range_start, ^range_end)'
 
 

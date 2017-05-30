@@ -25,13 +25,13 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       # primary key based lookup  uses the efficient 'get_item' operation
       {:primary, _} = index->
         #https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
-        query = construct_search(index, table, search)
+        query = construct_search(index, search)
         ExAws.Dynamo.get_item(table, query) |> ExAws.request!
 
       # secondary index based lookups need the query functionality. 
       index ->
         # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#query/2
-        query = construct_search(index, table, search)
+        query = construct_search(index, search)
         ExAws.Dynamo.query(table, query) |> ExAws.request!
 
     end
@@ -44,12 +44,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   # we've a list of fields from an index that matches the (some of) the search fields,
   # so construct a dynamo db search criteria map with only the given fields and their
   # search objects!
-  def construct_search({:primary, index_fields}, table, search),  do: construct_search(%{}, index_fields, table, search)
-  def construct_search({:primary_partial, _index_fields}, _table, _search),  do: raise ":primary_partial index search not yet implemented"
-  def construct_search({index_name, index_fields}, table, search) do
+  def construct_search({:primary, index_fields}, search), do: construct_search(%{}, index_fields, search)
+  def construct_search({:primary_partial, _index_fields}, _search), do: raise ":primary_partial index search not yet implemented"
+  def construct_search({index_name, index_fields}, search) do
     # Construct a DynamoDB FilterExpression (since it cannot be provided blank but may be,
     # we merge it with the full query)
-    {filter_expression_tuple, expression_attribute_names, expression_attribute_values} = construct_filter_expression(table, search)
+    {filter_expression_tuple, expression_attribute_names, expression_attribute_values} = construct_filter_expression(search, index_fields)
 
     criteria = [index_name: index_name]
     criteria ++ case index_fields do
@@ -77,13 +77,13 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
   # TODO: would there be a difference, constructing this as an explicit range query > "0"?
-  def construct_search({:secondary_partial, index_name , index_fields}, table, search) do
-    construct_search({index_name, index_fields}, table, search)
+  def construct_search({:secondary_partial, index_name , index_fields}, search) do
+    construct_search({index_name, index_fields}, search)
   end
 
-  defp construct_search(criteria, [], _, _), do: criteria
-  defp construct_search(criteria, [index_field|index_fields], table, search) do
-    Map.put(criteria, index_field, elem(search[index_field], 0)) |> construct_search(index_fields, table, search)
+  defp construct_search(criteria, [], _), do: criteria
+  defp construct_search(criteria, [index_field|index_fields], search) do
+    Map.put(criteria, index_field, elem(search[index_field], 0)) |> construct_search(index_fields, search)
   end
 
   defp construct_range_params(range, {[range_start, range_end], :between}) do
@@ -97,10 +97,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
   # returns a tuple: {filter_expression_tuple, expression_attribute_names, expression_attribute_values}
-  defp construct_filter_expression(table, search) do
-    # We can only construct a FilterExpression on a non-indexed field.
-    indexed_fields = Ecto.Adapters.DynamoDB.Info.indexed_attributes(table)
-    non_indexed_filters = Enum.filter(search, fn {field, _} -> not Enum.member?(indexed_fields, field) end)
+  defp construct_filter_expression(search, index_fields) do
+    # We can only construct a FilterExpression on attributes not in key-conditions.
+    non_indexed_filters = Enum.filter(search, fn {field, _} -> not Enum.member?(index_fields, field) end)
 
     case non_indexed_filters do
       [] -> {[], %{}, []}
@@ -209,7 +208,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   """
   def get_best_index!(tablename, search) do
     case get_best_index(tablename, search) do
-      :not_found -> raise "index_not_found"
+      :not_found -> raise "#{inspect __MODULE__}.get_best_index! error: index_not_found. (Please remember that we currently support key conditions only as separate where clauses in the top level of the query. Please see README.)"
       index -> index
     end
 
