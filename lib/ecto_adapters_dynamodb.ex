@@ -297,11 +297,9 @@ defmodule Ecto.Adapters.DynamoDB do
     # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements.
     record = if options[:expression_attribute_values], do: [options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})], else: []
 
-    case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []}) do 
-      %{} = update_query_result ->
-        {1, [Dynamo.decode_item(update_query_result["Attributes"] |> custom_decode(model), as: model)]}
-      _ -> handle_error_error()
-    end 
+    update_query_result = Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
+
+    {1, [Dynamo.decode_item(update_query_result["Attributes"] |> custom_decode(model), as: model)]}
   end
 
   # :update_all for multiple results
@@ -319,12 +317,10 @@ defmodule Ecto.Adapters.DynamoDB do
       # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements.
       record = if options[:expression_attribute_values], do: [options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})], else: []
 
-      case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []}) do 
-        %{} = update_query_result -> 
-          {count, result_list} = acc
-          {count + 1, [Dynamo.decode_item(update_query_result["Attributes"], as: model) |> custom_decode(model) | result_list]}
-        _ -> handle_error_error()
-      end
+      update_query_result = Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
+
+      {count, result_list} = acc
+      {count + 1, [Dynamo.decode_item(update_query_result["Attributes"], as: model) |> custom_decode(model) | result_list]}
     end
   end
 
@@ -357,10 +353,8 @@ defmodule Ecto.Adapters.DynamoDB do
     fields_map = Enum.into(fields, %{})
     record = if do_not_insert_nil_fields, do: fields_map, else: build_record_map(model, fields_map)
 
-    case Dynamo.put_item(table, record) |> ExAws.request |> handle_error!(%{table: table, records: [record]}) do
-      %{} -> {:ok, []}
-      _   -> handle_error_error()
-    end
+    Dynamo.put_item(table, record) |> ExAws.request |> handle_error!(%{table: table, records: [record]})
+    {:ok, []}
   end
 
 
@@ -388,19 +382,17 @@ defmodule Ecto.Adapters.DynamoDB do
 
     records = Enum.map(prepared_fields, fn [put_request: [item: record]] -> record end)
 
-    case batch_write_attempt = Dynamo.batch_write_item([{table, prepared_fields}]) |> ExAws.request |> handle_error!(%{table: table, records: records}) do
-      # THE FORMAT OF A SUCCESSFUL BATCH INSERT IS A MAP THAT WILL INCLUDE A MAP OF ANY UNPROCESSED ITEMS
-      %{"UnprocessedItems" => %{}} ->
-        cond do
-          # IDEALLY, THERE ARE NO UNPROCESSED ITEMS - THE MAP IS EMPTY
-          batch_write_attempt["UnprocessedItems"] == %{} ->
-            {:ok, []}
-          # TO DO: DEVELOP A STRATEGY FOR HANDLING UNPROCESSED ITEMS.
-          # DOCS SUGGEST GATHERING THEM UP AND TRYING ANOTHER BATCH INSERT AFTER A SHORT DELAY
-          batch_write_attempt["UnprocessedItems"] != %{} ->
-            raise "#{inspect __MODULE__}.insert_all: Handling not yet implemented for \"UnprocessedItems\" as a non-empty map. ExAws.Dynamo.batch_write_item response: #{inspect batch_write_attempt}"
-        end
-      _ -> handle_error_error()
+    batch_write_attempt = Dynamo.batch_write_item([{table, prepared_fields}]) |> ExAws.request |> handle_error!(%{table: table, records: records})
+
+    # THE FORMAT OF A SUCCESSFUL BATCH INSERT IS A MAP THAT WILL INCLUDE A MAP OF ANY UNPROCESSED ITEMS
+    cond do
+      # IDEALLY, THERE ARE NO UNPROCESSED ITEMS - THE MAP IS EMPTY
+      batch_write_attempt["UnprocessedItems"] == %{} ->
+        {:ok, []}
+      # TO DO: DEVELOP A STRATEGY FOR HANDLING UNPROCESSED ITEMS.
+      # DOCS SUGGEST GATHERING THEM UP AND TRYING ANOTHER BATCH INSERT AFTER A SHORT DELAY
+      batch_write_attempt["UnprocessedItems"] != %{} ->
+        raise "#{inspect __MODULE__}.insert_all: Handling not yet implemented for \"UnprocessedItems\" as a non-empty map. ExAws.Dynamo.batch_write_item response: #{inspect batch_write_attempt}"
     end
   end
 
@@ -456,10 +448,8 @@ defmodule Ecto.Adapters.DynamoDB do
     # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements.
     record = if options[:expression_attribute_values], do: [options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})], else: []
 
-    case Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []}) do
-      %{} -> {:ok, []}
-      _   -> handle_error_error()
-    end
+    Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
+    {:ok, []}
   end
 
   # Used in update_all
@@ -717,9 +707,5 @@ defmodule Ecto.Adapters.DynamoDB do
           _     -> raise "The following request error could be related to attempting to insert an empty string or attempting to insert a type other than a string or number on an indexed field. Indexed fields: #{inspect indexed_fields}. Records: #{inspect params.records}.\n\nExAws Request Error! #{inspect error}" 
         end
     end    
-  end
-
-  defp handle_error_error do
-    raise "Exception - Ex Aws either did not return an expected result or failed to raise an error. See also #{inspect __MODULE__}.handle_error!"    
   end
 end
