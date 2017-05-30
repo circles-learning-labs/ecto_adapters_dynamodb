@@ -205,7 +205,7 @@ defmodule Ecto.Adapters.DynamoDB do
     {table, model} = prepared.from
     validate_where_clauses!(prepared)
     # We map the top level only of the lookup fields
-    {lookup_fields, _is_nil_clauses_on_indexed_fields} = extract_lookup_fields(prepared.wheres, params, table, {[],[]})
+    {lookup_fields, is_nil_clauses_on_indexed_fields} = extract_lookup_fields(prepared.wheres, params, table, {[],[]})
 
     update_params = extract_update_params(prepared.updates, params)
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
@@ -222,13 +222,16 @@ defmodule Ecto.Adapters.DynamoDB do
         # 'null' value, unless the application's environment is configured to remove the fields instead.
         remove_nil_fields = Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update_all) == true
         # We map the top level only of the lookup fields
-        results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, Enum.into(lookup_fields, %{}))
+        results = Ecto.Adapters.DynamoDB.Query.get_item(table, Enum.into(lookup_fields, %{}))
 
-        ## TODO: add non-indexed is_nil filter here
+        # We handle indexed is_nil clauses before decoding
+        # since :update_all queries but does not decode
+        # until after issuing the updates.
+        filtered_results = handle_is_nil_clauses2(is_nil_clauses_on_indexed_fields, results)
+ 
+        IO.puts "filtered_results: #{inspect filtered_results}"
 
-        IO.puts "results_to_update: #{inspect results_to_update}"
-
-        update_all(table, key_list, results_to_update, update_params, model, [{:remove_nil_fields, remove_nil_fields} | opts])
+        update_all(table, key_list, filtered_results, update_params, model, [{:remove_nil_fields, remove_nil_fields} | opts])
     end
 
     #error "#{inspect __MODULE__}.execute is not implemented."
@@ -646,7 +649,7 @@ defmodule Ecto.Adapters.DynamoDB do
     # only supporting the example with values in params
     case raw_expr_mixed_list do
       [raw: _, expr: {{:., [], [{:&, [], [0]}, field_atom]}, [], []}, raw: between_str, expr: {:^, [], [idx1]}, raw: and_str, expr: {:^, [], [idx2]}, raw: _] ->
-		if not (Regex.match?(~r/^\s*between\s*and\s*$/i, between_str <> and_str)), do:
+        if not (Regex.match?(~r/^\s*between\s*and\s*$/i, between_str <> and_str)), do:
           parse_raw_expr_mixed_list_error(raw_expr_mixed_list)
         {to_string(field_atom), {[Enum.at(params, idx1), Enum.at(params, idx2)], :between}}
         
@@ -656,6 +659,26 @@ defmodule Ecto.Adapters.DynamoDB do
 
   defp parse_raw_expr_mixed_list_error(raw_expr_mixed_list), do:
     raise "#{inspect __MODULE__}.parse_raw_expr_mixed_list parse error. We currently only support the Ecto fragment of the form, 'where: fragment(\"? between ? and ?\", FIELD_AS_VARIABLE, VALUE_AS_VARIABLE, VALUE_AS_VARIABLE)'. Received: #{inspect raw_expr_mixed_list}" 
+
+  # Handles is_nil_clauses before results are decoded
+  defp handle_is_nil_clauses2(is_nil_fields, results) do
+    if Map.has_key?(results, "Items") do
+      filtered = results["Items"] |> Enum.filter(fn item ->
+          Enum.all?(is_nil_fields, fn field ->
+            item[to_string(field)] in [nil, %{"NULL" => true}]
+        end)
+      end)
+      Map.merge(results, %{"Count" => length(filtered), "Items" => filtered})
+    # If there's only one item and it meets qualifications, we need
+    # to convert the result to an empty list with a new, "Items", key.
+    else
+      item = results["Item"]
+      if Enum.all?(is_nil_fields, fn field -> item[to_string(field)] in [nil, %{"NULL" => true}] end),
+      do: results,
+      else: Map.merge(%{"Count" => 0, "Items" => []}, Map.delete(results, "Item"))
+    end
+  end
+
 
   defp handle_is_nil_clauses(results, is_nil_clauses) do
     IO.puts "results = #{inspect results}"
