@@ -14,7 +14,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   #
 
   # Repo.all(model), provide cached results for tables designated in :cached_tables
-  def get_item(table, search) when search == %{} do
+  def get_item(table, search) when search == [] do
     Ecto.Adapters.DynamoDB.Cache.scan!(table)
   end
 
@@ -54,8 +54,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     criteria = [index_name: index_name]
     criteria ++ case index_fields do
       [hash, range] ->
-        {hash_val, _op} = search[hash]
-        {range_expression, range_attribute_names, range_attribute_values} = construct_range_params(range, search[range])
+        {hash_val, _op} = deep_find_key(search, hash)
+        {range_expression, range_attribute_names, range_attribute_values} = construct_range_params(range, deep_find_key(search, range))
         [
           # We need ExpressionAttributeNames when field-names are reserved, for example "name" or "role"
           key_condition_expression: "##{hash} = :hash_key AND #{range_expression}",
@@ -65,7 +65,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         ] ++ filter_expression_tuple
 
       [hash] ->
-        {hash_val, _op} = search[hash]
+        {hash_val, _op} = deep_find_key(search, hash)
         [
           key_condition_expression: "##{hash} = :hash_key",
           expression_attribute_names: Map.merge(%{"##{hash}" => hash}, expression_attribute_names),
@@ -83,7 +83,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   defp construct_search(criteria, [], _), do: criteria
   defp construct_search(criteria, [index_field|index_fields], search) do
-    Map.put(criteria, index_field, elem(search[index_field], 0)) |> construct_search(index_fields, search)
+    Map.put(criteria, index_field, elem(deep_find_key(search, index_field), 0)) |> construct_search(index_fields, search)
   end
 
   defp construct_range_params(range, {[range_start, range_end], :between}) do
@@ -99,7 +99,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   # returns a tuple: {filter_expression_tuple, expression_attribute_names, expression_attribute_values}
   defp construct_filter_expression(search, index_fields) do
     # We can only construct a FilterExpression on attributes not in key-conditions.
-    non_indexed_filters = Enum.filter(search, fn {field, _} -> not Enum.member?(index_fields, field) end)
+    non_indexed_filters = collect_non_indexed_search(search, index_fields, [])
 
     case non_indexed_filters do
       [] -> {[], %{}, []}
@@ -113,6 +113,24 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
+
+  # Recursively strip out the fields for key-conditions; they could be mixed with non key-conditions.
+  defp collect_non_indexed_search([], _index_fields, acc), do: acc
+  defp collect_non_indexed_search([search_clause | search_clauses], index_fields, acc) do
+    case search_clause do
+      {field, {_val, _op}} = complete_tuple when not field in [:and, :or] ->
+        if Enum.member?(index_fields, field),
+        do: collect_non_indexed_search(search_clauses, index_fields, acc),
+        else: collect_non_indexed_search(search_clauses, index_fields, [complete_tuple | acc])
+
+      {logical_op, deeper_clauses} when logical_op in [:and, :or] ->
+        filtered_clauses = collect_non_indexed_search(deeper_clauses, index_fields, [])
+        # don't keep empty logical_op groups
+        if filtered_clauses == [],
+        do: collect_non_indexed_search(search_clauses, index_fields, acc),
+        else: collect_non_indexed_search(search_clauses, index_fields, [{logical_op, filtered_clauses} | acc])
+    end
+  end
 
   # Recursively reconstruct parentheticals
   defp build_filter_expression_data([], acc), do: acc
@@ -208,7 +226,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   """
   def get_best_index!(tablename, search) do
     case get_best_index(tablename, search) do
-      :not_found -> raise "#{inspect __MODULE__}.get_best_index! error: index_not_found. (Please remember that we currently support key conditions only as separate where clauses in the top level of the query. Please see README.)"
+      :not_found -> raise "index_not_found"
       index -> index
     end
 
@@ -253,7 +271,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
 
-
   defp find_best_match([], _search, best), do: best
   defp find_best_match([index|indexes], search, best) do
     case match_index(index, search) do
@@ -273,28 +290,45 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     case index do
       {_, [hash, range]} ->
         # Part of the query could be a nil filter on an indexed attribute;
-        # in that case, we need a check in addition to has_key?, so we check the operator.
+        # in that case, we need a check in addition to the key, so we check the operator.
         # Also, the hash part can only accept an :== operator.
-        if Map.has_key?(search, hash) and elem(search[hash], 1) == :==
-        and Map.has_key?(search, range) and elem(search[range], 1) != :is_nil,
+        hash_key = deep_find_key(search, hash)
+        range_key = deep_find_key(search, range)
+        if hash_key != nil and elem(hash_key, 1) == :==
+        and range_key != nil and elem(range_key, 1) != :is_nil,
         do: index, else: :not_found
 
       {_, [hash]} ->
-        if Map.has_key?(search, hash) and elem(search[hash], 1) != :is_nil, do: index, else: :not_found
+        hash_key = deep_find_key(search, hash)
+        if hash_key != nil and elem(hash_key, 1) == :==, 
+        do: index, else: :not_found
     end
   end
 
   defp match_index_hash_part(index, search) do
     case index do
       {:primary, [hash, _range]} ->
-        if Map.has_key?(search, hash) and elem(search[hash], 1) == :==,
+        hash_key = deep_find_key(search, hash)
+        if hash_key != nil and elem(hash_key, 1) == :==,
         do: {:primary_partial, [hash]}, else: :not_found
 
       {index_name, [hash, _range]} ->
-        if Map.has_key?(search, hash) and elem(search[hash], 1) != :is_nil,
+        hash_key = deep_find_key(search, hash)
+        if hash_key != nil and elem(hash_key, 1) == :==,
         do: {:secondary_partial, index_name, [hash]}, else: :not_found
 
       _ -> :not_found
+    end
+  end
+
+  defp deep_find_key([], _), do: nil
+  defp deep_find_key([clause | clauses], key) do
+    case clause do
+      {field, {val, op}} when not field in [:and, :or] ->
+        if field == key, do: {val, op}, else: deep_find_key(clauses, key)
+      {logical_op, deeper_clauses} when logical_op in [:and, :or] ->
+        found = deep_find_key(deeper_clauses, key)
+        if found != nil, do: found, else: deep_find_key(clauses, key)
     end
   end
 

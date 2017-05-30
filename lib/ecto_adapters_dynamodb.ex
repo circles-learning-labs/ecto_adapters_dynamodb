@@ -222,7 +222,7 @@ defmodule Ecto.Adapters.DynamoDB do
         # 'null' value, unless the application's environment is configured to remove the fields instead.
         remove_nil_fields = Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update_all) == true
         # We map the top level only of the lookup fields
-        results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, Enum.into(lookup_fields, %{}))
+        results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields)
 
         # We handle indexed is_nil clauses before decoding
         # since :update_all queries but does not decode
@@ -258,7 +258,7 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "lookup_fields = #{inspect lookup_fields}"
 
     # We map the top level only of the lookup fields
-    result = Ecto.Adapters.DynamoDB.Query.get_item(table, Enum.into(lookup_fields, %{}))
+    result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields)
     IO.puts "result = #{inspect result}"
 
     if result == %{} do
