@@ -295,7 +295,7 @@ defmodule Ecto.Adapters.DynamoDB do
                     return_values: :all_new]
     options = maybe_add_attribute_values(base_options, attribute_values)
     # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements.
-    record = if options[:expression_attribute_values], do: [options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})], else: []
+    record = if options[:expression_attribute_values], do: [options[:expression_attribute_values] |> Enum.into(%{})], else: []
 
     update_query_result = Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
 
@@ -315,7 +315,7 @@ defmodule Ecto.Adapters.DynamoDB do
                       return_values: :all_new]
       options = maybe_add_attribute_values(base_options, attribute_values)
       # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements.
-      record = if options[:expression_attribute_values], do: [options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})], else: []
+      record = if options[:expression_attribute_values], do: [options[:expression_attribute_values] |> Enum.into(%{})], else: []
 
       update_query_result = Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
 
@@ -446,7 +446,7 @@ defmodule Ecto.Adapters.DynamoDB do
                     update_expression: update_expression]
     options = maybe_add_attribute_values(base_options, attribute_values)
     # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements.
-    record = if options[:expression_attribute_values], do: [options |> Enum.into(%{}) |> Map.get(:expression_attribute_values) |> Enum.into(%{})], else: []
+    record = if options[:expression_attribute_values], do: [options[:expression_attribute_values] |> Enum.into(%{})], else: []
 
     Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
     {:ok, []}
