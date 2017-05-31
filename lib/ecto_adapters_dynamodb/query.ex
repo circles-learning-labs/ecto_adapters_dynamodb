@@ -140,7 +140,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       {field, {val, op} = val_op_tuple} = complete_tuple when is_tuple(val_op_tuple) ->
         updated_filter_exprs = [construct_conditional_statement(complete_tuple) | filter_exprs]
         updated_attr_names = Map.merge(%{"##{field}" => field}, attr_names)
-        updated_attr_values = Map.merge(format_expression_attribute_value(val, op), attr_values) 
+        updated_attr_values = Map.merge(format_expression_attribute_value(field, val, op), attr_values) 
 
         build_filter_expression_data(exprs, {updated_filter_exprs, updated_attr_names, updated_attr_values})
 
@@ -154,41 +154,35 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
-  defp format_expression_attribute_value(val, :is_nil), do: %{String.to_atom(val) => nil}
+  # We use a version of the field-name for the value's key to guarantee uniqueness
+  defp format_expression_attribute_value(field, _val, :is_nil), do: %{String.to_atom(field <> "_val") => nil}
   # double op
-  defp format_expression_attribute_value([val1, val2], [_op1, _op2]) do
-    %{String.to_atom(clean_string(val1)) => val1, String.to_atom(clean_string(val2)) => val2}
+  defp format_expression_attribute_value(field, [val1, val2], [_op1, _op2]) do
+    %{String.to_atom(field <> "_val1") => val1, String.to_atom(field <> "_val2") => val2}
   end
-   defp format_expression_attribute_value([start_val, end_val], :between) do
-    %{String.to_atom(clean_string(start_val)) => start_val, String.to_atom(clean_string(end_val)) => end_val}
+   defp format_expression_attribute_value(field, [start_val, end_val], :between) do
+    %{String.to_atom(field <> "_start_val") => start_val, String.to_atom(field <> "_end_val") => end_val}
   end
-  defp format_expression_attribute_value(val, _op), do: %{String.to_atom(clean_string(val)) => val}
+  defp format_expression_attribute_value(field, val, _op), do: %{String.to_atom(field <> "_val") => val}
 
 
   # double op (neither of them ought be :==)
-  defp construct_conditional_statement({field, {[val1, val2], [op1, op2]}}) do
-    "##{field} #{to_string(op1)} :#{clean_string(val1)} and ##{field} #{to_string(op2)} :#{clean_string(val2)}"
+  defp construct_conditional_statement({field, {[_val1, _val2], [op1, op2]}}) do
+    "##{field} #{to_string(op1)} :#{field <> "_val1"} and ##{field} #{to_string(op2)} :#{field <> "_val2"}"
   end  
-  defp construct_conditional_statement({field, {val, :is_nil}}) do
-    "(##{field} = :#{clean_string(val)} or attribute_not_exists(##{field}))"
+  defp construct_conditional_statement({field, {_val, :is_nil}}) do
+    "(##{field} = :#{field <> "_val"} or attribute_not_exists(##{field}))"
   end
-  defp construct_conditional_statement({field, {val, :==}}) do
-    "##{field} = :#{clean_string(val)}"
+  defp construct_conditional_statement({field, {_val, :==}}) do
+    "##{field} = :#{field <> "_val"}"
   end
-  defp construct_conditional_statement({field, {val, op}}) when op in [:<, :>, :<=, :>=] do
-    "##{field} #{to_string(op)} :#{clean_string(val)}"
+  defp construct_conditional_statement({field, {_val, op}}) when op in [:<, :>, :<=, :>=] do
+    "##{field} #{to_string(op)} :#{field <> "_val"}"
   end
-  defp construct_conditional_statement({field, {[start_val, end_val], :between}}) do
-    "##{field} between :#{clean_string(start_val)} and :#{clean_string(end_val)}"
+  defp construct_conditional_statement({field, {[_start_val, _end_val], :between}}) do
+    "##{field} between :#{field <> "_start_val"} and :#{field <> "_end_val"}"
   end
 
-  # For convenience, we use values as their own attribute names;
-  # we need to clean them to avoid non-word characters in the
-  # ExpressionAttributeValues keys.
-  # TODO: this method of assigning keys wouldn't work if two values are the same;
-  # we ought to guarantee distinctness.
-  defp clean_string(str), do: String.replace(str, ~r/\W/, "")
- 
 
   # TODO: Given the search criteria, filter out other results that were caught in the
   # index read. TODO: Can we do this on the server side dynamo query instead?
