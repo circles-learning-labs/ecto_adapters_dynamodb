@@ -560,7 +560,7 @@ defmodule Ecto.Adapters.DynamoDB do
       validate_where_clause! w
     end
   end
-  defp validate_where_clause!(%BooleanExpr{expr: {op, _, _}}) when op in [:==, :<, :>, :<=, :>=], do: :ok
+  defp validate_where_clause!(%BooleanExpr{expr: {op, _, _}}) when op in [:==, :<, :>, :<=, :>=, :in], do: :ok
   defp validate_where_clause!(%BooleanExpr{expr: {logical_op, _, _}}) when logical_op in [:and, :or], do: :ok
   defp validate_where_clause!(%BooleanExpr{expr: {:is_nil, _, _}}), do: :ok
   defp validate_where_clause!(%BooleanExpr{expr: {:fragment, _, _}}), do: :ok
@@ -579,7 +579,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     case maybe_extract_from_expr do 
       # A logical operator points to a list of conditionals
-      {op, _, [left, right]} when op in [:==, :<, :>, :<=, :>=] ->
+      {op, _, [left, right]} when op in [:==, :<, :>, :<=, :>=, :in] ->
         {field, value} = get_op_clause(left, right, params)
         updated_lookup_fields = 
           case List.keyfind(lookup_fields, field, 0) do

@@ -154,8 +154,13 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
-  # We use a version of the field-name for the value's key to guarantee uniqueness
   defp format_expression_attribute_value(field, _val, :is_nil), do: %{String.to_atom(field <> "_val") => nil}
+  defp format_expression_attribute_value(field, val, :in) do
+    {result, _count} = Enum.reduce(val, {%{}, 1}, fn (v, {acc, count}) ->
+      {Map.merge(acc, %{String.to_atom(field <> "_val#{to_string(count)}") => v}), count + 1}
+    end)
+    result
+  end
   # double op
   defp format_expression_attribute_value(field, [val1, val2], [_op1, _op2]) do
     %{String.to_atom(field <> "_val1") => val1, String.to_atom(field <> "_val2") => val2}
@@ -172,6 +177,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end  
   defp construct_conditional_statement({field, {_val, :is_nil}}) do
     "(##{field} = :#{field <> "_val"} or attribute_not_exists(##{field}))"
+  end
+  defp construct_conditional_statement({field, {val, :in}}) do
+    {result, _count} = Enum.reduce(val, {[], 1}, fn (_val, {acc, count}) ->
+      {[":#{field}_val#{to_string(count)}" | acc], count + 1}
+    end)    
+    "(##{field} in (#{Enum.join(result, ",")}))"
   end
   defp construct_conditional_statement({field, {_val, :==}}) do
     "##{field} = :#{field <> "_val"}"
