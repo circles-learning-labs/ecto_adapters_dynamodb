@@ -157,30 +157,37 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp format_expression_attribute_value(val, :is_nil), do: %{String.to_atom(val) => nil}
   # double op
   defp format_expression_attribute_value([val1, val2], [_op1, _op2]) do
-    %{String.to_atom(val1) => val1, String.to_atom(val2) => val2}
+    %{String.to_atom(clean_string(val1)) => val1, String.to_atom(clean_string(val2)) => val2}
   end
    defp format_expression_attribute_value([start_val, end_val], :between) do
-    %{String.to_atom(start_val) => start_val, String.to_atom(end_val) => end_val}
+    %{String.to_atom(clean_string(start_val)) => start_val, String.to_atom(clean_string(end_val)) => end_val}
   end
-  defp format_expression_attribute_value(val, _op), do: %{String.to_atom(val) => val}
+  defp format_expression_attribute_value(val, _op), do: %{String.to_atom(clean_string(val)) => val}
 
 
   # double op (neither of them ought be :==)
   defp construct_conditional_statement({field, {[val1, val2], [op1, op2]}}) do
-    "##{field} #{to_string(op1)} :#{val1} and ##{field} #{to_string(op2)} :#{val2}"
+    "##{field} #{to_string(op1)} :#{clean_string(val1)} and ##{field} #{to_string(op2)} :#{clean_string(val2)}"
   end  
   defp construct_conditional_statement({field, {val, :is_nil}}) do
-    "(##{field} = :#{val} or attribute_not_exists(##{field}))"
+    "(##{field} = :#{clean_string(val)} or attribute_not_exists(##{field}))"
   end
   defp construct_conditional_statement({field, {val, :==}}) do
-    "##{field} = :#{val}"
+    "##{field} = :#{clean_string(val)}"
   end
   defp construct_conditional_statement({field, {val, op}}) when op in [:<, :>, :<=, :>=] do
-    "##{field} #{to_string(op)} :#{val}"
+    "##{field} #{to_string(op)} :#{clean_string(val)}"
   end
   defp construct_conditional_statement({field, {[start_val, end_val], :between}}) do
-    "##{field} between :#{start_val} and :#{end_val}"
+    "##{field} between :#{clean_string(start_val)} and :#{clean_string(end_val)}"
   end
+
+  # For convenience, we use values as their own attribute names;
+  # we need to clean them to avoid non-word characters in the
+  # ExpressionAttributeValues keys.
+  # TODO: this method of assigning keys wouldn't work if two values are the same;
+  # we ought to guarantee distinctness.
+  defp clean_string(str), do: String.replace(str, ~r/\W/, "")
  
 
   # TODO: Given the search criteria, filter out other results that were caught in the
