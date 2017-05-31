@@ -76,7 +76,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
-  # TODO: would there be a difference, constructing this as an explicit range query > "0"?
   def construct_search({:secondary_partial, index_name , index_fields}, search) do
     construct_search({index_name, index_fields}, search)
   end
@@ -115,6 +114,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
 
   # Recursively strip out the fields for key-conditions; they could be mixed with non key-conditions.
+  # TODO: this may be redundant - the indexed fields can just be skipped during the expression construction
   defp collect_non_indexed_search([], _index_fields, acc), do: acc
   defp collect_non_indexed_search([search_clause | search_clauses], index_fields, acc) do
     case search_clause do
@@ -322,6 +322,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
+  # TODO: multiple use of deep_find_key could be avoided by using the recursion in the main module to provide a set of indexed attributes in addition to the nested logical clauses.
   defp deep_find_key([], _), do: nil
   defp deep_find_key([clause | clauses], key) do
     case clause do
