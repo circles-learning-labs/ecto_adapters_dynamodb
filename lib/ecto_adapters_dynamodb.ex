@@ -350,7 +350,7 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts("\treturning: #{inspect returning}")
     IO.puts("\toptions: #{inspect options}")
 
-    insert_nil_field_option = List.keyfind(options, :insert_nil_fields, 0, {true, true}) |> elem(1)
+    insert_nil_field_option = Keyword.get(options, :insert_nil_fields, true)
     do_not_insert_nil_fields = insert_nil_field_option == false || Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
 
     {_, table} = schema_meta.source 
@@ -372,7 +372,7 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts("\treturning: #{inspect returning}")
     IO.puts("\toptions: #{inspect options}")
 
-    insert_nil_field_option = List.keyfind(options, :insert_nil_fields, 0, {true, true}) |> elem(1)
+    insert_nil_field_option = Keyword.get(options, :insert_nil_fields, true)
     do_not_insert_nil_fields = insert_nil_field_option == false || Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
 
     {_, table} = schema_meta.source

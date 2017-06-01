@@ -44,13 +44,17 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   # so construct a dynamo db search criteria map with only the given fields and their
   # search objects!
   def construct_search({:primary, index_fields}, search), do: construct_search(%{}, index_fields, search)
-  def construct_search({:primary_partial, _index_fields}, _search), do: raise ":primary_partial index search not yet implemented"
+  def construct_search({:primary_partial, index_fields}, search) do
+    # do not provide index_name for primary partial
+    construct_search({nil, index_fields}, search)
+  end
   def construct_search({index_name, index_fields}, search) do
     # Construct a DynamoDB FilterExpression (since it cannot be provided blank but may be,
     # we merge it with the full query)
     {filter_expression_tuple, expression_attribute_names, expression_attribute_values} = construct_filter_expression(search, index_fields)
 
-    criteria = [index_name: index_name]
+    # :primary_partial might not provide an index name
+    criteria = if index_name != nil, do: [index_name: index_name], else: []
     criteria ++ case index_fields do
       [hash, range] ->
         {hash_val, _op} = deep_find_key(search, hash)
@@ -346,8 +350,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   # scan
   defp do_scan(table, search, opts) do
-    cached_table_list = Application.get_env(:ecto_adapters_dynamodb, :cached_tables) || []
-    scan_table_list = Application.get_env(:ecto_adapters_dynamodb, :scan_tables) || []
+    cached_table_list = Application.get_env(:ecto_adapters_dynamodb, :cached_tables)
+    scan_table_list = Application.get_env(:ecto_adapters_dynamodb, :scan_tables)
 
     cond do
       Enum.member?(cached_table_list, table) ->
