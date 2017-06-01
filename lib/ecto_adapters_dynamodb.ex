@@ -207,6 +207,8 @@ defmodule Ecto.Adapters.DynamoDB do
     # We map the top level only of the lookup fields
     lookup_fields = extract_lookup_fields(prepared.wheres, params, [])
 
+    limit = extract_limit(prepared)
+
     update_params = extract_update_params(prepared.updates, params)
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
 
@@ -214,6 +216,7 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "lookup_fields: #{inspect lookup_fields}"
     IO.puts "update_params: #{inspect update_params}"
     IO.puts "key_list: #{inspect key_list}"
+    IO.puts "limit: #{inspect limit}"
 
     case prepared.updates do
       [] -> error "#{inspect __MODULE__}.execute: Updates list empty."
@@ -222,7 +225,7 @@ defmodule Ecto.Adapters.DynamoDB do
         # 'null' value, unless the application's environment is configured to remove the fields instead.
         remove_nil_fields = Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update_all) == true
         # We map the top level only of the lookup fields
-        results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields)
+        results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, opts ++ limit)
 
         # We handle indexed is_nil clauses before decoding
         # since :update_all queries but does not decode
@@ -253,12 +256,14 @@ defmodule Ecto.Adapters.DynamoDB do
     validate_where_clauses!(prepared)
     # We can pass is_nil filters to DynamoDB, provided they are on non-indexed attributes
     lookup_fields = extract_lookup_fields(prepared.wheres, params, [])
+    limit = extract_limit(prepared)
 
     IO.puts "table = #{inspect table}"
     IO.puts "lookup_fields = #{inspect lookup_fields}"
+    IO.puts "limit = #{inspect limit}"
 
     # We map the top level only of the lookup fields
-    result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields)
+    result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, opts ++ limit)
     IO.puts "result = #{inspect result}"
 
     if result == %{} do
@@ -468,6 +473,15 @@ defmodule Ecto.Adapters.DynamoDB do
 
   defp extract_update_params([a], _params), do: error "#{inspect __MODULE__}.extract_update_params: Updates is either missing the :expr key or does not contain a struct or map: #{inspect a}"
   defp extract_update_params(unsupported, _params), do: error "#{inspect __MODULE__}.extract_update_params: unsupported parameter construction. #{inspect unsupported}"
+
+  
+  defp extract_limit(prepared) do
+    case prepared.limit do
+      %Ecto.Query.QueryExpr{expr: limit} when is_integer(limit) ->
+        [limit: limit]
+      _ -> []
+    end
+  end
 
 
   # used in :update_all

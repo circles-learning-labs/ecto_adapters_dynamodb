@@ -14,14 +14,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   #
 
   # Repo.all(model), provide cached results for tables designated in :cached_tables
-  def get_item(table, search) when search == [] do
-    Ecto.Adapters.DynamoDB.Cache.scan!(table)
-  end
+  def get_item(table, search, opts) when search == [], do: do_scan(table, search, opts)
 
   # Regular queries
-  def get_item(table, search) do
+  def get_item(table, search, opts) do
 
-    results = case get_best_index!(table, search) do
+    results = case get_best_index!(table, search, opts) do
       # primary key based lookup  uses the efficient 'get_item' operation
       {:primary, _} = index->
         #https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
@@ -29,11 +27,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         ExAws.Dynamo.get_item(table, query) |> ExAws.request!
 
       # secondary index based lookups need the query functionality. 
-      index ->
+      index when is_tuple(index) ->
         # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#query/2
         query = construct_search(index, search)
         ExAws.Dynamo.query(table, query) |> ExAws.request!
 
+      scan_result -> scan_result
     end
 
     filter(results, search)  # index may have had more fields than the index did, thus results need to be trimmed.
@@ -236,9 +235,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   @doc """
   Same as get_best_index, but raises an exception if the index isn't found.
   """
-  def get_best_index!(tablename, search) do
+  def get_best_index!(tablename, search, opts) do
     case get_best_index(tablename, search) do
-      :not_found -> raise "index_not_found"
+      :not_found -> do_scan(tablename, search, opts) # raise "index_not_found"
       index -> index
     end
 
@@ -342,6 +341,70 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       {logical_op, deeper_clauses} when logical_op in [:and, :or] ->
         found = deep_find_key(deeper_clauses, key)
         if found != nil, do: found, else: deep_find_key(clauses, key)
+    end
+  end
+
+  # scan
+  defp do_scan(table, search, opts) do
+    cached_table_list = Application.get_env(:ecto_adapters_dynamodb, :cached_tables) || []
+    scan_table_list = Application.get_env(:ecto_adapters_dynamodb, :scan_tables) || []
+
+    cond do
+      Enum.member?(cached_table_list, table) ->
+        Ecto.Adapters.DynamoDB.Cache.scan!(table)
+
+      Enum.member?(scan_table_list, table) and search != [] ->
+        {filter_expression_tuple, expression_attribute_names, expression_attribute_values} = construct_filter_expression(search, [])
+        
+        expressions = [
+          expression_attribute_names: expression_attribute_names,
+          expression_attribute_values: expression_attribute_values
+        ] ++ opts ++ filter_expression_tuple
+
+        scan_recursive(table, expressions, %{})
+
+      Enum.member?(scan_table_list, table) and search == [] ->
+        scan_recursive(table, [], %{})
+        
+      true -> raise ArgumentError, message: "Could not confirm the table, #{inspect table}, as listed for scan or caching in the application's configuration. Please see README file for details."
+    end
+  end
+
+  defp scan_recursive(table, expressions, result) do
+    scan_result = ExAws.Dynamo.scan(table, expressions) |> ExAws.request!
+
+    if scan_result["LastEvaluatedKey"] != nil and Keyword.get(expressions, :limit, :math.pow(2,64)) > scan_result["ScannedCount"] do
+      case Keyword.get(expressions, :limit) do
+	    nil ->
+          scan_recursive(
+            table,
+            expressions ++ [exclusive_start_key: scan_result["LastEvaluatedKey"]],
+            combine_scan_results(result, scan_result)
+          )
+
+        limit when is_integer(limit) ->
+          updated_expressions = Keyword.update!(expressions, :limit, fn l -> l - scan_result["ScannedCount"] end)
+          scan_recursive(
+            table,
+            updated_expressions ++ [exclusive_start_key: scan_result["LastEvaluatedKey"]],
+            combine_scan_results(result, scan_result)
+          )
+      end
+    else
+      combine_scan_results(result, scan_result)
+    end
+  end
+
+  defp combine_scan_results(result, scan_result) do
+    if result == %{} do
+      scan_result
+    else
+      %{"Count" => result_count, "Items" => result_items, "ScannedCount" => result_scanned_count} = result
+      %{"Count" => scanned_count, "Items" => scanned_items, "ScannedCount" => scanned_scanned_count} = scan_result
+
+      %{"Count" => result_count + scanned_count,
+        "Items" => result_items ++ scanned_items,
+        "ScannedCount" => result_scanned_count + scanned_scanned_count}
     end
   end
 
