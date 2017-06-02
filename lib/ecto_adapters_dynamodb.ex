@@ -162,14 +162,20 @@ defmodule Ecto.Adapters.DynamoDB do
     {:nocache, query}
   end
   
+
   def prepare(:update_all, query) do
     IO.puts("PREPARE::UPDATE_ALL:::")
     IO.inspect(query, structs: false)
     {:nocache, query}
   end
-  
   # do: {:cache, {System.unique_integer([:positive]), @conn.update_all(query)}}
-  #def prepare(:delete_all, query),
+
+
+  def prepare(:delete_all, query) do
+    IO.puts("PREPARE::DELETE_ALL:::")
+    IO.inspect(query, structs: false)
+    {:nocache, query}
+  end
   # do: {:cache, {System.unique_integer([:positive]), @conn.delete_all(query)}}
 
 
@@ -207,7 +213,7 @@ defmodule Ecto.Adapters.DynamoDB do
     # We map the top level only of the lookup fields
     lookup_fields = extract_lookup_fields(prepared.wheres, params, [])
 
-    limit_option = Keyword.get(opts, :scan_limit) || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
+    limit_option = opts[:scan_limit] || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
     scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
 
     update_params = extract_update_params(prepared.updates, params)
@@ -220,7 +226,9 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "scan_limit: #{inspect scan_limit}"
 
     case prepared.updates do
-      [] -> error "#{inspect __MODULE__}.execute: Updates list empty."
+      [] ->
+        IO.puts "\n#{inspect __MODULE__}.execute: updates list empty...calling delete_all\n"
+        delete_all(table, lookup_fields, Keyword.delete(opts, :scan_limit) ++ scan_limit)
       _  -> 
         # Since update_all does not allow for arbitrary options, we set nil fields to Dynamo's
         # 'null' value, unless the application's environment is configured to remove the fields instead.
@@ -258,7 +266,7 @@ defmodule Ecto.Adapters.DynamoDB do
     # We can pass is_nil filters to DynamoDB, provided they are on non-indexed attributes
     lookup_fields = extract_lookup_fields(prepared.wheres, params, [])
 
-    limit_option = Keyword.get(opts, :scan_limit) || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
+    limit_option = opts[:scan_limit] || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
     scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
 
     IO.puts "table = #{inspect table}"
@@ -287,6 +295,50 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
+
+  # delete_all allows for the recursive option, scanning through multiple pages
+  defp delete_all(table, lookup_fields, opts) do
+    # select only the key
+    {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
+    recursive = opts[:recursive] == true
+    updated_opts = opts ++ [projection_expression: Enum.join(key_list, ", ")] |> Keyword.delete(:recursive)
+
+    delete_all_recursive(table, lookup_fields, updated_opts, recursive)
+  end
+
+  defp delete_all_recursive(table, lookup_fields, opts, recursive) do
+    updated_opts = if recursive == true, do: Keyword.delete(opts, :limit), else: opts
+
+    # query the table for which records to delete
+    fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, updated_opts)
+
+    prepared_data = for key_list <- Enum.map(fetch_result["Items"], &Map.to_list/1) do
+      key_map = for {key, val_map} <- key_list, into: %{}, do: {key, hd Map.values(val_map)}
+      [delete_request: [key: key_map]]
+    end
+
+    if prepared_data != [], do: batch_delete(table, prepared_data)
+
+    if fetch_result["LastEvaluatedKey"] != nil and recursive do
+        opts_with_offset = updated_opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
+        delete_all_recursive(table, lookup_fields, opts_with_offset, recursive)
+    else
+      {:ok, []}
+    end
+  end
+
+  defp batch_delete(table, prepared_data) do
+    batch_write_attempt = Dynamo.batch_write_item(%{table => prepared_data}) |> ExAws.request |> handle_error!(%{table: table, records: []})
+
+    cond do
+      batch_write_attempt["UnprocessedItems"] == %{} ->
+        {:ok, []}
+        
+      # TODO: handle unprocessed items?
+      batch_write_attempt["UnprocessedItems"] != %{} ->
+        raise "#{inspect __MODULE__}.delete_all: Handling not yet implemented for \"UnprocessedItems\" as a non-empty map. ExAws.Dynamo.batch_write_item response: #{inspect batch_write_attempt}"
+    end
+  end
 
   # :update_all for only one result
   defp update_all(table, key_list, %{"Item" => result_to_update}, update_params, model, opts) do
@@ -458,8 +510,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   # Used in update_all
-  defp extract_update_params([], _params), do: error "#{inspect __MODULE__}.extract_update_params: Updates list is empty."
-  
+  defp extract_update_params([], _params), do: []
   defp extract_update_params([%{expr: key_list}], params) do
     case List.keyfind(key_list, :set, 0) do
       {_, set_list} ->
@@ -487,7 +538,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp construct_expression_attribute_values(fields, opts) do
-    remove_rather_than_set_to_null = Keyword.get(opts, :remove_nil_fields, false) || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
+    remove_rather_than_set_to_null = opts[:remove_nil_fields] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
 
     # If the value is nil and the :remove_nil_fields option is set, 
     # we're removing this attribute, not updating it, so filter out any such fields:
@@ -513,7 +564,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp construct_update_expression(fields, opts) do
-    remove_rather_than_set_to_null = Keyword.get(opts, :remove_nil_fields, false) || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
+    remove_rather_than_set_to_null = opts[:remove_nil_fields] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
 
     set_statement = construct_set_statement(fields, opts)
     rem_statement = case remove_rather_than_set_to_null do
@@ -534,7 +585,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # fields::[{:field, val}]
   defp construct_set_statement(fields, opts) do
-    remove_rather_than_set_to_null = Keyword.get(opts, :remove_nil_fields, false) || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
+    remove_rather_than_set_to_null = opts[:remove_nil_fields] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
 
     set_clauses = for {key, val} <- fields, not (is_nil(val) and remove_rather_than_set_to_null) do
       key_str = Atom.to_string(key)

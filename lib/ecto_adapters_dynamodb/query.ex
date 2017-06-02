@@ -23,14 +23,14 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       # primary key based lookup  uses the efficient 'get_item' operation
       {:primary, _} = index->
         #https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
-        query = construct_search(index, search)
+        query = construct_search(index, search, opts)
         ExAws.Dynamo.get_item(table, query) |> ExAws.request!
 
       # secondary index based lookups need the query functionality. 
       index when is_tuple(index) ->
         # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#query/2
-        query = construct_search(index, search)
-        fetch_recursive(&ExAws.Dynamo.query/2, table, query ++ opts, opts[:fetch_all] == true, %{})
+        query = construct_search(index, search, opts)
+        fetch_recursive(&ExAws.Dynamo.query/2, table, query, opts[:recursive] == true, %{})
 
       scan_result -> scan_result
     end
@@ -43,15 +43,17 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   # we've a list of fields from an index that matches the (some of) the search fields,
   # so construct a dynamo db search criteria map with only the given fields and their
   # search objects!
-  def construct_search({:primary, index_fields}, search), do: construct_search(%{}, index_fields, search)
-  def construct_search({:primary_partial, index_fields}, search) do
+  def construct_search({:primary, index_fields}, search, opts), do: construct_search(%{}, index_fields, search, opts)
+  def construct_search({:primary_partial, index_fields}, search, opts) do
     # do not provide index_name for primary partial
-    construct_search({nil, index_fields}, search)
+    construct_search({nil, index_fields}, search, opts)
   end
-  def construct_search({index_name, index_fields}, search) do
+  def construct_search({index_name, index_fields}, search, opts) do
     # Construct a DynamoDB FilterExpression (since it cannot be provided blank but may be,
     # we merge it with the full query)
     {filter_expression_tuple, expression_attribute_names, expression_attribute_values} = construct_filter_expression(search, index_fields)
+
+    select = construct_select_and_limit(opts)
 
     # :primary_partial might not provide an index name
     criteria = if index_name != nil, do: [index_name: index_name], else: []
@@ -64,8 +66,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
           key_condition_expression: "##{hash} = :hash_key AND #{range_expression}",
           expression_attribute_names: Enum.reduce([%{"##{hash}" => hash}, range_attribute_names, expression_attribute_names], &Map.merge/2),
           expression_attribute_values: [hash_key: hash_val] ++ range_attribute_values ++ expression_attribute_values,
-          select: :all_attributes
-        ] ++ filter_expression_tuple
+        ] ++ filter_expression_tuple ++ select
 
       [hash] ->
         {hash_val, _op} = deep_find_key(search, hash)
@@ -73,20 +74,20 @@ defmodule Ecto.Adapters.DynamoDB.Query do
           key_condition_expression: "##{hash} = :hash_key",
           expression_attribute_names: Map.merge(%{"##{hash}" => hash}, expression_attribute_names),
           expression_attribute_values: [hash_key: hash_val] ++ expression_attribute_values,
-          select: :all_attributes
-        ] ++ filter_expression_tuple
+        ] ++ filter_expression_tuple ++ select
       
     end
   end
 
-  def construct_search({:secondary_partial, index_name , index_fields}, search) do
-    construct_search({index_name, index_fields}, search)
+  def construct_search({:secondary_partial, index_name , index_fields}, search, opts) do
+    construct_search({index_name, index_fields}, search, opts)
   end
 
-  defp construct_search(criteria, [], _), do: criteria
-  defp construct_search(criteria, [index_field|index_fields], search) do
-    Map.put(criteria, index_field, elem(deep_find_key(search, index_field), 0)) |> construct_search(index_fields, search)
+  defp construct_search(criteria, [], _, _), do: criteria
+  defp construct_search(criteria, [index_field|index_fields], search, opts) do
+    Map.put(criteria, index_field, elem(deep_find_key(search, index_field), 0)) |> construct_search(index_fields, search, opts)
   end
+
 
   defp construct_range_params(range, {[range_start, range_end], :between}) do
     {"##{range} between :range_start and :range_end", %{"##{range}" => range}, [range_start: range_start, range_end: range_end]} 
@@ -97,6 +98,15 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp construct_range_params(range, {range_val, op}) when op in [:<, :>, :<=, :>=] do
     {"##{range} #{to_string(op)} :range_key", %{"##{range}" => range}, [range_key: range_val]}
   end
+
+
+  defp construct_select_and_limit(opts) do
+    case opts[:projection_expression] do
+      nil -> [select: opts[:select] || :all_attributes]
+      _   -> [projection_expression: opts[:projection_expression]]
+    end ++ if is_integer(opts[:limit]), do: [limit: opts[:limit]], else: []
+  end
+
 
   # returns a tuple: {filter_expression_tuple, expression_attribute_names, expression_attribute_values}
   defp construct_filter_expression(search, index_fields) do
@@ -351,7 +361,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   # scan
   defp maybe_scan(table, [], opts) do
-    scan_enabled = Keyword.get(opts, :scan, false) == true || Application.get_env(:ecto_adapters_dynamodb, :scan_all) == true || Enum.member?(Application.get_env(:ecto_adapters_dynamodb, :scan_tables), table)
+    scan_enabled = opts[:scan] == true || Application.get_env(:ecto_adapters_dynamodb, :scan_all) == true || Enum.member?(Application.get_env(:ecto_adapters_dynamodb, :scan_tables), table)
 
     cond do
       # TODO: we could use the cached scan and apply the search filters
@@ -360,7 +370,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         Ecto.Adapters.DynamoDB.Cache.scan!(table)
 
       scan_enabled ->
-        fetch_recursive(&ExAws.Dynamo.scan/2, table, Keyword.delete(opts, :fetch_all), opts[:fetch_all] == true, %{})
+        fetch_recursive(&ExAws.Dynamo.scan/2, table, Keyword.delete(opts, :recursive), opts[:recursive] == true, %{})
 
       true ->
         maybe_scan_error(table)
@@ -368,7 +378,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
   defp maybe_scan(table, search, opts) do
-    scan_enabled = Keyword.get(opts, :scan, false) == true || Application.get_env(:ecto_adapters_dynamodb, :scan_all) == true || Enum.member?(Application.get_env(:ecto_adapters_dynamodb, :scan_tables), table)
+    scan_enabled = opts[:scan] == true || Application.get_env(:ecto_adapters_dynamodb, :scan_all) == true || Enum.member?(Application.get_env(:ecto_adapters_dynamodb, :scan_tables), table)
 
     if scan_enabled do
       {filter_expression_tuple, expression_attribute_names, expression_attribute_values} = construct_filter_expression(search, [])
@@ -376,9 +386,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       expressions = [
         expression_attribute_names: expression_attribute_names,
         expression_attribute_values: expression_attribute_values
-      ] ++ Keyword.delete(opts, :fetch_all) ++ filter_expression_tuple
+      ] ++ Keyword.delete(opts, :recursive) ++ filter_expression_tuple
 
-      fetch_recursive(&ExAws.Dynamo.scan/2, table, expressions, opts[:fetch_all] == true, %{})
+      fetch_recursive(&ExAws.Dynamo.scan/2, table, expressions, opts[:recursive] == true, %{})
     else
       maybe_scan_error(table)
     end
@@ -388,16 +398,16 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     raise ArgumentError, message: "Scan option or configuration have not been specified, and could not confirm the table, #{inspect table}, as listed for scan or caching in the application's configuration. Please see README file for details."
   end
 
-  defp fetch_recursive(func, table, expressions, fetch_all, result) do
-    updated_expressions = if fetch_all, do: Keyword.delete(expressions, :limit), else: expressions
+  defp fetch_recursive(func, table, expressions, recursive, result) do
+    updated_expressions = if recursive, do: Keyword.delete(expressions, :limit), else: expressions
     fetch_result = func.(table, updated_expressions) |> ExAws.request!
 
-    if fetch_result["LastEvaluatedKey"] != nil and fetch_all do
+    if fetch_result["LastEvaluatedKey"] != nil and recursive do
       fetch_recursive(
         func,
         table,
         updated_expressions ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]],
-        fetch_all,
+        recursive,
         combine_results(result, fetch_result)
       )
     else

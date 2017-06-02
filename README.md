@@ -22,7 +22,7 @@ be found at [https://hexdocs.pm/ecto_adapters_dynamodb](https://hexdocs.pm/ecto_
 
 TODO: organize this
 ##Scan
-Inline options are (with examples): `scan_limit: 100` (DynamoDB's limit on the total items scanned), `exclusive_start_key: [id: "some_id"]`, `fetch_all: true` (fetches all pages recursively), and `scan: true` (available globally in config as `:scan_all`). The last one enables the scan if the table is not already in the preconfigured lists, `:cached_tables` or `:scan_tables`. A default `:scan_limit` of 100 can be overridden either in the configuration or inline.
+Inline options are (with examples): `scan_limit: 100` (DynamoDB's limit on the total items scanned), `exclusive_start_key: [id: "some_id"]`, `recursive: true` (fetches all pages recursively), and `scan: true` (available globally in config as `:scan_all`). The last one enables the scan if the table is not already in the preconfigured lists, `:cached_tables` or `:scan_tables`. A default `:scan_limit` of 100 can be overridden either in the configuration or inline.
 Please notice that Ecto queries are greedy: 
 'Repo.all(from Model, where: [name: "Name"], scan_limit: 250)'
 is not the same as, 
@@ -41,6 +41,7 @@ Repo.insert / Repo.insert_all: add the option, 'insert_nil_fields: false', to pr
 This can also be set globally in the application's configuration: 
 'config :ecto_adapters_dynamodb, insert_nil_fields: false'
 
+TODO: amend this
 Repo.All: we are currently supporting scan only as an in-memory cache for preconfigured tables.
 Application configuration: config :ecto_adapters_dynamodb, cached_tables: [table_name, table_name...] , where table names are strings.
 
@@ -48,3 +49,5 @@ Repo.Update: An update query will set nil fields to Dynamo's 'null' value (which
 This can also be set globally in config :remove_nil_fields_on_update
 
 Repo.update_all: Since Ecto :update_all does not seem to allow for arbitrary options, nil fields will set to null by default, unless the Application environment variable, ':remove_nil_fields_on_update_all' is set to 'true'. For example: 'config :ecto_adapters_dynamodb, remove_nil_fields_on_update_all: true'
+
+Repo.delete_all: similar options to all query. Use recursive: true, to recursively scan through all pages, deleting all results. 
