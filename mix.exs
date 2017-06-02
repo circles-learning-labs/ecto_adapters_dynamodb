@@ -17,7 +17,15 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
     # Specify extra applications you'll use from Erlang/Elixir
     [extra_applications: [:logger],
      mod: {Ecto.Adapters.DynamoDB.Application, []},
-     env: [cached_tables: [], scan_tables: [], insert_nil_fields: false, remove_nil_fields_on_update_all: false],
+     env: [
+       cached_tables: [],
+       scan_all: false,
+       scan_tables: [], 
+       scan_limit: 100,
+       insert_nil_fields: false,
+       remove_nil_fields_on_update: false,
+       remove_nil_fields_on_update_all: false
+     ],
      applications: [:ex_aws, :hackney, :poison]
    ]
   end

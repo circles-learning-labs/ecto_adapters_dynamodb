@@ -14,7 +14,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   #
 
   # Repo.all(model), provide cached results for tables designated in :cached_tables
-  def get_item(table, search, opts) when search == [], do: do_scan(table, search, opts)
+  def get_item(table, search, opts) when search == [], do: maybe_scan(table, search, opts)
 
   # Regular queries
   def get_item(table, search, opts) do
@@ -30,7 +30,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       index when is_tuple(index) ->
         # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#query/2
         query = construct_search(index, search)
-        ExAws.Dynamo.query(table, query) |> ExAws.request!
+        fetch_recursive(&ExAws.Dynamo.query/2, table, query ++ opts, opts[:fetch_all] == true, %{})
 
       scan_result -> scan_result
     end
@@ -237,12 +237,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
 
   @doc """
-  Same as get_best_index, but raises an exception if the index isn't found.
+  Same as get_best_index, but refers to a scan option on failure
   """
   def get_best_index!(tablename, search, opts) do
     case get_best_index(tablename, search) do
-      :not_found -> do_scan(tablename, search, opts) # raise "index_not_found"
-      index -> index
+      :not_found -> maybe_scan(tablename, search, opts)
+      index      -> index
     end
 
   end
@@ -348,58 +348,64 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
+
   # scan
-  defp do_scan(table, search, opts) do
-    cached_table_list = Application.get_env(:ecto_adapters_dynamodb, :cached_tables)
-    scan_table_list = Application.get_env(:ecto_adapters_dynamodb, :scan_tables)
+  defp maybe_scan(table, [], opts) do
+    scan_enabled = Keyword.get(opts, :scan, false) == true || Application.get_env(:ecto_adapters_dynamodb, :scan_all) == true || Enum.member?(Application.get_env(:ecto_adapters_dynamodb, :scan_tables), table)
 
     cond do
-      Enum.member?(cached_table_list, table) ->
+      # TODO: we could use the cached scan and apply the search filters
+      # ourselves when they are provided.
+      Enum.member?(Application.get_env(:ecto_adapters_dynamodb, :cached_tables), table) ->
         Ecto.Adapters.DynamoDB.Cache.scan!(table)
 
-      Enum.member?(scan_table_list, table) and search != [] ->
-        {filter_expression_tuple, expression_attribute_names, expression_attribute_values} = construct_filter_expression(search, [])
-        
-        expressions = [
-          expression_attribute_names: expression_attribute_names,
-          expression_attribute_values: expression_attribute_values
-        ] ++ opts ++ filter_expression_tuple
+      scan_enabled ->
+        fetch_recursive(&ExAws.Dynamo.scan/2, table, Keyword.delete(opts, :fetch_all), opts[:fetch_all] == true, %{})
 
-        scan_recursive(table, expressions, %{})
-
-      Enum.member?(scan_table_list, table) and search == [] ->
-        scan_recursive(table, [], %{})
-        
-      true -> raise ArgumentError, message: "Could not confirm the table, #{inspect table}, as listed for scan or caching in the application's configuration. Please see README file for details."
+      true ->
+        maybe_scan_error(table)
     end
   end
 
-  defp scan_recursive(table, expressions, result) do
-    scan_result = ExAws.Dynamo.scan(table, expressions) |> ExAws.request!
+  defp maybe_scan(table, search, opts) do
+    scan_enabled = Keyword.get(opts, :scan, false) == true || Application.get_env(:ecto_adapters_dynamodb, :scan_all) == true || Enum.member?(Application.get_env(:ecto_adapters_dynamodb, :scan_tables), table)
 
-    if scan_result["LastEvaluatedKey"] != nil and Keyword.get(expressions, :limit, :math.pow(2,64)) > scan_result["ScannedCount"] do
-      case Keyword.get(expressions, :limit) do
-	    nil ->
-          scan_recursive(
-            table,
-            expressions ++ [exclusive_start_key: scan_result["LastEvaluatedKey"]],
-            combine_scan_results(result, scan_result)
-          )
+    if scan_enabled do
+      {filter_expression_tuple, expression_attribute_names, expression_attribute_values} = construct_filter_expression(search, [])
+        
+      expressions = [
+        expression_attribute_names: expression_attribute_names,
+        expression_attribute_values: expression_attribute_values
+      ] ++ Keyword.delete(opts, :fetch_all) ++ filter_expression_tuple
 
-        limit when is_integer(limit) ->
-          updated_expressions = Keyword.update!(expressions, :limit, fn l -> l - scan_result["ScannedCount"] end)
-          scan_recursive(
-            table,
-            updated_expressions ++ [exclusive_start_key: scan_result["LastEvaluatedKey"]],
-            combine_scan_results(result, scan_result)
-          )
-      end
+      fetch_recursive(&ExAws.Dynamo.scan/2, table, expressions, opts[:fetch_all] == true, %{})
     else
-      combine_scan_results(result, scan_result)
+      maybe_scan_error(table)
     end
   end
 
-  defp combine_scan_results(result, scan_result) do
+  defp maybe_scan_error(table) do
+    raise ArgumentError, message: "Scan option or configuration have not been specified, and could not confirm the table, #{inspect table}, as listed for scan or caching in the application's configuration. Please see README file for details."
+  end
+
+  defp fetch_recursive(func, table, expressions, fetch_all, result) do
+    updated_expressions = if fetch_all, do: Keyword.delete(expressions, :limit), else: expressions
+    fetch_result = func.(table, updated_expressions) |> ExAws.request!
+
+    if fetch_result["LastEvaluatedKey"] != nil and fetch_all do
+      fetch_recursive(
+        func,
+        table,
+        updated_expressions ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]],
+        fetch_all,
+        combine_results(result, fetch_result)
+      )
+    else
+      combine_results(result, fetch_result)
+    end
+  end
+
+  defp combine_results(result, scan_result) do
     if result == %{} do
       scan_result
     else

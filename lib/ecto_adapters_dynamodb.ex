@@ -207,7 +207,8 @@ defmodule Ecto.Adapters.DynamoDB do
     # We map the top level only of the lookup fields
     lookup_fields = extract_lookup_fields(prepared.wheres, params, [])
 
-    limit = extract_limit(prepared)
+    limit_option = Keyword.get(opts, :scan_limit) || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
+    scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
 
     update_params = extract_update_params(prepared.updates, params)
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
@@ -216,7 +217,7 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "lookup_fields: #{inspect lookup_fields}"
     IO.puts "update_params: #{inspect update_params}"
     IO.puts "key_list: #{inspect key_list}"
-    IO.puts "limit: #{inspect limit}"
+    IO.puts "scan_limit: #{inspect scan_limit}"
 
     case prepared.updates do
       [] -> error "#{inspect __MODULE__}.execute: Updates list empty."
@@ -225,7 +226,7 @@ defmodule Ecto.Adapters.DynamoDB do
         # 'null' value, unless the application's environment is configured to remove the fields instead.
         remove_nil_fields = Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update_all) == true
         # We map the top level only of the lookup fields
-        results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, opts ++ limit)
+        results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, Keyword.delete(opts, :scan_limit) ++ scan_limit)
 
         # We handle indexed is_nil clauses before decoding
         # since :update_all queries but does not decode
@@ -256,26 +257,25 @@ defmodule Ecto.Adapters.DynamoDB do
     validate_where_clauses!(prepared)
     # We can pass is_nil filters to DynamoDB, provided they are on non-indexed attributes
     lookup_fields = extract_lookup_fields(prepared.wheres, params, [])
-    limit = extract_limit(prepared)
+
+    limit_option = Keyword.get(opts, :scan_limit) || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
+    scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
 
     IO.puts "table = #{inspect table}"
     IO.puts "lookup_fields = #{inspect lookup_fields}"
-    IO.puts "limit = #{inspect limit}"
+    IO.puts "scan_limit = #{inspect scan_limit}"
 
     # We map the top level only of the lookup fields
-    result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, opts ++ limit)
+    result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, Keyword.delete(opts, :scan_limit) ++ scan_limit)
     IO.puts "result = #{inspect result}"
 
     if result == %{} do
       # Empty map means "not found"
       {0, []}
     else
-      # TODO handle queries for more than just one item? -> Yup, like Repo.get_by, which could call a secondary index.
       case result["Count"] do
         nil   -> decoded = result |> Dynamo.decode_item(as: repo) |> custom_decode(repo)
                  {1, [[decoded]]}
-        # Repo.get_by only returns the head of the result list, although we could perhaps
-        # support multiple wheres to filter the result list further?
         _ ->
           # HANDLE .all(query) QUERIES
 
@@ -474,15 +474,6 @@ defmodule Ecto.Adapters.DynamoDB do
   defp extract_update_params([a], _params), do: error "#{inspect __MODULE__}.extract_update_params: Updates is either missing the :expr key or does not contain a struct or map: #{inspect a}"
   defp extract_update_params(unsupported, _params), do: error "#{inspect __MODULE__}.extract_update_params: unsupported parameter construction. #{inspect unsupported}"
 
-  
-  defp extract_limit(prepared) do
-    case prepared.limit do
-      %Ecto.Query.QueryExpr{expr: limit} when is_integer(limit) ->
-        [limit: limit]
-      _ -> []
-    end
-  end
-
 
   # used in :update_all
   def get_key_values_dynamo_map(dynamo_map, {:primary, keys}) do
@@ -496,7 +487,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp construct_expression_attribute_values(fields, opts) do
-    remove_rather_than_set_to_null = List.keyfind(opts, :remove_nil_fields, 0, {false, false}) |> elem(1)
+    remove_rather_than_set_to_null = Keyword.get(opts, :remove_nil_fields, false) || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
 
     # If the value is nil and the :remove_nil_fields option is set, 
     # we're removing this attribute, not updating it, so filter out any such fields:
@@ -522,7 +513,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp construct_update_expression(fields, opts) do
-    remove_rather_than_set_to_null = List.keyfind(opts, :remove_nil_fields, 0, {false, false}) |> elem(1)
+    remove_rather_than_set_to_null = Keyword.get(opts, :remove_nil_fields, false) || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
 
     set_statement = construct_set_statement(fields, opts)
     rem_statement = case remove_rather_than_set_to_null do
@@ -543,7 +534,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # fields::[{:field, val}]
   defp construct_set_statement(fields, opts) do
-    remove_rather_than_set_to_null = List.keyfind(opts, :remove_nil_fields, 0, {false, false}) |> elem(1)
+    remove_rather_than_set_to_null = Keyword.get(opts, :remove_nil_fields, false) || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
 
     set_clauses = for {key, val} <- fields, not (is_nil(val) and remove_rather_than_set_to_null) do
       key_str = Atom.to_string(key)
