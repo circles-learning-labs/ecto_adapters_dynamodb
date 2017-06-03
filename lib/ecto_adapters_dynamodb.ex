@@ -215,6 +215,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     limit_option = opts[:scan_limit] || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
     scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
+    updated_opts = Keyword.delete(opts, :scan_limit) ++ scan_limit
 
     update_params = extract_update_params(prepared.updates, params)
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
@@ -230,25 +231,16 @@ defmodule Ecto.Adapters.DynamoDB do
         IO.puts "\n#{inspect __MODULE__}.execute: updates list empty...calling delete_all\n"
         delete_all(table, lookup_fields, Keyword.delete(opts, :scan_limit) ++ scan_limit)
       _  -> 
-        # Since update_all does not allow for arbitrary options, we set nil fields to Dynamo's
-        # 'null' value, unless the application's environment is configured to remove the fields instead.
-        remove_nil_fields = Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update_all) == true
         # We map the top level only of the lookup fields
-        results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, Keyword.delete(opts, :scan_limit) ++ scan_limit)
+        results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, updated_opts)
 
         # We handle indexed is_nil clauses before decoding
         # since :update_all queries but does not decode
         # until after issuing the updates.
         IO.puts "results_to_update: #{inspect results_to_update}"
 
-        update_all(table, key_list, results_to_update, update_params, model, [{:remove_nil_fields, remove_nil_fields} | opts])
+        update_all(table, key_list, results_to_update, update_params, model, updated_opts)
     end
-
-    #error "#{inspect __MODULE__}.execute is not implemented."
-
-    #num = 0
-    #rows = []
-    #{num, rows}
   end
 
 
@@ -268,14 +260,20 @@ defmodule Ecto.Adapters.DynamoDB do
 
     limit_option = opts[:scan_limit] || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
     scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
+    updated_opts = Keyword.delete(opts, :scan_limit) ++ scan_limit
 
     IO.puts "table = #{inspect table}"
     IO.puts "lookup_fields = #{inspect lookup_fields}"
     IO.puts "scan_limit = #{inspect scan_limit}"
 
     # We map the top level only of the lookup fields
-    result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, Keyword.delete(opts, :scan_limit) ++ scan_limit)
+    result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, updated_opts)
     IO.puts "result = #{inspect result}"
+
+    query_info = case opts[:query_info] do
+      true -> [[extract_query_info(result)]]
+      _    -> []
+    end
 
     if result == %{} do
       # Empty map means "not found"
@@ -283,14 +281,14 @@ defmodule Ecto.Adapters.DynamoDB do
     else
       case result["Count"] do
         nil   -> decoded = result |> Dynamo.decode_item(as: repo) |> custom_decode(repo)
-                 {1, [[decoded]]}
+                 {1, query_info ++ [[decoded]]}
         _ ->
           # HANDLE .all(query) QUERIES
 
           decoded = Enum.map(result["Items"], fn(item) -> 
             [Dynamo.decode_item(%{"Item" => item}, as: repo) |> custom_decode(repo)]
           end)
-          {length(decoded), decoded}
+          {length(decoded), query_info ++ decoded}
       end
     end
   end
@@ -303,14 +301,21 @@ defmodule Ecto.Adapters.DynamoDB do
     recursive = opts[:recursive] == true
     updated_opts = opts ++ [projection_expression: Enum.join(key_list, ", ")] |> Keyword.delete(:recursive)
 
-    delete_all_recursive(table, lookup_fields, updated_opts, recursive)
+    delete_all_recursive(table, lookup_fields, updated_opts, recursive, %{})
   end
 
-  defp delete_all_recursive(table, lookup_fields, opts, recursive) do
+  defp delete_all_recursive(table, lookup_fields, opts, recursive, query_info) do
     updated_opts = if recursive == true, do: Keyword.delete(opts, :limit), else: opts
 
     # query the table for which records to delete
     fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, updated_opts)
+
+    %{"Count" => last_count, "ScannedCount" => last_scanned_count} = fetch_result
+    updated_query_info = %{
+      "Count" => last_count + Map.get(query_info, "Count", 0),
+      "ScannedCount" => last_scanned_count + Map.get(query_info, "ScannedCount", 0),
+      "LastEvaluatedKey" => Map.get(fetch_result, "LastEvaluatedKey")
+    }
 
     prepared_data = for key_list <- Enum.map(fetch_result["Items"], &Map.to_list/1) do
       key_map = for {key, val_map} <- key_list, into: %{}, do: {key, hd Map.values(val_map)}
@@ -321,9 +326,12 @@ defmodule Ecto.Adapters.DynamoDB do
 
     if fetch_result["LastEvaluatedKey"] != nil and recursive do
         opts_with_offset = updated_opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
-        delete_all_recursive(table, lookup_fields, opts_with_offset, recursive)
+        delete_all_recursive(table, lookup_fields, opts_with_offset, recursive, updated_query_info)
     else
-      {:ok, []}
+      case opts[:query_info] do
+        true -> {:ok, [], updated_query_info}
+        _    -> {:ok, []}
+      end
     end
   end
 
@@ -508,6 +516,10 @@ defmodule Ecto.Adapters.DynamoDB do
     Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
     {:ok, []}
   end
+
+
+  defp extract_query_info(result), do: result |> Map.take(["Count", "ScannedCount", "LastEvaluatedKey"])
+
 
   # Used in update_all
   defp extract_update_params([], _params), do: []

@@ -24,7 +24,6 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
        scan_limit: 100,
        insert_nil_fields: false,
        remove_nil_fields_on_update: false,
-       remove_nil_fields_on_update_all: false
      ],
      applications: [:ex_aws, :hackney, :poison]
    ]

@@ -37,6 +37,8 @@ We currently only support the Ecto fragment of the form, 'from(m in Model, where
 
 
 OPTIONS:
+Repo.all, Repo.delete_all (automatically returned with `update_all` since the latter does not seemd to support arbitrary options): If you would like the last evaluated key even when no results are returned from the current page, include the option `query_info: true`. The returned map is added to the the front of the regular result list and looks like this: %{"Count" => 10, "LastEvaluatedKey" => %{"id" => %{"S" => "6814"}}, "ScannedCount" => 100)
+
 Repo.insert / Repo.insert_all: add the option, 'insert_nil_fields: false', to prevent nil fields defined in the model's schema from being inserted. For example: Repo.insert(changeset, insert_nil_fields: false)
 This can also be set globally in the application's configuration: 
 'config :ecto_adapters_dynamodb, insert_nil_fields: false'
@@ -48,6 +50,4 @@ Application configuration: config :ecto_adapters_dynamodb, cached_tables: [table
 Repo.Update: An update query will set nil fields to Dynamo's 'null' value (which can generate an error if the field is indexed), unless the inline option 'remove_nil_fields: true' is set. For example: Repo.update(changeset, remove_nil_fields: true)
 This can also be set globally in config :remove_nil_fields_on_update
 
-Repo.update_all: Since Ecto :update_all does not seem to allow for arbitrary options, nil fields will set to null by default, unless the Application environment variable, ':remove_nil_fields_on_update_all' is set to 'true'. For example: 'config :ecto_adapters_dynamodb, remove_nil_fields_on_update_all: true'
-
-Repo.delete_all: similar options to all query. Use recursive: true, to recursively scan through all pages, deleting all results. 
+Repo.delete_all: similar options to all query. Use 'recursive: true' to recursively scan through all pages, deleting all results. 
