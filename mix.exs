@@ -19,11 +19,11 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
      mod: {Ecto.Adapters.DynamoDB.Application, []},
      env: [
        cached_tables: [],
-       scan_all: false,
-       scan_tables: [], 
-       scan_limit: 100,
-       insert_nil_fields: false,
+       insert_nil_fields: true,
        remove_nil_fields_on_update: false,
+       scan_all: false,
+       scan_limit: 100,
+       scan_tables: []
      ],
      applications: [:ex_aws, :hackney, :poison]
    ]
@@ -39,11 +39,11 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   #
   # Type "mix help deps" for more examples and options
   defp deps do
-    [     
+    [
       {:ecto, ">= 2.1.4"},
       # {:ex_aws, "~> 1.0"},
       # github has a more updated version of ex_aws
-      # but without specifying a version, we must keep track of 
+      # but without specifying a version, we must keep track of
       # bugs possibly introduced by updates to the dependency
       {:ex_aws, git: "https://github.com/CargoSense/ex_aws.git"},
       {:poison, "~> 2.0"},

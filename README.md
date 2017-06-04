@@ -19,35 +19,100 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/ecto_adapters_dynamodb](https://hexdocs.pm/ecto_adapters_dynamodb).
 
+## Caching
 
-TODO: organize this
-##Scan
-Inline options are (with examples): `scan_limit: 100` (DynamoDB's limit on the total items scanned), `exclusive_start_key: [id: "some_id"]`, `recursive: true` (fetches all pages recursively), and `scan: true` (available globally in config as `:scan_all`). The last one enables the scan if the table is not already in the preconfigured lists, `:cached_tables` or `:scan_tables`. A default `:scan_limit` of 100 can be overridden either in the configuration or inline.
-Please notice that Ecto queries are greedy: 
-'Repo.all(from Model, where: [name: "Name"], scan_limit: 250)'
-is not the same as, 
-'Repo.all((from Model, where: [name: "Name"]), scan_limit: 250)'
+The adapter automatically caches its own calls to **describe_table** for retrieval of table information. We also offer the option to configure tables for scan caching (see configuration options below). To update the cache after making a change in a table, the cache offers two functions:
 
+**Ecto.Adapters.DynamoDB.Cache.update_table_info!(table_name)**, *table_name* :: string
 
-is_nil queries: we support is_nil; please note that DynamoDB does not allow filtering for 'null' or missing-attribute on attributes that are part of the current query's key.
+**Ecto.Adapters.DynamoDB.Cache.update_cached_table!(table_name)**, *table_name* :: string
 
+## Configuration Options
 
-DynamoDB "between" query and Ecto :fragment
-We currently only support the Ecto fragment of the form, 'from(m in Model, where: fragment("? between ? and ?", m.attribute, ^range_start, ^range_end)'
+**:scan_limit** :: integer, *default:* `100`
 
+Sets the limit on the number of records scanned in the current query. Included as **limit** in the DynamoDB query. (Removed from queries during recursive fetch.)
 
-OPTIONS:
-Repo.all, Repo.delete_all (automatically returned with `update_all` since the latter does not seemd to support arbitrary options): If you would like the last evaluated key even when no results are returned from the current page, include the option `query_info: true`. The returned map is added to the the front of the regular result list and looks like this: %{"Count" => 10, "LastEvaluatedKey" => %{"id" => %{"S" => "6814"}}, "ScannedCount" => 100)
+**:scan_tables** :: [string], *default:* `[]`
 
-Repo.insert / Repo.insert_all: add the option, 'insert_nil_fields: false', to prevent nil fields defined in the model's schema from being inserted. For example: Repo.insert(changeset, insert_nil_fields: false)
-This can also be set globally in the application's configuration: 
-'config :ecto_adapters_dynamodb, insert_nil_fields: false'
+A list of table names for tables pre-approved for a DynamoDB **scan** command in case an indexed field is not provided in the query *wheres*.
 
-TODO: amend this
-Repo.All: we are currently supporting scan only as an in-memory cache for preconfigured tables.
-Application configuration: config :ecto_adapters_dynamodb, cached_tables: [table_name, table_name...] , where table names are strings.
+**:scan_all** :: boolean, *default:* `false`
 
-Repo.Update: An update query will set nil fields to Dynamo's 'null' value (which can generate an error if the field is indexed), unless the inline option 'remove_nil_fields: true' is set. For example: Repo.update(changeset, remove_nil_fields: true)
-This can also be set globally in config :remove_nil_fields_on_update
+Pre-approves all tables for a DynamoDB **scan** command in case an indexed field is not provided in the query *wheres*.
 
-Repo.delete_all: similar options to all query. Use 'recursive: true' to recursively scan through all pages, deleting all results. 
+**:cached_tables** :: [string], *default:* `[]`
+
+A list of table names for tables assigned for caching of the first page of results up to **:scan_limit**. (TODO: recursive full caching yet to be implemented).
+
+**:insert_nil_fields** :: boolean, *default:* `true`
+
+Determines if fields in the changeset with `nil` values will be inserted as DynamoDB `null` values or not set at all. This option is also available inline per query. Please note that DynamoDB does not allow setting indexed attributes to `null` and will respond with an error. It does allow removal of those attributes.
+
+**:remove_nil_fields_on_update** :: boolean, *default:* `false`
+
+Determines if, during **Repo.update** or **Repo.update_all**, fields in the changeset with `nil` values will be removed from the record/s or set to the DynamoDB `null` value. This option is also available inline per query.
+
+## Inline Options
+
+Please note that in order for Ecto to recognize options, the preceding parameters have to be clearly delineated. The query is enclosed in parentheses and updates are enclosed in brackets, `[]`. For example, these options would be parsed,
+
+`Repo.update_all((from ModelName, where: [attribute: value]), [set: [attribute: new_value]], option_field: option_value)`
+
+but these would throw an error:
+
+`Repo.update_all(from ModelName, where: [attribute: value], set: [attribute: new_value], option_field: option_value)`
+
+#### **Inline Options:** *Repo.all, Repo.update_all, Repo.delete_all*
+
+**:query_info** :: boolean, *default:* false
+
+If you would like the last evaluated key even when no results are returned from the current page, include the option, **query_info: true**. The returned map is prepended to the regular result list (or added to the tuple, in the case of delete_ and update_all) and corresponds with DynamoDb's return values:
+
+`%{"Count" => 10, "LastEvaluatedKey" => %{"id" => %{"S" => "6814"}}, "ScannedCount" => 100}`
+
+**:scan_limit** :: integer, *default:* set in configuration
+
+Sets the limit on the number of records scanned in the current query. Included as **limit** in the DynamoDB query.
+
+**:scan** :: boolean, *default:* `false` (also depends on scan-related configuration)
+
+Approves a DynamoDB **scan** command for the current query in case an indexed field is not provided in the query *wheres*.
+
+**:exclusive_start_key** :: [key_atom: value], *default:* none
+
+Adds DynamoDB's **ExclusiveStartKey** to the current query, providing a starting offset.
+
+**:recursive** :: boolean, *default:* `false`
+
+Fetches all pages recursively and performs the relevant operation on results in the case of *Repo.update_all* and *Repo.delete_all*
+
+#### **Inline Options:** *Repo.insert, Repo.insert_all*
+
+**:insert_nil_fields** :: boolean, *default:* set in configuration
+
+Determines if fields in the changeset with `nil` values will be inserted as DynamoDB `null` values or not set at all.
+
+#### **Inline Options:** *Repo.update, Repo.update_all*
+
+**:remove_nil_fields** :: boolean, *default:* set in configuration
+
+Determines if fields in the changeset with `nil` values will be removed from the record/s or set to the DynamoDB `null` value.
+
+### `is_nil` Queries
+
+We support `is_nil` in query `wheres`. This will query DynamoDB for the attribute either set to `null` or to be missing from the record.  Please note that DynamoDB does not allow filtering for `null` or missing-attribute on attributes that are part of the current query's key conditions.
+
+### DynamoDB `between` and Ecto `:fragment`
+
+We currently only support the Ecto fragment of the form:
+
+`from(m in Model, where: fragment("? between ? and ?", m.attribute, ^range_start, ^range_end)`
+
+## Ecto Associations and Migrations
+
+We currently do not support Ecto associations or migrations; we are looking forward to developing these features.
+
+## Developer Notes
+
+The **projection_expression** option is used internally during **delete_all** to select only the key attributes and is recognized during query construction.
