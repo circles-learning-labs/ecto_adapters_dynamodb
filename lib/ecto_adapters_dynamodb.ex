@@ -166,7 +166,7 @@ defmodule Ecto.Adapters.DynamoDB do
   def prepare(:update_all, query) do
     IO.puts("PREPARE::UPDATE_ALL:::")
     IO.inspect(query, structs: false)
-    {:nocache, query}
+    {:nocache, {:update_all, query}}
   end
   # do: {:cache, {System.unique_integer([:positive]), @conn.update_all(query)}}
 
@@ -174,7 +174,7 @@ defmodule Ecto.Adapters.DynamoDB do
   def prepare(:delete_all, query) do
     IO.puts("PREPARE::DELETE_ALL:::")
     IO.inspect(query, structs: false)
-    {:nocache, query}
+    {:nocache, {:delete_all, query}}
   end
   # do: {:cache, {System.unique_integer([:positive]), @conn.delete_all(query)}}
 
@@ -201,9 +201,10 @@ defmodule Ecto.Adapters.DynamoDB do
   #                 {:cached, (prepared -> :ok), cached} |
   #                 {:cache, (cached -> :ok), prepared}
   # TODO: What about dynamo db batch_get_item for sql 'where x in [1,2,3,4]' style queries?
-  def execute(_repo, _meta, {:nocache, prepared}, params, _process = nil, opts) do
+  def execute(_repo, _meta, {:nocache, {func, prepared}}, params, _process = nil, opts) do
     #Logger.error "EXECUTE... EXECUTING!"
     IO.puts "EXECUTE:::"
+    IO.puts "func: #{inspect func, structs: false}"
     IO.puts "prepared: #{inspect prepared, structs: false}"
     IO.puts "params:   #{inspect params, structs: false}"
     IO.puts "opts:     #{inspect opts, structs: false}"
@@ -226,12 +227,12 @@ defmodule Ecto.Adapters.DynamoDB do
     IO.puts "key_list: #{inspect key_list}"
     IO.puts "scan_limit: #{inspect scan_limit}"
 
-    case prepared.updates do
-      [] ->
-        IO.puts "\n#{inspect __MODULE__}.execute: updates list empty...calling delete_all\n"
+    case func do
+      :delete_all ->
+        IO.puts "\n#{inspect __MODULE__}.execute: delete_all\n"
         delete_all(table, lookup_fields, updated_opts)
-      _  -> 
-        IO.puts "\n#{inspect __MODULE__}.execute: updates list not empty...calling update_all\n"
+      :update_all  -> 
+        IO.puts "\n#{inspect __MODULE__}.execute: update_all\n"
         update_all(table, lookup_fields, updated_opts, key_list, update_params, model)
    end
   end
