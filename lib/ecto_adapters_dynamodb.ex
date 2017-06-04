@@ -229,18 +229,11 @@ defmodule Ecto.Adapters.DynamoDB do
     case prepared.updates do
       [] ->
         IO.puts "\n#{inspect __MODULE__}.execute: updates list empty...calling delete_all\n"
-        delete_all(table, lookup_fields, Keyword.delete(opts, :scan_limit) ++ scan_limit)
+        delete_all(table, lookup_fields, updated_opts)
       _  -> 
-        # We map the top level only of the lookup fields
-        results_to_update = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, updated_opts)
-
-        # We handle indexed is_nil clauses before decoding
-        # since :update_all queries but does not decode
-        # until after issuing the updates.
-        IO.puts "results_to_update: #{inspect results_to_update}"
-
-        update_all(table, key_list, results_to_update, update_params, model, updated_opts)
-    end
+        IO.puts "\n#{inspect __MODULE__}.execute: updates list not empty...calling update_all\n"
+        update_all(table, lookup_fields, updated_opts, key_list, update_params, model)
+   end
   end
 
 
@@ -317,7 +310,9 @@ defmodule Ecto.Adapters.DynamoDB do
       "LastEvaluatedKey" => Map.get(fetch_result, "LastEvaluatedKey")
     }
 
-    prepared_data = for key_list <- Enum.map(fetch_result["Items"], &Map.to_list/1) do
+    items = if fetch_result["Items"] != nil, do: fetch_result["Items"], else: [fetch_result["Item"]]
+
+    prepared_data = for key_list <- Enum.map(items, &Map.to_list/1) do
       key_map = for {key, val_map} <- key_list, into: %{}, do: {key, hd Map.values(val_map)}
       [delete_request: [key: key_map]]
     end
@@ -348,37 +343,56 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  # :update_all for only one result
-  defp update_all(table, key_list, %{"Item" => result_to_update}, update_params, model, opts) do
-    filters = get_key_values_dynamo_map(result_to_update, key_list)
+
+  defp update_all(table, lookup_fields, opts, key_list, update_params, model) do
+    recursive = opts[:recursive] == true
+    updated_opts = Keyword.delete(opts, :recursive) 
+
     update_expression = construct_update_expression(update_params, opts)
     attribute_names = construct_expression_attribute_names(update_params)
     attribute_values = construct_expression_attribute_values(update_params, opts)
 
-    base_options = [expression_attribute_names: attribute_names,
-                    update_expression: update_expression,
-                    return_values: :all_new]
-    options = maybe_add_attribute_values(base_options, attribute_values)
-    # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements.
-    record = if options[:expression_attribute_values], do: [options[:expression_attribute_values] |> Enum.into(%{})], else: []
+    base_update_options = [expression_attribute_names: attribute_names,
+                           update_expression: update_expression,
+                           return_values: :all_new]
 
-    update_query_result = Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
-
-    {1, [Dynamo.decode_item(update_query_result["Attributes"] |> custom_decode(model), as: model)]}
+    update_all_recursive(table, lookup_fields, updated_opts, base_update_options, key_list, attribute_values, model, recursive, %{})
   end
 
-  # :update_all for multiple results
-  defp update_all(table, key_list, %{"Items" => results_to_update}, update_params, model, opts) do
-    Enum.reduce results_to_update, {0, []}, fn(result_to_update, acc) ->
-      filters = get_key_values_dynamo_map(result_to_update, key_list)
-      update_expression = construct_update_expression(update_params, opts)
-      attribute_names = construct_expression_attribute_names(update_params)
-      attribute_values = construct_expression_attribute_values(update_params, opts)
+  defp update_all_recursive(table, lookup_fields, opts, base_update_options, key_list, attribute_values, model, recursive, query_info) do
+    updated_opts = if recursive == true, do: Keyword.delete(opts, :limit), else: opts
 
-      base_options = [expression_attribute_names: attribute_names,
-                      update_expression: update_expression,
-                      return_values: :all_new]
-      options = maybe_add_attribute_values(base_options, attribute_values)
+    fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, updated_opts)
+    IO.puts "fetch_result: #{inspect fetch_result}"
+
+    %{"Count" => last_count, "ScannedCount" => last_scanned_count} = fetch_result
+    updated_query_info = %{
+      "Count" => last_count + Map.get(query_info, "Count", 0),
+      "ScannedCount" => last_scanned_count + Map.get(query_info, "ScannedCount", 0),
+      "LastEvaluatedKey" => Map.get(fetch_result, "LastEvaluatedKey")
+    }
+    items = if fetch_result["Items"] != nil, do: fetch_result["Items"], else: [fetch_result["Item"]]
+
+    if items != [],
+    # We are not collecting the updated results, but we could.
+    do: batch_update(table, items, key_list, base_update_options, attribute_values, model)
+
+    if fetch_result["LastEvaluatedKey"] != nil and recursive do
+        opts_with_offset = updated_opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
+        update_all_recursive(table, lookup_fields, opts_with_offset, base_update_options, key_list, attribute_values, model, recursive, updated_query_info)
+    else
+      case opts[:query_info] do
+        true -> {:ok, [], updated_query_info}
+        _    -> {:ok, []}
+      end
+    end
+  end
+
+  defp batch_update(table, items, key_list, base_update_options, attribute_values, model) do
+    Enum.reduce items, {0, []}, fn(result_to_update, acc) ->
+      filters = get_key_values_dynamo_map(result_to_update, key_list)
+      options = maybe_add_attribute_values(base_update_options, attribute_values)
+
       # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements.
       record = if options[:expression_attribute_values], do: [options[:expression_attribute_values] |> Enum.into(%{})], else: []
 
