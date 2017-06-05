@@ -393,7 +393,7 @@ defmodule Ecto.Adapters.DynamoDB do
     cond do
       # IDEALLY, THERE ARE NO UNPROCESSED ITEMS - THE MAP IS EMPTY
       batch_write_attempt["UnprocessedItems"] == %{} ->
-        {:ok, []}
+        {length(records), nil}
       # TO DO: DEVELOP A STRATEGY FOR HANDLING UNPROCESSED ITEMS.
       # DOCS SUGGEST GATHERING THEM UP AND TRYING ANOTHER BATCH INSERT AFTER A SHORT DELAY
       batch_write_attempt["UnprocessedItems"] != %{} ->
