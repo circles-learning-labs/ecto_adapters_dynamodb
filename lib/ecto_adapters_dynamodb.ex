@@ -263,6 +263,7 @@ defmodule Ecto.Adapters.DynamoDB do
     ecto_dynamo_log(:debug, "scan_limit = #{inspect scan_limit}")
 
     # We map the top level only of the lookup fields
+    ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute")
     ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; options: #{inspect updated_opts}")
     result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, updated_opts)
     ecto_dynamo_log(:debug, "result = #{inspect result}")
@@ -814,11 +815,12 @@ defmodule Ecto.Adapters.DynamoDB do
 
   def ecto_dynamo_log(level, message) do
     colors = Application.get_env(:ecto_adapters_dynamodb, :log_colors)
+    d = DateTime.utc_now 
 
     if level in Application.get_env(:ecto_adapters_dynamodb, :log_levels),
     do: IO.ANSI.format(
           [colors[level],
-          "\n[Ecto Dynamo #{DateTime.utc_now |> DateTime.to_string}] #{message}"], true
+          "\n[Ecto Dynamo #{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC}] #{message}"], true
         ) |> IO.puts
   end
 
