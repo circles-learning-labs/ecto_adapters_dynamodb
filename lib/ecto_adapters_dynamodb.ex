@@ -387,7 +387,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     records = Enum.map(prepared_fields, fn [put_request: [item: record]] -> record end)
 
-    batch_write_attempt = Dynamo.batch_write_item([{table, prepared_fields}]) |> ExAws.request |> handle_error!(%{table: table, records: records})
+    batch_write_attempt = Dynamo.batch_write_item(%{table => prepared_fields}) |> ExAws.request |> handle_error!(%{table: table, records: records})
 
     # THE FORMAT OF A SUCCESSFUL BATCH INSERT IS A MAP THAT WILL INCLUDE A MAP OF ANY UNPROCESSED ITEMS
     cond do
