@@ -40,7 +40,8 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
       # bugs possibly introduced by updates to the dependency
       {:ex_aws, git: "https://github.com/CargoSense/ex_aws.git"},
       {:poison, "~> 2.0"},
-      {:hackney, "~> 1.6"}
+      {:hackney, "~> 1.6"},
+      {:dialyxir, "~> 0.5", only: [:dev], runtime: false}
     ]
   end
 end
