@@ -139,4 +139,17 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     res2 = TestRepo.get(Person, "person:niltest")
     assert res2.age == nil
   end
+
+  test "use delete_all to delete multiple records" do
+    TestRepo.insert %Person{id: "person:delete_all_1", email: "delete_all@test.com"}
+    TestRepo.insert %Person{id: "person:delete_all_2", email: "delete_all@test.com"}
+
+    assert nil != TestRepo.get(Person, "person:delete_all_1")
+    assert nil != TestRepo.get(Person, "person:delete_all_2")
+
+    result = TestRepo.delete_all((from p in Person, where: p.email == "delete_all@test.com"), query_info: true)
+
+    assert nil == TestRepo.get(Person, "person:delete_all_1")
+    assert nil == TestRepo.get(Person, "person:delete_all_2")
+  end
 end
