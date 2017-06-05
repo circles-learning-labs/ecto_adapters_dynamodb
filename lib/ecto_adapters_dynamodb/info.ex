@@ -3,13 +3,12 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   Get information on dynamo tables and schema 
   """
 
-
   @doc """
   Returns the raw amazon dynamo DB table schema information. The raw json is presented as
   and elixir map.
 
   Here is an example of what it may look like
-  %{"Table" => %{"AttributeDefinitions" => [%{"AttributeName" => "id",
+  %{"AttributeDefinitions" => [%{"AttributeName" => "id",
        "AttributeType" => "S"},
      %{"AttributeName" => "person_id", "AttributeType" => "S"}],
     "CreationDateTime" => 1489615412.651,
@@ -27,7 +26,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
       "ReadCapacityUnits" => 100, "WriteCapacityUnits" => 50},
     "TableArn" => "arn:aws:dynamodb:ddblocal:000000000000:table/circle_members",
     "TableName" => "circle_members", "TableSizeBytes" => 7109,
-    "TableStatus" => "ACTIVE"}}  
+    "TableStatus" => "ACTIVE"}
   """
   def table_info(tablename) do
     # Fetch the raw schema definition from DynamoDB - We should cache this...now cached :)

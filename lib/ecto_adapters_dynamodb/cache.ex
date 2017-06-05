@@ -1,4 +1,9 @@
 defmodule Ecto.Adapters.DynamoDB.Cache do
+
+  @typep table_name_t :: String.t
+  @typep dynamo_response_t :: %{required(String.t) => term}
+
+  @spec start_link() :: Agent.on_start
   def start_link do
     cached_table_list = Application.get_env(:ecto_adapters_dynamodb, :cached_tables)
     Agent.start_link(fn -> %{
@@ -7,6 +12,7 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
                      } end, name: __MODULE__)
   end
 
+  @spec describe_table!(table_name_t) :: dynamo_response_t
   def describe_table!(table_name) do
     case describe_table(table_name) do
       {:ok, schema}   -> schema
@@ -14,9 +20,11 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
     end
   end
 
+  @spec describe_table(table_name_t) :: {:ok, dynamo_response_t} | {:error, term}
   def describe_table(table_name),
   do: Agent.get_and_update(__MODULE__, &do_describe_table(&1, table_name))
 
+  @spec update_table_info!(table_name_t) :: :ok | no_return
   def update_table_info!(table_name) do
     case update_table_info(table_name) do
       :ok             -> :ok
@@ -24,9 +32,11 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
     end
   end
 
+  @spec update_table_info(table_name_t) :: :ok | {:error, term}
   def update_table_info(table_name),
   do: Agent.get_and_update(__MODULE__, &do_update_table_info(&1, table_name))
 
+  @spec scan!(table_name_t) :: dynamo_response_t | no_return
   def scan!(table_name) do
     case scan(table_name) do
       {:ok, scan_result} -> scan_result
@@ -34,9 +44,11 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
     end
   end
 
+  @spec scan(table_name_t) :: {:ok, dynamo_response_t} | {:error, term}
   def scan(table_name),
   do: Agent.get_and_update(__MODULE__, &do_scan(&1, table_name))
 
+  @spec update_cached_table!(table_name_t) :: :ok | no_return
   def update_cached_table!(table_name) do
     case update_cached_table(table_name) do
       :ok             -> :ok
@@ -44,9 +56,11 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
     end
   end
 
+  @spec update_cached_table(table_name_t) :: :ok | {:error, term}
   def update_cached_table(table_name),
   do: Agent.get_and_update(__MODULE__, &do_update_cached_table(&1, table_name))
 
+  # For testing and debugging use only:
   def get_cache,
   do: Agent.get(__MODULE__, &(&1))
 

@@ -483,13 +483,13 @@ defmodule Ecto.Adapters.DynamoDB do
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.insert_all")
     ecto_dynamo_log(:info, "Table: #{inspect table}; Records: #{inspect records}")
 
-    batch_write_attempt = Dynamo.batch_write_item([{table, prepared_fields}]) |> ExAws.request |> handle_error!(%{table: table, records: records})
+    batch_write_attempt = Dynamo.batch_write_item(%{table => prepared_fields}) |> ExAws.request |> handle_error!(%{table: table, records: records})
 
     # THE FORMAT OF A SUCCESSFUL BATCH INSERT IS A MAP THAT WILL INCLUDE A MAP OF ANY UNPROCESSED ITEMS
     cond do
       # IDEALLY, THERE ARE NO UNPROCESSED ITEMS - THE MAP IS EMPTY
       batch_write_attempt["UnprocessedItems"] == %{} ->
-        {:ok, []}
+        {length(records), nil}
       # TO DO: DEVELOP A STRATEGY FOR HANDLING UNPROCESSED ITEMS.
       # DOCS SUGGEST GATHERING THEM UP AND TRYING ANOTHER BATCH INSERT AFTER A SHORT DELAY
       batch_write_attempt["UnprocessedItems"] != %{} ->
