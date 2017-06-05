@@ -7,7 +7,8 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
      elixir: "~> 1.4",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
-     deps: deps()]
+     deps: deps(),
+     dialyzer: [plt_add_apps: [:ecto]]]
   end
 
   # Configuration for the OTP application
@@ -22,6 +23,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
        insert_nil_fields: true,
        log_levels: [:info],
        log_colors: %{info: :green, debug: :normal},
+       log_path: "",
        remove_nil_fields_on_update: false,
        scan_all: false,
        scan_limit: 100,
@@ -49,7 +51,8 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
       # bugs possibly introduced by updates to the dependency
       {:ex_aws, git: "https://github.com/CargoSense/ex_aws.git"},
       {:poison, "~> 2.0"},
-      {:hackney, "~> 1.6"}
+      {:hackney, "~> 1.6"},
+      {:dialyxir, "~> 0.5", only: [:dev], runtime: false}
     ]
   end
 end

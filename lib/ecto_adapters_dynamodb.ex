@@ -319,7 +319,7 @@ defmodule Ecto.Adapters.DynamoDB do
     items = case fetch_result do
       %{"Items" => fetch_items} -> fetch_items
       %{"Item" => item}         -> [item]
-	  _                         -> []
+      _                         -> []
     end
 
     prepared_data = for key_list <- Enum.map(items, &Map.to_list/1) do
@@ -386,7 +386,7 @@ defmodule Ecto.Adapters.DynamoDB do
     items = case fetch_result do
       %{"Items" => fetch_items} -> fetch_items
       %{"Item" => item}         -> [item]
-	  _                         -> []
+      _                         -> []
     end
 
     if items != [],
@@ -483,13 +483,13 @@ defmodule Ecto.Adapters.DynamoDB do
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.insert_all")
     ecto_dynamo_log(:info, "Table: #{inspect table}; Records: #{inspect records}")
 
-    batch_write_attempt = Dynamo.batch_write_item([{table, prepared_fields}]) |> ExAws.request |> handle_error!(%{table: table, records: records})
+    batch_write_attempt = Dynamo.batch_write_item(%{table => prepared_fields}) |> ExAws.request |> handle_error!(%{table: table, records: records})
 
     # THE FORMAT OF A SUCCESSFUL BATCH INSERT IS A MAP THAT WILL INCLUDE A MAP OF ANY UNPROCESSED ITEMS
     cond do
       # IDEALLY, THERE ARE NO UNPROCESSED ITEMS - THE MAP IS EMPTY
       batch_write_attempt["UnprocessedItems"] == %{} ->
-        {:ok, []}
+        {length(records), nil}
       # TO DO: DEVELOP A STRATEGY FOR HANDLING UNPROCESSED ITEMS.
       # DOCS SUGGEST GATHERING THEM UP AND TRYING ANOTHER BATCH INSERT AFTER A SHORT DELAY
       batch_write_attempt["UnprocessedItems"] != %{} ->
@@ -816,12 +816,20 @@ defmodule Ecto.Adapters.DynamoDB do
   def ecto_dynamo_log(level, message) do
     colors = Application.get_env(:ecto_adapters_dynamodb, :log_colors)
     d = DateTime.utc_now 
+    formatted_message = "\n[Ecto Dynamo #{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC}] #{message}"
+    log_path = Application.get_env(:ecto_adapters_dynamodb, :log_path)
 
-    if level in Application.get_env(:ecto_adapters_dynamodb, :log_levels),
-    do: IO.ANSI.format(
-          [colors[level],
-          "\n[Ecto Dynamo #{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC}] #{message}"], true
-        ) |> IO.puts
+    if level in Application.get_env(:ecto_adapters_dynamodb, :log_levels) do
+      IO.ANSI.format([colors[level], formatted_message], true) |> IO.puts
+
+      if Regex.match?(~r/\S/, log_path), do: log_pipe(log_path, formatted_message)
+    end
+  end
+
+  def log_pipe(path, str) do
+    {:ok, file} = File.open(path, [:append])
+    IO.binwrite(file, str)
+    File.close(file)
   end
 
 end

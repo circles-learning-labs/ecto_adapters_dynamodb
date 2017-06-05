@@ -53,6 +53,16 @@ Determines if fields in the changeset with `nil` values will be inserted as Dyna
 
 Determines if, during **Repo.update** or **Repo.update_all**, fields in the changeset with `nil` values will be removed from the record/s or set to the DynamoDB `null` value. This option is also available inline per query.
 
+#### Logging Configuration
+
+We provide a few informational log lines, such as which adapter call is being processed, as well as the table, lookup fields, and options detected. Configure an optional log path to have the messages recorded on file.
+
+**:log_levels** :: [log-level-atom], *default:* `[:info]`, *log-level-atom can be :info or :debug*
+
+**:log_colors** :: %{log-level-atom: IO.ANSI-color-atom}, *default:* `info: :green, debug: :normal`
+
+**:log_path** :: string, *default:* `""`
+
 ## Inline Options
 
 Please note that in order for Ecto to recognize options, the preceding parameters have to be clearly delineated. The query is enclosed in parentheses and updates are enclosed in brackets, `[]`. For example, these options would be parsed,
@@ -116,3 +126,4 @@ We currently do not support Ecto associations or migrations; we are looking forw
 ## Developer Notes
 
 The **projection_expression** option is used internally during **delete_all** to select only the key attributes and is recognized during query construction.
+
