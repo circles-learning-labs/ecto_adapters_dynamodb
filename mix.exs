@@ -20,6 +20,8 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
      env: [
        cached_tables: [],
        insert_nil_fields: true,
+       log_levels: [:info],
+       log_colors: %{info: :green, debug: :normal},
        remove_nil_fields_on_update: false,
        scan_all: false,
        scan_limit: 100,

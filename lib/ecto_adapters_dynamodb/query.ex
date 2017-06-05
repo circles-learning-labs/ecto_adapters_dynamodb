@@ -24,7 +24,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       {:primary, _} = index->
         #https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
         query = construct_search(index, search, opts)
-        ExAws.Dynamo.get_item(table, query) |> ExAws.request!
+        ExAws.Dynamo.get_item(table, query, construct_select_and_limit(opts)) |> ExAws.request!
 
       # secondary index based lookups need the query functionality. 
       index when is_tuple(index) ->
