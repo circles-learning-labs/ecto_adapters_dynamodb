@@ -3,6 +3,9 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   Get information on dynamo tables and schema 
   """
 
+  @typep table_name_t :: String.t
+  @typep dynamo_response_t :: %{required(String.t) => term}
+
   @doc """
   Returns the raw amazon dynamo DB table schema information. The raw json is presented as
   and elixir map.
@@ -28,6 +31,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
     "TableName" => "circle_members", "TableSizeBytes" => 7109,
     "TableStatus" => "ACTIVE"}
   """
+  @spec table_info(table_name_t) :: dynamo_response_t | no_return
   def table_info(tablename) do
     # Fetch the raw schema definition from DynamoDB - We should cache this...now cached :)
     Ecto.Adapters.DynamoDB.Cache.describe_table!(tablename)
@@ -35,6 +39,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
 
 
   @doc "Get all the raw information on indexes for a given table, returning as a map."
+  @spec index_details(table_name_t) :: %{primary: [map], secondary: [map]}
   def index_details(tablename) do
     # Extract the primary key data (required) and the optional secondary global or local indexes
     %{"KeySchema" => primary_key} = schema = table_info(tablename)
@@ -48,6 +53,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   @doc """
   Get a list of the available indexes on a table. The format of this list is described in 
   """
+  @spec indexes(table_name_t) :: [{:primary | String.t, [String.t]}]
   def indexes(tablename) do
     [primary_key!(tablename) | secondary_indexes(tablename)]
   end
@@ -59,11 +65,13 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   {:primary, [index]}
   in a format described in normalise_dynamo_index
   """
+  @spec primary_key!(table_name_t) :: {:primary, [String.t]} | no_return
   def primary_key!(tablename) do
     indexes = index_details(tablename)
     {:primary, normalise_dynamo_index!(indexes[:primary])}
   end
 
+  @spec repo_primary_key(module) :: String.t | no_return
   def repo_primary_key(repo) do
     case repo.__schema__(:primary_key) do
       [pkey] ->
@@ -96,6 +104,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   returns a simple list of the secondary indexes (global and local) for the table. Uses same format
   for each member of the list as 'primary_key!'.
   """
+  @spec secondary_indexes(table_name_t) :: [{String.t, [String.t]}] | no_return
   def secondary_indexes(tablename) do
     %{:secondary => indexes} = index_details(tablename)   # Extract the secondary index value from the index_details map
     for index <- indexes, do: {index["IndexName"], normalise_dynamo_index!( index["KeySchema"] )}
@@ -105,6 +114,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   @doc """
   returns a list of any indexed attributes in the table
   """
+  @spec indexed_attributes(table_name_t) :: [String.t]
   def indexed_attributes(table_name) do
     indexes(table_name) |> Enum.map(fn ({_, fields}) -> fields end) |> List.flatten |> Enum.uniq
   end
@@ -115,6 +125,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   # This parses it and returns a simple list format. The first element of the list is the HASH key, the second
   # (optional) is the range/sort key. eg:
   # [hash_field_name, sort_field_name] or [hash_field_name]
+  @spec normalise_dynamo_index!([%{required(String.t) => String.t}]) :: [String.t] | no_return
   defp normalise_dynamo_index!(index_fields) do
     # The data structure can look a little like these examples:
     #   [%{"AttributeName" => "person_id", "KeyType" => "HASH"}]

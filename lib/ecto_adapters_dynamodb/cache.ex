@@ -12,7 +12,7 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
                      } end, name: __MODULE__)
   end
 
-  @spec describe_table!(table_name_t) :: dynamo_response_t
+  @spec describe_table!(table_name_t) :: dynamo_response_t | no_return
   def describe_table!(table_name) do
     case describe_table(table_name) do
       {:ok, schema}   -> schema
