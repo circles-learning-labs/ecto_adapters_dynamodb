@@ -331,7 +331,7 @@ defmodule Ecto.Adapters.DynamoDB do
         delete_all_recursive(table, lookup_fields, opts_with_offset, recursive, updated_query_info)
     else
       if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], updated_query_info)
-      {updated_query_info["Count"], []}
+      {updated_query_info["Count"], nil}
     end
   end
 
