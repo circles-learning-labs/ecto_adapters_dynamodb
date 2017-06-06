@@ -135,6 +135,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   # Recursively strip out the fields for key-conditions; they could be mixed with non key-conditions.
   # TODO: this may be redundant - the indexed fields can just be skipped during the expression construction
+  @spec collect_non_indexed_search(search, [String.t], search) :: search
   defp collect_non_indexed_search([], _index_fields, acc), do: acc
   defp collect_non_indexed_search([search_clause | search_clauses], index_fields, acc) do
     case search_clause do
@@ -153,6 +154,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
   # Recursively reconstruct parentheticals
+  @type expression_data_acc :: {[String.t], map, map}
+  @spec build_filter_expression_data(search, expression_data_acc) :: expression_data_acc
   defp build_filter_expression_data([], acc), do: acc
   defp build_filter_expression_data([expr | exprs], {filter_exprs, attr_names, attr_values}) do
     case expr do
@@ -192,6 +195,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
 
   # double op (neither of them ought be :==)
+  @spec construct_conditional_statement({key, {term, query_op} | {[term], [query_op]}}) :: String.t
   defp construct_conditional_statement({field, {[_val1, _val2], [op1, op2]}}) do
     "##{field} #{to_string(op1)} :#{field <> "_val1"} and ##{field} #{to_string(op2)} :#{field <> "_val2"}"
   end  
