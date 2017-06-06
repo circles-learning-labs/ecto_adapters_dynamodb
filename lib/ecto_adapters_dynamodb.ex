@@ -331,7 +331,7 @@ defmodule Ecto.Adapters.DynamoDB do
         delete_all_recursive(table, lookup_fields, opts_with_offset, recursive, updated_query_info)
     else
       if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], updated_query_info)
-      {:ok, []}
+      {updated_query_info["Count"], []}
     end
   end
 
@@ -340,7 +340,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     cond do
       batch_write_attempt["UnprocessedItems"] == %{} ->
-        {:ok, []}
+        :ok
         
       # TODO: handle unprocessed items?
       batch_write_attempt["UnprocessedItems"] != %{} ->
@@ -393,7 +393,7 @@ defmodule Ecto.Adapters.DynamoDB do
         update_all_recursive(table, lookup_fields, opts_with_offset, base_update_options, key_list, attribute_values, model, recursive, updated_query_info)
     else
       if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], updated_query_info)
-      {:ok, []}
+      {updated_query_info["Count"], []}
     end
   end
 

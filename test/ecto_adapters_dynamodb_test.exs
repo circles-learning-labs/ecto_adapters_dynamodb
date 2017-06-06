@@ -147,7 +147,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert nil != TestRepo.get(Person, "person:delete_all_1")
     assert nil != TestRepo.get(Person, "person:delete_all_2")
 
-    result = TestRepo.delete_all((from p in Person, where: p.email == "delete_all@test.com"), query_info: true)
+    result = TestRepo.delete_all((from p in Person, where: p.email == "delete_all@test.com"), query_info_key: "delete_all:test_key")
 
     assert nil == TestRepo.get(Person, "person:delete_all_1")
     assert nil == TestRepo.get(Person, "person:delete_all_2")
