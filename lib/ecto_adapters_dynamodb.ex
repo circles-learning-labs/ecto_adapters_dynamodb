@@ -816,7 +816,7 @@ defmodule Ecto.Adapters.DynamoDB do
   def ecto_dynamo_log(level, message) do
     colors = Application.get_env(:ecto_adapters_dynamodb, :log_colors)
     d = DateTime.utc_now 
-    formatted_message = "\n[Ecto Dynamo #{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC}] #{message}"
+    formatted_message = "\n[Ecto Dynamo #{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC] #{message}"
     log_path = Application.get_env(:ecto_adapters_dynamodb, :log_path)
 
     if level in Application.get_env(:ecto_adapters_dynamodb, :log_levels) do
