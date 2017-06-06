@@ -268,10 +268,7 @@ defmodule Ecto.Adapters.DynamoDB do
     result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, updated_opts)
     ecto_dynamo_log(:debug, "result = #{inspect result}")
 
-    query_info = case opts[:query_info] do
-      true -> [[extract_query_info(result)]]
-      _    -> []
-    end
+    if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], extract_query_info(result))
 
     if result == %{} do
       # Empty map means "not found"
@@ -279,14 +276,14 @@ defmodule Ecto.Adapters.DynamoDB do
     else
       case result["Count"] do
         nil   -> decoded = result |> Dynamo.decode_item(as: repo) |> custom_decode(repo)
-                 {1, query_info ++ [[decoded]]}
+                 {1, [[decoded]]}
         _ ->
           # HANDLE .all(query) QUERIES
 
           decoded = Enum.map(result["Items"], fn(item) -> 
             [Dynamo.decode_item(%{"Item" => item}, as: repo) |> custom_decode(repo)]
           end)
-          {length(decoded), query_info ++ decoded}
+          {length(decoded), decoded}
       end
     end
   end
@@ -333,10 +330,8 @@ defmodule Ecto.Adapters.DynamoDB do
         opts_with_offset = updated_opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
         delete_all_recursive(table, lookup_fields, opts_with_offset, recursive, updated_query_info)
     else
-      case opts[:query_info] do
-        true -> {:ok, [], updated_query_info}
-        _    -> {:ok, []}
-      end
+      if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], updated_query_info)
+      {:ok, []}
     end
   end
 
@@ -397,10 +392,8 @@ defmodule Ecto.Adapters.DynamoDB do
         opts_with_offset = updated_opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
         update_all_recursive(table, lookup_fields, opts_with_offset, base_update_options, key_list, attribute_values, model, recursive, updated_query_info)
     else
-      case opts[:query_info] do
-        true -> {:ok, [], updated_query_info}
-        _    -> {:ok, []}
-      end
+      if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], updated_query_info)
+      {:ok, []}
     end
   end
 

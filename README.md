@@ -75,12 +75,6 @@ but these would throw an error:
 
 #### **Inline Options:** *Repo.all, Repo.update_all, Repo.delete_all*
 
-**:query_info** :: boolean, *default:* false
-
-If you would like the last evaluated key even when no results are returned from the current page, include the option, **query_info: true**. The returned map is prepended to the regular result list (or added to the tuple, in the case of delete_ and update_all) and corresponds with DynamoDb's return values:
-
-`%{"Count" => 10, "LastEvaluatedKey" => %{"id" => %{"S" => "6814"}}, "ScannedCount" => 100}`
-
 **:scan_limit** :: integer, *default:* set in configuration
 
 Sets the limit on the number of records scanned in the current query. Included as **limit** in the DynamoDB query.
@@ -96,6 +90,22 @@ Adds DynamoDB's **ExclusiveStartKey** to the current query, providing a starting
 **:recursive** :: boolean, *default:* `false`
 
 Fetches all pages recursively and performs the relevant operation on results in the case of *Repo.update_all* and *Repo.delete_all*
+
+#### QueryInfo agent
+
+**:query_info_key** :: string, *default:* none
+
+If you would like the query information provided by DynamoDB (for example, to retrieve the LastEvaluatedKey even when no results are returned from the current page), include the option, **query_info_key:** *key_string*.
+
+After the query is completed, retrieve the query info from the adapter's **QueryInfo** agent (the key is automatically deleted from the agent upon retrieval):
+
+`Ecto.Adapters.DynamoDB.QueryInfo.get(key_string)`
+
+The returned map corresponds with DynamoDB's return values:
+
+`%{"Count" => 10, "LastEvaluatedKey" => %{"id" => %{"S" => "6814"}}, "ScannedCount" => 100}`
+
+**Ecto.Adapters.DynamoDB.QueryInfo.get_key** provides a 32-character random string for convenience.
 
 #### **Inline Options:** *Repo.insert, Repo.insert_all*
 
@@ -126,4 +136,5 @@ We currently do not support Ecto associations or migrations; we are looking forw
 ## Developer Notes
 
 The **projection_expression** option is used internally during **delete_all** to select only the key attributes and is recognized during query construction.
+
 
