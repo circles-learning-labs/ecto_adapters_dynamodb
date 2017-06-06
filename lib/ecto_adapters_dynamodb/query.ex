@@ -7,6 +7,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   import Ecto.Adapters.DynamoDB.Info
 
+  @type key :: String.t
+  @type query_op :: :== | :> | :< |:>= | :<= | :is_nil | :between
+  @type boolean_op :: :and | :or
+  @type match_clause :: {term, query_op}
+  @type search_clause :: {key, match_clause} | {boolean_op, [search_clause]}
+  @type search :: [search_clause]
 
   # parameters for get_item: 
   # TABLE_NAME::string,
@@ -89,6 +95,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
 
+  @spec construct_range_params(key, match_clause) :: {String.t, %{required(String.t) => key}, keyword()}
   defp construct_range_params(range, {[range_start, range_end], :between}) do
     {"##{range} between :range_start and :range_end", %{"##{range}" => range}, [range_start: range_start, range_end: range_end]} 
   end
@@ -330,6 +337,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
+  @spec match_index_hash_part({:primary, [key]}, search) :: {:primary_partial, [key]} | :not_found
+  @spec match_index_hash_part({String.t, [key]}, search) :: {:secondary_partial, String.t, [key]} | :not_found
   defp match_index_hash_part(index, search) do
     case index do
       {:primary, [hash, _range]} ->
@@ -347,6 +356,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
   # TODO: multiple use of deep_find_key could be avoided by using the recursion in the main module to provide a set of indexed attributes in addition to the nested logical clauses.
+  @spec deep_find_key(search, key) :: nil | {term, query_op}
   defp deep_find_key([], _), do: nil
   defp deep_find_key([clause | clauses], key) do
     case clause do
