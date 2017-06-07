@@ -532,6 +532,39 @@ defmodule Ecto.Adapters.DynamoDB do
     ecto_dynamo_log(:debug, "\toptions: #{inspect opts}")
 
     {_, table} = schema_meta.source
+
+    # We offer the :range_key option for tables with composite primary key
+    # since Ecto will not provide the range_key value needed for the query.
+    # If :range_key is not provided, check if the table has a composite
+    # primary key and query for all the key values
+    updated_filters = case opts[:range_key] do
+      nil -> 
+        {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
+        if (length key_list) > 1 do
+          updated_opts = opts ++ [projection_expression: Enum.join(key_list, ", ")]
+          filters_as_strings = for {field, val} <- filters, do: {Atom.to_string(field), {val, :==}}
+          fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, filters_as_strings, updated_opts)
+          items = case fetch_result do
+            %{"Items" => fetch_items} -> fetch_items
+            %{"Item" => item}         -> [item]
+            _                         -> []
+          end
+
+          if items == [], do: raise "__MODULE__.update error: no results found for record: #{inspect filters}"
+          if (length items) > 1, do: raise "__MODULE__.update error: more than one result found for record: #{inspect filters}"
+          
+          for {field, key_map} <- Map.to_list(hd items) do
+            [{_field_type, val}] = Map.to_list(key_map)
+            {field, val}
+          end
+         else
+          filters
+         end
+
+      range_key ->
+        [range_key | filters]
+    end
+
     update_expression = construct_update_expression(fields, opts)
     attribute_names = construct_expression_attribute_names(fields)
     attribute_values = construct_expression_attribute_values(fields, opts)
@@ -539,10 +572,10 @@ defmodule Ecto.Adapters.DynamoDB do
     base_options = [expression_attribute_names: attribute_names,
                     update_expression: update_expression]
     options = maybe_add_attribute_values(base_options, attribute_values)
-    # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements.
+    # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements
     record = if options[:expression_attribute_values], do: [options[:expression_attribute_values] |> Enum.into(%{})], else: []
 
-    Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
+    Dynamo.update_item(table, updated_filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
     {:ok, []}
   end
 

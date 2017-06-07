@@ -73,6 +73,12 @@ but these would throw an error:
 
 `Repo.update_all(from ModelName, where: [attribute: value], set: [attribute: new_value], option_field: option_value)`
 
+#### **Inline Options:** *Repo.update*
+
+**:range_key** :: {attribute_name_atom, value}, *default:* none
+
+If the DynamoDB table queried has a composite primary key, an update query must supply both the `HASH` and the `RANGE` parts of the key. We assume that your Ecto model schema will correlate its primary id with DynamoDB's `HASH` part of the key. However, since Ecto will normally only supply the adapter with the primary id along with the changeset, we offer the range_key option to avoid an extra query to retrieve the complete key. The adapter will attempt to query the table for the complete key if the **:range_key** option is not supplied.
+
 #### **Inline Options:** *Repo.all, Repo.update_all, Repo.delete_all*
 
 **:scan_limit** :: integer, *default:* set in configuration
@@ -136,5 +142,6 @@ We currently do not support Ecto associations or migrations; we are looking forw
 ## Developer Notes
 
 The **projection_expression** option is used internally during **delete_all** to select only the key attributes and is recognized during query construction.
+
 
 
