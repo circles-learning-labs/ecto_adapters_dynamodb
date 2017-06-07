@@ -9,7 +9,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   @typep key :: String.t
   @typep table_name :: String.t
-  @typep query_op :: :== | :> | :< |:>= | :<= | :is_nil | :between
+  @typep query_op :: :== | :> | :< |:>= | :<= | :is_nil | :between | :in
   @typep boolean_op :: :and | :or
   @typep match_clause :: {term, query_op}
   @typep search_clause :: {key, match_clause} | {boolean_op, [search_clause]}
@@ -184,6 +184,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
+  @spec format_expression_attribute_value(key, term, query_op | [query_op]) :: map
   defp format_expression_attribute_value(field, _val, :is_nil), do: %{String.to_atom(field <> "_val") => nil}
   defp format_expression_attribute_value(field, val, :in) do
     {result, _count} = Enum.reduce(val, {%{}, 1}, fn (v, {acc, count}) ->
@@ -230,6 +231,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   # index read. TODO: Can we do this on the server side dynamo query instead?
   # see: http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-FilterExpression
   # note, this doesn't save us read capacity, but DOES reduce the result set and parsing over the wire.
+  @spec filter(dynamo_response, search) :: dynamo_response
   def filter(results, _search), do: results
 
 
@@ -245,6 +247,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   Exception if the index doesn't exist.
   """
+  @spec get_best_index(table_name, search) :: :not_found | {:primary, [String.t]} | {:primary_partial, [String.t]} | {String.t, [String.t]}
   def get_best_index(tablename, search) do
     case get_matching_primary_index(tablename, search) do
       # if we found a primary index with hash+range match, it's probably the best index.
@@ -415,10 +418,13 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
+  @spec maybe_scan_error(table_name) :: no_return
   defp maybe_scan_error(table) do
     raise ArgumentError, message: "Scan option or configuration have not been specified, and could not confirm the table, #{inspect table}, as listed for scan or caching in the application's configuration. Please see README file for details."
   end
 
+  @typep fetch_func :: (table_name, keyword -> ExAws.Operation.JSON.t)
+  @spec fetch_recursive(fetch_func, table_name, keyword, boolean, map) :: dynamo_response
   defp fetch_recursive(func, table, expressions, recursive, result) do
     updated_expressions = if recursive, do: Keyword.delete(expressions, :limit), else: expressions
     fetch_result = func.(table, updated_expressions) |> ExAws.request!
@@ -436,6 +442,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
+  @spec combine_results(map, map) :: map
   defp combine_results(result, scan_result) do
     if result == %{} do
       scan_result
