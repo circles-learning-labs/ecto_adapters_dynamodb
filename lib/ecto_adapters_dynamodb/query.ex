@@ -7,12 +7,14 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   import Ecto.Adapters.DynamoDB.Info
 
-  @type key :: String.t
-  @type query_op :: :== | :> | :< |:>= | :<= | :is_nil | :between
-  @type boolean_op :: :and | :or
-  @type match_clause :: {term, query_op}
-  @type search_clause :: {key, match_clause} | {boolean_op, [search_clause]}
-  @type search :: [search_clause]
+  @typep key :: String.t
+  @typep table_name :: String.t
+  @typep query_op :: :== | :> | :< |:>= | :<= | :is_nil | :between
+  @typep boolean_op :: :and | :or
+  @typep match_clause :: {term, query_op}
+  @typep search_clause :: {key, match_clause} | {boolean_op, [search_clause]}
+  @typep search :: [search_clause]
+  @typep dynamo_response :: %{required(String.t) => term}
 
   # parameters for get_item: 
   # TABLE_NAME::string,
@@ -20,6 +22,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   #
 
   # Repo.all(model), provide cached results for tables designated in :cached_tables
+  @spec get_item(table_name, search, keyword) :: dynamo_response | no_return
   def get_item(table, search, opts) when search == [], do: maybe_scan(table, search, opts)
 
   # Regular queries
@@ -49,6 +52,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   # we've a list of fields from an index that matches the (some of) the search fields,
   # so construct a dynamo db search criteria map with only the given fields and their
   # search objects!
+  @spec construct_search({:primary | :primary_partial | nil | String.t, [String.t]}, search, keyword) :: keyword
+  @spec construct_search({:secondary_partial, String.t, [String.t]}, search, keyword) :: keyword
   def construct_search({:primary, index_fields}, search, opts), do: construct_search(%{}, index_fields, search, opts)
   def construct_search({:primary_partial, index_fields}, search, opts) do
     # do not provide index_name for primary partial
@@ -107,6 +112,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
 
+  @spec construct_select_and_limit(keyword) :: keyword
   defp construct_select_and_limit(opts) do
     case opts[:projection_expression] do
       nil -> [select: opts[:select] || :all_attributes]
@@ -116,6 +122,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
 
   # returns a tuple: {filter_expression_tuple, expression_attribute_names, expression_attribute_values}
+  @spec construct_filter_expression(search, [String.t]) :: {[filter_expression: String.t], map, keyword}
   defp construct_filter_expression(search, index_fields) do
     # We can only construct a FilterExpression on attributes not in key-conditions.
     non_indexed_filters = collect_non_indexed_search(search, index_fields, [])
