@@ -159,7 +159,7 @@ defmodule Ecto.Adapters.DynamoDB do
     # 'preparing' is more a SQL concept - Do we really need to do anything here or just pass the params through?
     ecto_dynamo_log(:debug, "PREPARE:::")
     ecto_dynamo_log(:debug, inspect(query, structs: false))
-    {:nocache, query}
+    {:nocache, {:all, query}}
   end
   
 
@@ -200,47 +200,7 @@ defmodule Ecto.Adapters.DynamoDB do
   #          query: {:nocache, prepared} |
   #                 {:cached, (prepared -> :ok), cached} |
   #                 {:cache, (cached -> :ok), prepared}
-  # TODO: What about dynamo db batch_get_item for sql 'where x in [1,2,3,4]' style queries?
-  def execute(_repo, _meta, {:nocache, {func, prepared}}, params, _process = nil, opts) do
-    #Logger.error "EXECUTE... EXECUTING!"
-    ecto_dynamo_log(:debug, "EXECUTE:::")
-    ecto_dynamo_log(:debug, "func: #{inspect func, structs: false}")
-    ecto_dynamo_log(:debug, "prepared: #{inspect prepared, structs: false}")
-    ecto_dynamo_log(:debug, "params:   #{inspect params, structs: false}")
-    ecto_dynamo_log(:debug, "opts:     #{inspect opts, structs: false}")
-
-    {table, model} = prepared.from
-    validate_where_clauses!(prepared)
-    # We map the top level only of the lookup fields
-    lookup_fields = extract_lookup_fields(prepared.wheres, params, [])
-
-    limit_option = opts[:scan_limit] || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
-    scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
-    updated_opts = Keyword.delete(opts, :scan_limit) ++ scan_limit
-
-    update_params = extract_update_params(prepared.updates, params)
-    key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
-
-    ecto_dynamo_log(:debug, "table = #{inspect table}")
-    ecto_dynamo_log(:debug, "lookup_fields: #{inspect lookup_fields}")
-    ecto_dynamo_log(:debug, "update_params: #{inspect update_params}")
-    ecto_dynamo_log(:debug, "key_list: #{inspect key_list}")
-    ecto_dynamo_log(:debug, "scan_limit: #{inspect scan_limit}")
-
-    case func do
-      :delete_all ->
-        ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute: delete_all")
-        ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; Options: #{inspect updated_opts}")
-        delete_all(table, lookup_fields, updated_opts)
-      :update_all  -> 
-        ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute: update_all")
-        ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; Options: #{inspect updated_opts}; Key list: #{inspect key_list}; Update params: #{inspect update_params}")
-        update_all(table, lookup_fields, updated_opts, key_list, update_params, model)
-   end
-  end
-
-
-  def execute(repo, meta, {:nocache, prepared}, params, process, opts) do
+  def execute(repo, meta, {:nocache, {func, prepared}}, params, process, opts) do
     ecto_dynamo_log(:debug, "EXECUTE... EXECUTING!=============================")
     ecto_dynamo_log(:debug, "REPO::: #{inspect repo, structs: false}")
     ecto_dynamo_log(:debug, "META::: #{inspect meta, structs: false}")
@@ -249,9 +209,8 @@ defmodule Ecto.Adapters.DynamoDB do
     ecto_dynamo_log(:debug, "PROCESS::: #{inspect process, structs: false}")
     ecto_dynamo_log(:debug, "OPTS::: #{inspect opts, structs: false}")
 
-    {table, repo} = prepared.from
+    {table, model} = prepared.from
     validate_where_clauses!(prepared)
-    # We can pass is_nil filters to DynamoDB, provided they are on non-indexed attributes
     lookup_fields = extract_lookup_fields(prepared.wheres, params, [])
 
     limit_option = opts[:scan_limit] || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
@@ -259,35 +218,50 @@ defmodule Ecto.Adapters.DynamoDB do
     updated_opts = Keyword.delete(opts, :scan_limit) ++ scan_limit
 
     ecto_dynamo_log(:debug, "table = #{inspect table}")
-    ecto_dynamo_log(:debug, "lookup_fields = #{inspect lookup_fields}")
-    ecto_dynamo_log(:debug, "scan_limit = #{inspect scan_limit}")
+    ecto_dynamo_log(:debug, "lookup_fields: #{inspect lookup_fields}")
+    ecto_dynamo_log(:debug, "scan_limit: #{inspect scan_limit}")
 
-    # We map the top level only of the lookup fields
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute")
-    ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; options: #{inspect updated_opts}")
-    result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, updated_opts)
-    ecto_dynamo_log(:debug, "result = #{inspect result}")
+    case func do
+      :delete_all ->
+        ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute: delete_all")
+        ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; Options: #{inspect updated_opts}")
+        delete_all(table, lookup_fields, updated_opts)
 
-    if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], extract_query_info(result))
+      :update_all  -> 
+        update_params = extract_update_params(prepared.updates, params)
 
-    if result == %{} do
-      # Empty map means "not found"
-      {0, []}
-    else
-      case result["Count"] do
-        nil   -> decoded = result |> Dynamo.decode_item(as: repo) |> custom_decode(repo)
-                 {1, [[decoded]]}
-        _ ->
-          # HANDLE .all(query) QUERIES
+        ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute: update_all")
+        ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; Options: #{inspect updated_opts}; Update params: #{inspect update_params}")
 
-          decoded = Enum.map(result["Items"], fn(item) -> 
-            [Dynamo.decode_item(%{"Item" => item}, as: repo) |> custom_decode(repo)]
-          end)
-          {length(decoded), decoded}
-      end
+        update_all(table, lookup_fields, updated_opts, update_params, model)
+
+      :all ->
+        ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute")
+        ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; options: #{inspect updated_opts}")
+        result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, updated_opts)
+        ecto_dynamo_log(:debug, "result = #{inspect result}")
+
+        if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], extract_query_info(result))
+
+        if result == %{} do
+          # Empty map means "not found"
+          {0, []}
+        else
+          case result["Count"] do
+            nil   -> decoded = result |> Dynamo.decode_item(as: model) |> custom_decode(model)
+                     {1, [[decoded]]}
+            _ ->
+              # HANDLE .all(query) QUERIES
+
+              decoded = Enum.map(result["Items"], fn(item) -> 
+                [Dynamo.decode_item(%{"Item" => item}, as: model) |> custom_decode(model)]
+              end)
+
+              {length(decoded), decoded}
+          end
+        end
     end
   end
-
 
   # delete_all allows for the recursive option, scanning through multiple pages
   defp delete_all(table, lookup_fields, opts) do
@@ -349,9 +323,12 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  defp update_all(table, lookup_fields, opts, key_list, update_params, model) do
+  defp update_all(table, lookup_fields, opts, update_params, model) do
     recursive = opts[:recursive] == true
     updated_opts = Keyword.delete(opts, :recursive) 
+
+    key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
+    ecto_dynamo_log(:debug, "key_list: #{inspect key_list}")
 
     update_expression = construct_update_expression(update_params, opts)
     attribute_names = construct_expression_attribute_names(update_params)
