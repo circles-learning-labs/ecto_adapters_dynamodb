@@ -213,7 +213,7 @@ defmodule Ecto.Adapters.DynamoDB do
     validate_where_clauses!(prepared)
     lookup_fields = extract_lookup_fields(prepared.wheres, params, [])
 
-    limit_option = opts[:scan_limit] || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
+    limit_option = opts[:scan_limit]
     scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
     updated_opts = Keyword.delete(opts, :scan_limit) ++ scan_limit
 
@@ -267,17 +267,16 @@ defmodule Ecto.Adapters.DynamoDB do
   defp delete_all(table, lookup_fields, opts) do
     # select only the key
     {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
-    recursive = opts[:recursive] == true
-    updated_opts = opts ++ [projection_expression: Enum.join(key_list, ", ")] |> Keyword.delete(:recursive)
+    # default to recursion
+    recursive = opts[:recursive] != false
+    updated_opts = opts ++ [projection_expression: Enum.join(key_list, ", ")]
 
     delete_all_recursive(table, lookup_fields, updated_opts, recursive, %{})
   end
 
   defp delete_all_recursive(table, lookup_fields, opts, recursive, query_info) do
-    updated_opts = if recursive == true, do: Keyword.delete(opts, :limit), else: opts
-
     # query the table for which records to delete
-    fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, updated_opts)
+    fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, opts)
 
     updated_query_info = case fetch_result do
       %{"Count" => last_count, "ScannedCount" => last_scanned_count} -> 
@@ -301,7 +300,7 @@ defmodule Ecto.Adapters.DynamoDB do
     if prepared_data != [], do: batch_delete(table, prepared_data)
 
     if fetch_result["LastEvaluatedKey"] != nil and recursive do
-        opts_with_offset = updated_opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
+        opts_with_offset = opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
         delete_all_recursive(table, lookup_fields, opts_with_offset, recursive, updated_query_info)
     else
       if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], updated_query_info)
@@ -324,8 +323,8 @@ defmodule Ecto.Adapters.DynamoDB do
 
 
   defp update_all(table, lookup_fields, opts, update_params, model) do
-    recursive = opts[:recursive] == true
-    updated_opts = Keyword.delete(opts, :recursive) 
+    # default to recursion
+    recursive = opts[:recursive] != false
 
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
     ecto_dynamo_log(:debug, "key_list: #{inspect key_list}")
@@ -338,13 +337,11 @@ defmodule Ecto.Adapters.DynamoDB do
                            update_expression: update_expression,
                            return_values: :all_new]
 
-    update_all_recursive(table, lookup_fields, updated_opts, base_update_options, key_list, attribute_values, model, recursive, %{})
+    update_all_recursive(table, lookup_fields, opts, base_update_options, key_list, attribute_values, model, recursive, %{})
   end
 
   defp update_all_recursive(table, lookup_fields, opts, base_update_options, key_list, attribute_values, model, recursive, query_info) do
-    updated_opts = if recursive == true, do: Keyword.delete(opts, :limit), else: opts
-
-    fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, updated_opts)
+    fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, opts)
     ecto_dynamo_log(:debug, "fetch_result: #{inspect fetch_result}")
 
     updated_query_info = case fetch_result do
@@ -366,7 +363,7 @@ defmodule Ecto.Adapters.DynamoDB do
     do: batch_update(table, items, key_list, base_update_options, attribute_values, model)
 
     if fetch_result["LastEvaluatedKey"] != nil and recursive do
-        opts_with_offset = updated_opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
+        opts_with_offset = opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
         update_all_recursive(table, lookup_fields, opts_with_offset, base_update_options, key_list, attribute_values, model, recursive, updated_query_info)
     else
       if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], updated_query_info)
@@ -773,7 +770,6 @@ defmodule Ecto.Adapters.DynamoDB do
   # Decodes maps and datetime, seemingly unhandled by ExAws Dynamo decoder
   # (timestamps() corresponds with :naive_datetime)
   defp custom_decode(item, model) do    
-    ecto_dynamo_log(:debug, "Decoding datetime: #{inspect item}")
     Enum.reduce(model.__schema__(:fields), item, fn (field, acc) ->
         field_is_nil = is_nil Map.get(item, field)
   

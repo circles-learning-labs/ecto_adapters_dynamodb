@@ -39,7 +39,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       index when is_tuple(index) ->
         # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#query/2
         query = construct_search(index, search, opts)
-        fetch_recursive(&ExAws.Dynamo.query/2, table, query, opts[:recursive] == true, %{})
+        # query defaults to recursion, opts[:recursive] must equal false to disable it
+        fetch_recursive(&ExAws.Dynamo.query/2, table, query, opts[:recursive] != false, %{})
 
       scan_result -> scan_result
     end
@@ -394,7 +395,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         Ecto.Adapters.DynamoDB.Cache.scan!(table)
 
       scan_enabled ->
-        fetch_recursive(&ExAws.Dynamo.scan/2, table, Keyword.delete(opts, :recursive), opts[:recursive] == true, %{})
+        limit_option = opts[:limit] || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
+        scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
+        updated_opts = Keyword.drop(opts, [:recursive, :limit, :scan]) ++ scan_limit
+
+        # scan defaults to no recursion, opts[:recursive] must equal true to enable it
+        fetch_recursive(&ExAws.Dynamo.scan/2, table, updated_opts, opts[:recursive] == true, %{})
 
       true ->
         maybe_scan_error(table)
@@ -404,14 +410,19 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp maybe_scan(table, search, opts) do
     scan_enabled = opts[:scan] == true || Application.get_env(:ecto_adapters_dynamodb, :scan_all) == true || Enum.member?(Application.get_env(:ecto_adapters_dynamodb, :scan_tables), table)
 
+    limit_option = opts[:limit] || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
+    scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
+    updated_opts = Keyword.drop(opts, [:recursive, :limit, :scan]) ++ scan_limit
+
     if scan_enabled do
       {filter_expression_tuple, expression_attribute_names, expression_attribute_values} = construct_filter_expression(search, [])
         
       expressions = [
         expression_attribute_names: expression_attribute_names,
         expression_attribute_values: expression_attribute_values
-      ] ++ Keyword.delete(opts, :recursive) ++ filter_expression_tuple
+      ] ++ updated_opts ++ filter_expression_tuple
 
+      # scan defaults to no recursion, opts[:recursive] must equal true to enable it
       fetch_recursive(&ExAws.Dynamo.scan/2, table, expressions, opts[:recursive] == true, %{})
     else
       maybe_scan_error(table)

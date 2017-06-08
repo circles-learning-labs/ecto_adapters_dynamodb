@@ -31,7 +31,7 @@ The adapter automatically caches its own calls to **describe_table** for retriev
 
 **:scan_limit** :: integer, *default:* `100`
 
-Sets the limit on the number of records scanned in the current query. Included as **limit** in the DynamoDB query. (Removed from queries during recursive fetch.)
+Sets the default limit on the number of records scanned when calling DynamoDB's **scan** command. This can be overridden by the inline **:scan_limit** option. Included as **limit** in the DynamoDB query. (Removed from queries during recursive fetch.)
 
 **:scan_tables** :: [string], *default:* `[]`
 
@@ -81,7 +81,7 @@ If the DynamoDB table queried has a composite primary key, an update query must 
 
 #### **Inline Options:** *Repo.all, Repo.update_all, Repo.delete_all*
 
-**:scan_limit** :: integer, *default:* set in configuration
+**:scan_limit** :: integer, *default:* none, except configuration default applies to the DynamoDB `scan` command
 
 Sets the limit on the number of records scanned in the current query. Included as **limit** in the DynamoDB query.
 
@@ -93,7 +93,7 @@ Approves a DynamoDB **scan** command for the current query in case an indexed fi
 
 Adds DynamoDB's **ExclusiveStartKey** to the current query, providing a starting offset.
 
-**:recursive** :: boolean, *default:* `false`
+**:recursive** :: boolean, *default:* `true`, except for DynamoDB `scan` where default is `false`
 
 Fetches all pages recursively and performs the relevant operation on results in the case of *Repo.update_all* and *Repo.delete_all*
 
