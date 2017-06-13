@@ -177,7 +177,13 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
       {logical_op, exprs_list} when is_list(exprs_list) ->
         {deeper_filter_exprs, deeper_attr_names, deeper_attr_values} = build_filter_expression_data(exprs_list, {[], %{}, %{}})
-        updated_filter_exprs = ["(" <> Enum.join(deeper_filter_exprs, " #{to_string(logical_op)} ") <> ")" | filter_exprs]
+        # We don't parenthesize only one expression
+        updated_filter_exprs = case deeper_filter_exprs do
+          [one_expression] ->
+            [one_expression | filter_exprs]
+          many_expressions  ->
+            ["(" <> Enum.join(many_expressions, " #{to_string(logical_op)} ") <> ")" | filter_exprs]
+        end
         updated_attr_names = Map.merge(deeper_attr_names, attr_names)
         updated_attr_values = Map.merge(deeper_attr_values, attr_values)
 
