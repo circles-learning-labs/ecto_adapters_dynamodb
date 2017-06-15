@@ -19,6 +19,12 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/ecto_adapters_dynamodb](https://hexdocs.pm/ecto_adapters_dynamodb).
 
+## ExAws
+
+Our adapter utilizes ExAws' Dynamo module for its direct requests to DynamoDB. Declaring the adapter as a dependency ought to automatically call in the ExAws dependency but it will need to be configured. Please see their documentation at:
+
+[https://github.com/CargoSense/ex_aws/] (https://github.com/CargoSense/ex_aws/)
+
 ## Caching
 
 The adapter automatically caches its own calls to **describe_table** for retrieval of table information. We also offer the option to configure tables for scan caching (see configuration options below). To update the cache after making a change in a table, the cache offers two functions:
@@ -142,6 +148,7 @@ We currently do not support Ecto associations or migrations; we are looking forw
 ## Developer Notes
 
 The **projection_expression** option is used internally during **delete_all** to select only the key attributes and is recognized during query construction.
+
 
 
 
