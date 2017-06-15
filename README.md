@@ -23,7 +23,7 @@ be found at [https://hexdocs.pm/ecto_adapters_dynamodb](https://hexdocs.pm/ecto_
 
 Our adapter utilizes ExAws' Dynamo module for its direct requests to DynamoDB. Declaring the adapter as a dependency ought to automatically call in the ExAws dependency but it will need to be configured. Please see their documentation at:
 
-[https://github.com/CargoSense/ex_aws/] (https://github.com/CargoSense/ex_aws/)
+[https://github.com/CargoSense/ex_aws/](https://github.com/CargoSense/ex_aws/)
 
 ## Caching
 
