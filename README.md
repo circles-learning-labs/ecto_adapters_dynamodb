@@ -49,7 +49,7 @@ Pre-approves all tables for a DynamoDB **scan** command in case an indexed field
 
 **:cached_tables** :: [string], *default:* `[]`
 
-A list of table names for tables assigned for caching of the first page of results up to **:scan_limit**. (TODO: recursive full caching yet to be implemented).
+A list of table names for tables assigned for caching of the first page of results (without setting DynamoDB's **limit** parameter in the scan request).
 
 **:insert_nil_fields** :: boolean, *default:* `true`
 
