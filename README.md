@@ -6,12 +6,20 @@ Before pushing commits, run `$ mix test` and confirm that processes are error-fr
 
 ## Installation
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
+If [available in Hex](https://hex.pm/), the package can be installed
 by adding `ecto_adapters_dynamodb` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [{:ecto_adapters_dynamodb, "~> 0.1.0"}]
+end
+```
+
+Otherwise, to fetch from GitHub:
+
+```elixir
+def deps do
+  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", branch: "master"}]
 end
 ```
 
@@ -148,6 +156,7 @@ We currently do not support Ecto associations or migrations; we are looking forw
 ## Developer Notes
 
 The **projection_expression** option is used internally during **delete_all** to select only the key attributes and is recognized during query construction.
+
 
 
 
