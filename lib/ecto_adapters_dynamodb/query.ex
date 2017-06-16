@@ -28,7 +28,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   # Regular queries
   def get_item(table, search, opts) do
 
-    results = case get_best_index!(table, search, opts) do
+    results = case get_best_index!(table, search) do
       # primary key based lookup  uses the efficient 'get_item' operation
       {:primary, _} = index->
         #https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
@@ -39,15 +39,20 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       index when is_tuple(index) ->
         # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#query/2
         query = construct_search(index, search, opts)
-        # query defaults to recursion, opts[:recursive] must equal false to disable it
-        fetch_recursive(&ExAws.Dynamo.query/2, table, query, opts[:recursive] != false, %{})
+        fetch_recursive(&ExAws.Dynamo.query/2, table, query, parse_recursive_option(:query, opts), %{})
 
-      scan_result -> scan_result
+      :scan -> maybe_scan(table, search, opts)
     end
 
     filter(results, search)  # index may have had more fields than the index did, thus results need to be trimmed.
   end
 
+
+  # Will this query be a scan or a query?
+  # Returns an atom, :scan or :query
+  def scan_or_query?(table, search) do
+    if get_best_index!(table, search) == :scan, do: :scan, else: :query
+  end
 
 
   # we've a list of fields from an index that matches the (some of) the search fields,
@@ -118,7 +123,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     case opts[:projection_expression] do
       nil -> [select: opts[:select] || :all_attributes]
       _   -> [projection_expression: opts[:projection_expression]]
-    end ++ if is_integer(opts[:limit]), do: [limit: opts[:limit]], else: []
+    end ++ Keyword.take(opts, [:exclusive_start_key, :limit])
   end
 
 
@@ -277,9 +282,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   @doc """
   Same as get_best_index, but refers to a scan option on failure
   """
-  def get_best_index!(tablename, search, opts) do
+  def get_best_index!(tablename, search) do
     case get_best_index(tablename, search) do
-      :not_found -> maybe_scan(tablename, search, opts)
+      :not_found -> :scan
       index      -> index
     end
 
@@ -390,6 +395,25 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
 
+  def parse_recursive_option(scan_or_query, opts) do
+    case opts[:page_limit] do
+      page_limit when (is_integer page_limit) and page_limit > 0 ->
+        page_limit
+
+      page_limit when (is_integer page_limit) and page_limit < 1 ->
+        raise ArgumentError, message: "#{inspect __MODULE__}.parse_recursive_option/2 error: :page_limit option must be greater than 0"
+
+      _ when scan_or_query == :scan ->
+        # scan defaults to no recursion, opts[:recursive] must equal true to enable it
+        opts[:recursive] == true
+
+      _ when scan_or_query == :query ->
+        # query defaults to recursion, opts[:recursive] must equal false to disable it
+        opts[:recursive] != false
+    end
+  end
+
+
   # scan
   defp maybe_scan(table, [], opts) do
     scan_enabled = opts[:scan] == true || Application.get_env(:ecto_adapters_dynamodb, :scan_all) == true || Enum.member?(Application.get_env(:ecto_adapters_dynamodb, :scan_tables), table)
@@ -405,8 +429,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
         updated_opts = Keyword.drop(opts, [:recursive, :limit, :scan]) ++ scan_limit
 
-        # scan defaults to no recursion, opts[:recursive] must equal true to enable it
-        fetch_recursive(&ExAws.Dynamo.scan/2, table, updated_opts, opts[:recursive] == true, %{})
+        fetch_recursive(&ExAws.Dynamo.scan/2, table, updated_opts, parse_recursive_option(:scan, opts), %{})
 
       true ->
         maybe_scan_error(table)
@@ -428,8 +451,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         expression_attribute_values: expression_attribute_values
       ] ++ updated_opts ++ filter_expression_tuple
 
-      # scan defaults to no recursion, opts[:recursive] must equal true to enable it
-      fetch_recursive(&ExAws.Dynamo.scan/2, table, expressions, opts[:recursive] == true, %{})
+      fetch_recursive(&ExAws.Dynamo.scan/2, table, expressions, parse_recursive_option(:scan, opts), %{})
     else
       maybe_scan_error(table)
     end
@@ -441,23 +463,28 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
   @typep fetch_func :: (table_name, keyword -> ExAws.Operation.JSON.t)
-  @spec fetch_recursive(fetch_func, table_name, keyword, boolean, map) :: dynamo_response
+  @spec fetch_recursive(fetch_func, table_name, keyword, boolean | number, map) :: dynamo_response
   defp fetch_recursive(func, table, expressions, recursive, result) do
-    updated_expressions = if recursive, do: Keyword.delete(expressions, :limit), else: expressions
+    updated_expressions = if recursive == true, do: Keyword.delete(expressions, :limit), else: expressions
     fetch_result = func.(table, updated_expressions) |> ExAws.request!
+    # recursive can be a boolean or a page limit
+    updated_recursive = update_recursive_option(recursive)
 
-    if fetch_result["LastEvaluatedKey"] != nil and recursive do
+    if fetch_result["LastEvaluatedKey"] != nil and updated_recursive.continue do
       fetch_recursive(
         func,
         table,
         updated_expressions ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]],
-        recursive,
+        updated_recursive.new_value,
         combine_results(result, fetch_result)
       )
     else
       combine_results(result, fetch_result)
     end
   end
+
+  def update_recursive_option(r) when (is_boolean r), do: %{continue: r,     new_value: r}
+  def update_recursive_option(r) when (is_integer r), do: %{continue: r > 1, new_value: r - 1}
 
   @spec combine_results(map, map) :: map
   defp combine_results(result, scan_result) do

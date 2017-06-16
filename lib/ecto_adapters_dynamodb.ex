@@ -267,9 +267,9 @@ defmodule Ecto.Adapters.DynamoDB do
   defp delete_all(table, lookup_fields, opts) do
     # select only the key
     {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
-    # default to recursion
-    recursive = opts[:recursive] != false
-    updated_opts = opts ++ [projection_expression: Enum.join(key_list, ", ")]
+    scan_or_query = Ecto.Adapters.DynamoDB.Query.scan_or_query?(table, lookup_fields)
+    recursive = Ecto.Adapters.DynamoDB.Query.parse_recursive_option(scan_or_query, opts)
+    updated_opts = prepare_recursive_opts(opts ++ [projection_expression: Enum.join(key_list, ", ")])
 
     delete_all_recursive(table, lookup_fields, updated_opts, recursive, %{})
   end
@@ -299,9 +299,11 @@ defmodule Ecto.Adapters.DynamoDB do
 
     if prepared_data != [], do: batch_delete(table, prepared_data)
 
-    if fetch_result["LastEvaluatedKey"] != nil and recursive do
+    updated_recursive = Ecto.Adapters.DynamoDB.Query.update_recursive_option(recursive)
+
+    if fetch_result["LastEvaluatedKey"] != nil and updated_recursive.continue do
         opts_with_offset = opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
-        delete_all_recursive(table, lookup_fields, opts_with_offset, recursive, updated_query_info)
+        delete_all_recursive(table, lookup_fields, opts_with_offset, updated_recursive.new_value, updated_query_info)
     else
       if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], updated_query_info)
       {updated_query_info["Count"], nil}
@@ -323,8 +325,8 @@ defmodule Ecto.Adapters.DynamoDB do
 
 
   defp update_all(table, lookup_fields, opts, update_params, model) do
-    # default to recursion
-    recursive = opts[:recursive] != false
+    scan_or_query = Ecto.Adapters.DynamoDB.Query.scan_or_query?(table, lookup_fields)
+    recursive = Ecto.Adapters.DynamoDB.Query.parse_recursive_option(scan_or_query, opts)
 
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
     ecto_dynamo_log(:debug, "key_list: #{inspect key_list}")
@@ -337,7 +339,9 @@ defmodule Ecto.Adapters.DynamoDB do
                            update_expression: update_expression,
                            return_values: :all_new]
 
-    update_all_recursive(table, lookup_fields, opts, base_update_options, key_list, attribute_values, model, recursive, %{})
+    updated_opts = prepare_recursive_opts(opts)
+
+    update_all_recursive(table, lookup_fields, updated_opts, base_update_options, key_list, attribute_values, model, recursive, %{})
   end
 
   defp update_all_recursive(table, lookup_fields, opts, base_update_options, key_list, attribute_values, model, recursive, query_info) do
@@ -362,9 +366,11 @@ defmodule Ecto.Adapters.DynamoDB do
     # We are not collecting the updated results, but we could.
     do: batch_update(table, items, key_list, base_update_options, attribute_values, model)
 
-    if fetch_result["LastEvaluatedKey"] != nil and recursive do
+    updated_recursive = Ecto.Adapters.DynamoDB.Query.update_recursive_option(recursive)
+
+    if fetch_result["LastEvaluatedKey"] != nil and updated_recursive.continue do
         opts_with_offset = opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
-        update_all_recursive(table, lookup_fields, opts_with_offset, base_update_options, key_list, attribute_values, model, recursive, updated_query_info)
+        update_all_recursive(table, lookup_fields, opts_with_offset, base_update_options, key_list, attribute_values, model, updated_recursive.new_value, updated_query_info)
     else
       if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], updated_query_info)
       {updated_query_info["Count"], []}
@@ -384,6 +390,16 @@ defmodule Ecto.Adapters.DynamoDB do
       {count, result_list} = acc
       {count + 1, [Dynamo.decode_item(update_query_result["Attributes"], as: model) |> custom_decode(model) | result_list]}
     end
+  end
+
+
+  # During delete_all's and update_all's recursive
+  # procedure, we want to keep the recursion in
+  # the top-level, between actions, rather than
+  # load all the results into memory and then act;
+  # so we disable the recursion on get_item
+  defp prepare_recursive_opts(opts) do
+    opts |> Keyword.delete(:page_limit) |> Keyword.update(:recursive, false, fn _ -> false end)
   end
 
 

@@ -107,6 +107,10 @@ Adds DynamoDB's **ExclusiveStartKey** to the current query, providing a starting
 
 Fetches all pages recursively and performs the relevant operation on results in the case of *Repo.update_all* and *Repo.delete_all*
 
+**:page_limit** :: integer, *default:* none
+
+Sets the maximum number of pages to access. The query will execute recursively until the page limit has been reached or there are no more pages (overrides **:recursive** option).
+
 #### QueryInfo agent
 
 **:query_info_key** :: string, *default:* none
