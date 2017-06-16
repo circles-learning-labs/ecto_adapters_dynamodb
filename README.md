@@ -23,10 +23,6 @@ def deps do
 end
 ```
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/ecto_adapters_dynamodb](https://hexdocs.pm/ecto_adapters_dynamodb).
-
 ## ExAws
 
 Our adapter utilizes ExAws' Dynamo module for its direct requests to DynamoDB. Declaring the adapter as a dependency ought to automatically call in the ExAws dependency but it will need to be configured. Please see their documentation at:
@@ -157,7 +153,9 @@ We currently do not support Ecto associations or migrations; we are looking forw
 
 The **projection_expression** option is used internally during **delete_all** to select only the key attributes and is recognized during query construction.
 
-
+Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
+and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
+be found at [https://hexdocs.pm/ecto_adapters_dynamodb](https://hexdocs.pm/ecto_adapters_dynamodb).
 
 
 
