@@ -52,7 +52,8 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
       {:ex_aws, git: "https://github.com/CargoSense/ex_aws.git"},
       {:poison, "~> 2.0"},
       {:hackney, "~> 1.6"},
-      {:dialyxir, "~> 0.5", only: [:dev], runtime: false}
+      {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
+      {:eqc_ex, "~> 1.4.2", only: [:dev, :test], runtime: false}
     ]
   end
 end
