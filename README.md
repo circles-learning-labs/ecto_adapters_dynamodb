@@ -63,28 +63,51 @@ From DynamoDB's [Query API](http://docs.aws.amazon.com/amazondynamodb/latest/API
 >Query results are always sorted by the sort key value. If the data type of the sort key is Number, the results are returned in numeric order; otherwise, the results are returned in order of UTF-8 bytes. By default, the sort order is ascending. To reverse the order, set the ScanIndexForward parameter to false.
 
 #### Update support
-We currently support both `update` and `update_all`, although, since DynamoDB currently does not offer a batch update operation, `update_all` (and `update` if the full primary-key is not provided) first fetches the query results to get all the relevant keys, then updates one by one (paging as it goes, see *DynamoDB LIMIT & Paging* below). Consequently, performance might be slower than expected due to multiple fetches followed by updates (plenty of network traffic). Also NOTE that this means that update operations are *not atomic*! Multiple concurrent updates to the same record from separate clients can race with each other, causing some updates to be silently lost.
+We currently support both `update` and `update_all` with some performance caveats. Since DynamoDB currently does not offer a batch update operation, `update_all` (and `update` if the full primary-key is not provided), we emulate it. The adaptor first fetches the query results to get all the relevant keys, then updates the records one by one (paging as it goes, see *DynamoDB LIMIT & Paging* below). Consequently, performance might be slower than expected due to multiple fetches followed by updates (plenty of network traffic). Also NOTE that this means that update operations are *not atomic*! Multiple concurrent updates to the same record from separate clients can race with each other, causing some updates to be silently lost.
 
 #### DynamoDB LIMIT & Paging
 By default, we configure the adapter to fetch all pages recursively for a DynamoDB `query` operation, and to *not* fetch all pages recursively in the case of a DynamoDB `scan` operation. This default can be overridden with the inline **:recursive** and **:page_limit** options (see below). We do not respond to the Ecto `limit` option; rather, we support a **:scan_limit** option, which corresponds with DynamoDB's [limit option](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html#Query.Limit), limiting "the number of items that it returns in the result."
 
-#### What else is limited by design? @gilad
 
 
 ### Unimplemented Features
 While the previous section listed limitations that we're unlikely to work around due to philosphical differences between DynamoDB as a key/value store vs an SQL relational database, there are some features that we just haven't implemented yet. Feel free to help out if any of these are important to you!
 
-#### Migration & Storage
+#### Adaptor.Migration & Adaptor.Storage
 In the current release, we do not support creating tables and indexes in DynamoDB, nor do we support migrations to change them. You'll need to manually use the AWS DynamoDB web dashboard to create them, or another tool/scripting language.
 
-#### Anything else? Check Ecto docs
-@gilad
+#### Adaptor.Structure
+Look, I have to be honest - I don't even know what this is for. So it's not going to work :)
 
+#### Associations & Embeds
+While we've not tested these, without joins, it's unlikely they work well (if at all).
+
+
+### So what DOES work?
+Well, basic CRUD really.
+Get, Insert, Delete and Update. As long as it's simple queries against single tables, it's probably going to work. Anything beyond that probably isn't.
+
+*all/2
+*delete/2
+*delete!/2
+*delete_all/2
+*get/3
+*get!/3
+*get_by/3
+*get_by!/3
+*insert/2
+*insert!/2
+*insert_all/3
+*one/2
+*one!/2
+*update/2
+*update!/2
+*update_all/3
 
 
 ## Installation
 
-If [available in Hex](https://hex.pm/), the package can be installed
+We will be making the package available [Hex](https://hex.pm/) soon. Once available, the package can be installed
 by adding `ecto_adapters_dynamodb` to your list of dependencies in `mix.exs`:
 
 ```elixir
