@@ -33,7 +33,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       {:primary, _} = index->
         #https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
         query = construct_search(index, search, opts)
-        ExAws.Dynamo.get_item(table, query, construct_select_and_limit(opts)) |> ExAws.request!
+        ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
 
       # secondary index based lookups need the query functionality. 
       index when is_tuple(index) ->
@@ -70,7 +70,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     # we merge it with the full query)
     {filter_expression_tuple, expression_attribute_names, expression_attribute_values} = construct_filter_expression(search, index_fields)
 
-    select = construct_select_and_limit(opts)
+    updated_ops = construct_opts(:query, opts)
 
     # :primary_partial might not provide an index name
     criteria = if index_name != nil, do: [index_name: index_name], else: []
@@ -83,7 +83,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
           key_condition_expression: "##{hash} = :hash_key AND #{range_expression}",
           expression_attribute_names: Enum.reduce([%{"##{hash}" => hash}, range_attribute_names, expression_attribute_names], &Map.merge/2),
           expression_attribute_values: [hash_key: hash_val] ++ range_attribute_values ++ expression_attribute_values,
-        ] ++ filter_expression_tuple ++ select
+        ] ++ filter_expression_tuple ++ updated_ops
 
       [hash] ->
         {hash_val, _op} = deep_find_key(search, hash)
@@ -91,7 +91,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
           key_condition_expression: "##{hash} = :hash_key",
           expression_attribute_names: Map.merge(%{"##{hash}" => hash}, expression_attribute_names),
           expression_attribute_values: [hash_key: hash_val] ++ expression_attribute_values,
-        ] ++ filter_expression_tuple ++ select
+        ] ++ filter_expression_tuple ++ updated_ops
       
     end
   end
@@ -118,12 +118,16 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
 
-  @spec construct_select_and_limit(keyword) :: keyword
-  defp construct_select_and_limit(opts) do
+  @spec construct_opts(atom, keyword) :: keyword
+  defp construct_opts(:get_item, opts) do
+    Keyword.take(opts, [:consistent_read])
+  end
+
+  defp construct_opts(:query, opts) do
     case opts[:projection_expression] do
       nil -> [select: opts[:select] || :all_attributes]
       _   -> [projection_expression: opts[:projection_expression]]
-    end ++ Keyword.take(opts, [:exclusive_start_key, :limit])
+    end ++ Keyword.take(opts, [:exclusive_start_key, :limit, :scan_index_forward, :consistent_read])
   end
 
 

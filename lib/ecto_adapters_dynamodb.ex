@@ -215,7 +215,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     limit_option = opts[:scan_limit]
     scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
-    updated_opts = Keyword.delete(opts, :scan_limit) ++ scan_limit
+    updated_opts = Keyword.drop(opts, [:scan_limit, :limit]) ++ scan_limit
 
     ecto_dynamo_log(:debug, "table = #{inspect table}")
     ecto_dynamo_log(:debug, "lookup_fields: #{inspect lookup_fields}")
