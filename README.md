@@ -53,6 +53,9 @@ While it's technically possible for us to decompose the query into multiple indi
 
 Having said that, it's possible that given decent indexes against each table that are guaranteed to return small subsets, we could add code to the adaptor to perform some simple joins. Feel free to submit a patch!
 
+#### No transactions
+Similar deal as with joins. DynamoDB does not support transactions, so neither do we. And, unlike joins where we could theoretically emulate them, there's simply no way to provide support for transactions in the adapter.
+
 #### Limited sorting
 Dynamo can ONLY return sorted results when there is a matching HASH+RANGE index, where the desired sort key is the RANGE portion of the index. For this case, we support the **:scan_index_forward** inline [option](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html). However, writing queries like 'select * from person order by last_name limit 50' may or may not be practical - We'd have to retrieve every record from the table to do this. (See also *DynamoDB LIMIT & Paging* below.)
 
@@ -60,12 +63,12 @@ From DynamoDb's [Query API](http://docs.aws.amazon.com/amazondynamodb/latest/API
 >Query results are always sorted by the sort key value. If the data type of the sort key is Number, the results are returned in numeric order; otherwise, the results are returned in order of UTF-8 bytes. By default, the sort order is ascending. To reverse the order, set the ScanIndexForward parameter to false.
 
 #### Update support
-We currently support both `update` and `update_all`, although, since DynamoDB currently does not offer a batch update operation, `update_all` (and `update` if the full primary-key is not provided) first fetches the query results to get all the relevant keys, then updates one by one (paging as it goes, see *DynamoDB LIMIT & Paging* below). Consequently, performance might be slower than expected due to multiple fetches followed by updates (plenty of network traffic).
+We currently support both `update` and `update_all`, although, since DynamoDB currently does not offer a batch update operation, `update_all` (and `update` if the full primary-key is not provided) first fetches the query results to get all the relevant keys, then updates one by one (paging as it goes, see *DynamoDB LIMIT & Paging* below). Consequently, performance might be slower than expected due to multiple fetches followed by updates (plenty of network traffic). Also NOTE that this means that update operations are *not atomic*! Multiple concurrent updates to the same record from separate clients can race with each other, causing some updates to be silently lost.
 
 #### DynamoDB LIMIT & Paging
 By default, we configure the adapter to fetch all pages recursively for a DynamoDB `query` operation, and to *not* fetch all pages recursively in the case of a DynamoDB `scan` operation. This default can be overridden with the inline **:recursive** and **:page_limit** options (see below). We do not respond to the Ecto `limit` option; rather, we support a **:scan_limit** option, which corresponds with DynamoDB's [limit option](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html#Query.Limit), limiting "the number of items that it returns in the result."
 
-#### What else is limited by design? @nick/@gilad
+#### What else is limited by design? @gilad
 
 
 ### Unimplemented Features
@@ -75,7 +78,7 @@ While the previous section listed limitations that we're unlikely to work around
 In the current release, we do not support creating tables and indexes in Dynamo DB, nor do we support migrations to change them. You'll need to manually use the aws dynamo web dashboard to create them, or another tool/scripting language.
 
 #### Anything else? Check Ecto docs
-@gilad @nick
+@gilad
 
 
 
