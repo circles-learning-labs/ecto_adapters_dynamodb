@@ -1,6 +1,6 @@
 # Ecto.Adapters.DynamoDB
 
-This is a partial implementation of an Elixir Ecto driver for Amazon's Dynamo DB. Due to the fact that Dynamo is a key value store designed for very high scale and Ecto is very much oriented to classic relational SQL databases there have been significant compromises in the implementation of this adaptor. Please keep in mind that while we are using it in production, it's currently in use in non critical systems and should be considered **beta**. Do not deploy it without thouroughly testing it for your use cases.
+This is a partial implementation of an Elixir Ecto driver for Amazon's DynamoDB. Due to the fact that DynamoDB is a key value store designed for very high scale and Ecto is very much oriented to classic relational SQL databases there have been significant compromises in the implementation of this adaptor. Please keep in mind that while we are using it in production, it's currently in use in non critical systems and should be considered **beta**. Do not deploy it without thouroughly testing it for your use cases.
 
 Before pushing commits, run `$ mix test` and confirm that processes are error-free.
 
@@ -14,7 +14,7 @@ Please see the ExAws documentation at:
 [https://github.com/CargoSense/ex_aws/](https://github.com/CargoSense/ex_aws/)
 
 ### Design limitations - This driver is more 'plug and pray' than 'plug and play'
-Amazon is a key value store. Ecto is very strongly influenced by relational SQL databases. This fundamental difference means that there are a lot of pretty normal things you'd expect to do in Ecto against an SQL database that you just can't do (or do efficiently) in Dynamo. This means that if you expect to pick up your existing Ecto based app and just switch in Dynamo, you're going to be disappointed - You still have to approach dynamo from a key/value store perspective.
+Amazon is a key value store. Ecto is very strongly influenced by relational SQL databases. This fundamental difference means that there are a lot of pretty normal things you'd expect to do in Ecto against an SQL database that you just can't do (or do efficiently) in DynamoDB. This means that if you expect to pick up your existing Ecto based app and just switch in DynamoDB, you're going to be disappointed - You still have to approach DynamoDB from a key/value store perspective.
 
 Is DynamoDB the right choice for you?
 It may not be.
@@ -24,27 +24,27 @@ A good starting point is Amazon's own documentation:
 [Amazon: Best Practices for DynamoDB](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BestPractices.html)
 
 Our philophy when creating this adaptor can generally be summed up as *Do what the end user will expect the adaptor to do, **unless** it's likely to break amazon performance or just won't work*. An example of this is our handling of 'scan' (see below).
-Lastly, please read and understand how dynamo DB and its queries/indexes work. If you don't then a lot of the following behaviour is going to seem random, and you'll be frustrated trying to figure out why things don't work the way you expect them to. We've done our best to simplify what we can, but underneath it all, it's still DynamoDB.
+Lastly, please read and understand how DynamoDB and its queries/indexes work. If you don't then a lot of the following behaviour is going to seem random, and you'll be frustrated trying to figure out why things don't work the way you expect them to. We've done our best to simplify what we can, but underneath it all, it's still DynamoDB.
 
 
 #### How we use indexes
-In dynamo, we can fetch individual records or batches of records *very* quickly if we know the primary key to look up, or the key of an indexed field. We CAN'T easily (for example), perform the following: `select * from people where name like 'Ali%'`.
+In DynamoDB, we can fetch individual records or batches of records *very* quickly if we know the primary key to look up, or the key of an indexed field. We CAN'T easily (for example), perform the following: `select * from people where name like 'Ali%'`.
 
-We will try out best to parse the individual fields in the FROM portion of a request (Ecto Query), and find any dynamo index that exists on the table that can help us serve that query. This includes both HASH indexes, and HASH+RANGE indexes. (So the previous query might be made to work if you added the HASH criteria from HASH+RANGE index to the FROM.) If we do not find a full primary key or the HASH part of a composite primary key in the query WHERES, the adapter will opt for a DynamoDB scan; however, since a scan is the least efficient (and potentially most costly) way of querying DynamoDB, we have configured the adapter not to scan unless explicitly permitted either in configuration or inline.
+We will try out best to parse the individual fields in the FROM portion of a request (Ecto Query), and find any DynamoDB index that exists on the table that can help us serve that query. This includes both HASH indexes, and HASH+RANGE indexes. (So the previous query might be made to work if you added the HASH criteria from HASH+RANGE index to the FROM.) If we do not find a full primary key or the HASH part of a composite primary key in the query WHERES, the adapter will opt for a DynamoDB scan; however, since a scan is the least efficient (and potentially most costly) way of querying DynamoDB, we have configured the adapter not to scan unless explicitly permitted either in configuration or inline.
 
-The adaptor will query Dynamo for a list of indexes and indexed fields on the table; and cache the results for use later.
+The adaptor will query DynamoDB for a list of indexes and indexed fields on the table; and cache the results for use later.
 
-As long as the FROM clause contains at least **one** HASH key from a dynamo index, a dynamo query will be constructed using our best guess at the most specific matching index (May not be the best index - Unlike an SQL server, we don't understand the data in the table, so will select a best guess rather than what is known to be optimal). Any other fields in the FROM criteria will be converted to DynamoDB filters as required to ensure you only get back the records you requested.
+As long as the FROM clause contains at least **one** HASH key from a DynamoDB index, a query will be constructed using our best guess at the most specific matching index (May not be the best index - Unlike an SQL server, we don't understand the data in the table, so will select a best guess rather than what is known to be optimal). Any other fields in the FROM criteria will be converted to DynamoDB filters as required to ensure you only get back the records you requested.
 
 If there are NO matching indexes for the request, then by default, the query will give an error, unless 'scan' is enabled. Which leads us to:
 
 
 #### Limited support for fetching all records. 'scan' disabled by default
-Fetching arbitrary records based on a computed 'hash' of the primary key allows dynamo to scale across many partitions on many servers, resulting in high scalability and reliability. It also means that you can't do arbitrary queries based on unindexed fields.
+Fetching arbitrary records based on a computed 'hash' of the primary key allows DynamoDB to scale across many partitions on many servers, resulting in high scalability and reliability. It also means that you can't do arbitrary queries based on unindexed fields.
 
-Well, that's not quite true - It's just that you *really* probably don't want to be doing it. We do translate queries without any matching indexes to a dynamo `scan` operation - But this is not recommended against as it can easily burn all your read capacity. By default, these queries will fail. You can ensure they succeed by enabling the 'scan' option at the adapter level for all queries, or on an individual query basis. See 'scan' options below.
+Well, that's not quite true - It's just that you *really* probably don't want to be doing it. We do translate queries without any matching indexes to a DynamoDB `scan` operation - But this is not recommended against as it can easily burn all your read capacity. By default, these queries will fail. You can ensure they succeed by enabling the 'scan' option at the adapter level for all queries, or on an individual query basis. See 'scan' options below.
 
-If you need to do this a lot, you're discarding all the benefits of Dynamo - think carefully before you do.
+If you need to do this a lot, you're discarding all the benefits of DynamoDB - think carefully before you do.
 
 
 #### No joins. Inner, outer, cross table, in-table, they're just not going to work
@@ -57,9 +57,9 @@ Having said that, it's possible that given decent indexes against each table tha
 Similar deal as with joins. DynamoDB does not support transactions, so neither do we. And, unlike joins where we could theoretically emulate them, there's simply no way to provide support for transactions in the adapter.
 
 #### Limited sorting
-Dynamo can ONLY return sorted results when there is a matching HASH+RANGE index, where the desired sort key is the RANGE portion of the index. For this case, we support the **:scan_index_forward** inline [option](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html). However, writing queries like 'select * from person order by last_name limit 50' may or may not be practical - We'd have to retrieve every record from the table to do this. (See also *DynamoDB LIMIT & Paging* below.)
+DynamoDB can ONLY return sorted results when there is a matching HASH+RANGE index, where the desired sort key is the RANGE portion of the index. For this case, we support the **:scan_index_forward** inline [option](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html). However, writing queries like 'select * from person order by last_name limit 50' may or may not be practical - We'd have to retrieve every record from the table to do this. (See also *DynamoDB LIMIT & Paging* below.)
 
-From DynamoDb's [Query API](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html):
+From DynamoDB's [Query API](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html):
 >Query results are always sorted by the sort key value. If the data type of the sort key is Number, the results are returned in numeric order; otherwise, the results are returned in order of UTF-8 bytes. By default, the sort order is ascending. To reverse the order, set the ScanIndexForward parameter to false.
 
 #### Update support
@@ -72,10 +72,10 @@ By default, we configure the adapter to fetch all pages recursively for a Dynamo
 
 
 ### Unimplemented Features
-While the previous section listed limitations that we're unlikely to work around due to philosphical differences between Dynamo as a key/value store vs an SQL relational database, there are some features that we just haven't implemented yet. Feel free to help out if any of these are important to you!
+While the previous section listed limitations that we're unlikely to work around due to philosphical differences between DynamoDB as a key/value store vs an SQL relational database, there are some features that we just haven't implemented yet. Feel free to help out if any of these are important to you!
 
 #### Migration & Storage
-In the current release, we do not support creating tables and indexes in Dynamo DB, nor do we support migrations to change them. You'll need to manually use the aws dynamo web dashboard to create them, or another tool/scripting language.
+In the current release, we do not support creating tables and indexes in DynamoDB, nor do we support migrations to change them. You'll need to manually use the AWS DynamoDB web dashboard to create them, or another tool/scripting language.
 
 #### Anything else? Check Ecto docs
 @gilad
