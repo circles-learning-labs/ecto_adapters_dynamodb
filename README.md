@@ -125,11 +125,11 @@ end
 
 ### Configuration
 
-Include the adapter among the project's Ecto repos. File, "config/config.exs"
+Include the repo module that's configured for the adapter among the project's Ecto repos. File, "config/config.exs"
 ```
   config :my_app, ecto_repos: [MyModule.Repo]
 ```
-And in the project's applications list. File, "mix.exs":
+Include the adapter in the project's applications list. File, "mix.exs":
 
 ```
   def application do
