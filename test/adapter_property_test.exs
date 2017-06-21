@@ -2,8 +2,6 @@ defmodule AdapterPropertyTest do
   use ExUnit.Case
   use EQC.ExUnit  
 
-  import Ecto.Query
-
   alias Ecto.Adapters.DynamoDB.TestRepo
   alias Ecto.Adapters.DynamoDB.TestSchema.Person
 
@@ -11,20 +9,16 @@ defmodule AdapterPropertyTest do
     TestHelper.setup_all("property_test_person")
   end
 
-  def string() do
-    utf8()
-  end
-
   def nonempty_str() do
-    such_that s <- string() do
-      s != ""
+    such_that s <- utf8() do
+      # Ecto.Changeset.validate_required checks for all-whitespace
+      # strings in addition to empty ones, hence the trimming:
+      String.trim_leading(s) != ""
     end
   end
 
-  def circle_list do
-    such_that l <- list(nonempty_str()) do
-      l != []
-    end
+  def circle_list() do
+    non_empty(list(nonempty_str()))
   end
 
   def person_generator() do
@@ -44,9 +38,9 @@ defmodule AdapterPropertyTest do
   end
 
   property "test insert/get returns the same value" do
-    forall person <- person_generator do
+    forall person <- person_generator() do
       when_fail(IO.puts "Failed for person #{inspect person}") do
-        TestRepo.insert Person.changeset(person)
+        TestRepo.insert! Person.changeset(person)
         result = TestRepo.get(Person, person.id)
         ensure person == result
       end
