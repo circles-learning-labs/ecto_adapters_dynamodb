@@ -265,6 +265,14 @@ Approves a DynamoDB **scan** command for the current query in case an indexed fi
 
 Adds DynamoDB's **ExclusiveStartKey** to the current query, providing a starting offset.
 
+**:scan_index_forward** :: boolean, *default:* none
+
+Adds DynamoDB's **ScanIndexForward** to the current query, specifying ascending (true/default) or descending (false) traversal of the index. (Quoted from DynamoDB's [documentation](http://docs.aws.amazon.com/sdkfornet1/latest/apidocs/html/P_Amazon_DynamoDBv2_Model_QueryRequest_ScanIndexForward.htm).)
+
+**:consistent_read** :: boolean, *default:* none
+
+If set to `true`, then the operation uses strongly consistent reads; otherwise, eventually consistent reads are used. Strongly consistent reads are not supported on global secondary indexes. If you query a global secondary index with ConsistentRead set to true, you will receive an error message. (Quoted from DynamoDB's [documentation](http://docs.aws.amazon.com/sdkfornet1/latest/apidocs/html/P_Amazon_DynamoDBv2_Model_QueryRequest_ConsistentRead.htm).)
+
 **:recursive** :: boolean, *default:* `true`, except for DynamoDB `scan` where default is `false`
 
 Fetches all pages recursively and performs the relevant operation on results in the case of *Repo.update_all* and *Repo.delete_all*
