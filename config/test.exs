@@ -8,7 +8,8 @@ config :ecto_adapters_dynamodb, Ecto.Adapters.DynamoDB.TestRepo,
   hostname: "localhost"
 
 config :ecto_adapters_dynamodb,
-  cached_tables: ["role"]
+  cached_tables: ["role"],
+  log_levels: []
 
 config :ex_aws,
   debug_requests: true,
@@ -31,5 +32,4 @@ config :ex_aws, :dynamodb_streams,
 config :logger,
   backends: [:console],
   compile_time_purge_level: :debug,
-  level: :debug
-
+  level: :info
