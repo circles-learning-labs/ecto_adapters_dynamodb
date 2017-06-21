@@ -68,8 +68,6 @@ We currently support both `update` and `update_all` with some performance caveat
 #### DynamoDB LIMIT & Paging
 By default, we configure the adapter to fetch all pages recursively for a DynamoDB `query` operation, and to *not* fetch all pages recursively in the case of a DynamoDB `scan` operation. This default can be overridden with the inline **:recursive** and **:page_limit** options (see below). We do not respond to the Ecto `limit` option; rather, we support a **:scan_limit** option, which corresponds with DynamoDB's [limit option](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html#Query.Limit), limiting "the number of items that it returns in the result."
 
-
-
 ### Unimplemented Features
 While the previous section listed limitations that we're unlikely to work around due to philosphical differences between DynamoDB as a key/value store vs an SQL relational database, there are some features that we just haven't implemented yet. Feel free to help out if any of these are important to you!
 
@@ -87,22 +85,22 @@ While we've not tested these, without joins, it's unlikely they work well (if at
 Well, basic CRUD really.
 Get, Insert, Delete and Update. As long as it's simple queries against single tables, it's probably going to work. Anything beyond that probably isn't.
 
-*all/2
-*delete/2
-*delete!/2
-*delete_all/2
-*get/3
-*get!/3
-*get_by/3
-*get_by!/3
-*insert/2
-*insert!/2
-*insert_all/3
-*one/2
-*one!/2
-*update/2
-*update!/2
-*update_all/3
+* all/2
+* delete/2
+* delete!/2
+* delete_all/2
+* get/3
+* get!/3
+* get_by/3
+* get_by!/3
+* insert/2
+* insert!/2
+* insert_all/3
+* one/2
+* one!/2
+* update/2
+* update!/2
+* update_all/3
 
 
 ## Installation
@@ -126,14 +124,48 @@ end
 
 
 ### Configuration
-#### Ecto configuration options
-@gilad **Add description of our basic Ecto config here with minimal viable version**
 
-#### ExAws
+Include the adapter among the project's Ecto repos. File, "config/config.exs"
+```
+  config :my_app, ecto_repos: [MyModule.Repo]
+```
+And in the project's applications list. File, "mix.exs":
+
+```
+  def application do
+    [...
+    applications: [..., :ecto_adapters_dynamodb, ...]
+    ...
+  end
+```
+
+#### Development
+For development, we use the [local version](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) of DynamoDB, and some dummy variable assignments.
+
+File, "config/dev.exs":
+```               
+config :my_app, MyModule.Repo,
+  adapter: Ecto.Adapters.DynamoDB,
+  database: "database_name",
+  username: "username",
+  password: "",                         
+  hostname: "localhost"
+```
+
+#### Production
+File, "config/prod.exs"
+```
+config :my_app, MyModule.Repo,
+  adapter: Ecto.Adapters.DynamoDB
+```
+Specific DynamoDB access information will be in the configuration for ExAws.
+
+
+### ExAws
 Don't forget to configure ExAws as separate application per their documentation
 
-#### Adapter options new to Ecto.Adapter.DynamoDB
-See below 'Configuration Options' section
+### Adapter options new to Ecto.Adapter.DynamoDB
+See below *Configuration Options* section
 
 ## Caching
 
@@ -144,7 +176,17 @@ The adapter automatically caches its own calls to **describe_table** for retriev
 **Ecto.Adapters.DynamoDB.Cache.update_cached_table!(table_name)**, *table_name* :: string
 
 ## Configuration Options
-@gilad - Where are these options set? In adaptor? Or in individual queries? or...?
+The following options are configured during compile time, and can be altered in the application's configuration files ("config/config.exs", "config/dev.exs", "config/test.exs" and "config/test.exs").
+
+For example, file "config/prod.exs":
+
+```
+config :ecto_adapters_dynamodb,
+  insert_nil_fields: false,
+  remove_nil_fields_on_update: true,
+  cached_tables: ["colour"]
+```
+The above snippet will (1) set the adapter to ignore fields that are set to `nil` in the changeset, inserting the record without those attributes, (2) set the adapter to remove attributes in a record during an update where those fields are set to `nil` in the changeset, and (3) cache the first page of results for a call to `MyModule.Repo.all(MyModule.Colour)`, providing the cached result in subsequent calls. More details for each of those options follow.
 
 **:scan_limit** :: integer, *default:* `100`
 
@@ -171,17 +213,29 @@ Determines if fields in the changeset with `nil` values will be inserted as Dyna
 Determines if, during **Repo.update** or **Repo.update_all**, fields in the changeset with `nil` values will be removed from the record/s or set to the DynamoDB `null` value. This option is also available inline per query.
 
 #### Logging Configuration
-@gilad - Where are these options set? In adaptor? Or in individual queries? or...?
+The adapter's logging options are configured during compile time, and can be altered in the application's configuration files ("config/config.exs", "config/dev.exs", "config/test.exs" and "config/test.exs"). 
 
 We provide a few informational log lines, such as which adapter call is being processed, as well as the table, lookup fields, and options detected. Configure an optional log path to have the messages recorded on file.
 
-**:log_levels** :: [log-level-atom], *default:* `[:info]`, *log-level-atom can be :info or :debug*
+**:log_levels** :: [log-level-atom], *default:* `[:info]`, *log-level-atom can be :info and/or :debug*
 
 **:log_colors** :: %{log-level-atom: IO.ANSI-color-atom}, *default:* `info: :green, debug: :normal`
 
 **:log_path** :: string, *default:* `""`
 
 ## Inline Options
+
+The following options can be passed during runtime in the Ecto calls. For example, consider a DynamoDB table with a composite index (HASH + RANGE):
+```
+MyModule.Repo.all(
+  (from MyModule.HikingTrip, where: [location_id: "grand_canyon"]),
+  recursive: false,
+  scan_limit: 5
+)
+```
+will retrieve the first five results from the record set for the indexed HASH, "location_id" = "grand_canyon", disabling the default recursive page fetch for queries. (Please note that without `recursive: false`, the adapter would ignore the scan limit.)
+
+#### A Note About Ecto Query Parsing
 
 Please note that in order for Ecto to recognize options, the preceding parameters have to be clearly delineated. The query is enclosed in parentheses and updates are enclosed in brackets, `[]`. For example, these options would be parsed,
 
