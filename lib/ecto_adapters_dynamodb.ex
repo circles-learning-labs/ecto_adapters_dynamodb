@@ -92,11 +92,13 @@ defmodule Ecto.Adapters.DynamoDB do
   support booleans but instead returns 0 and 1 for them, you could
   add:
 
+    ```
     def loaders(:boolean, type), do: [&bool_decode/1, type]
     def loaders(_primitive, type), do: [type]
 
     defp bool_decode(0), do: {:ok, false}
     defp bool_decode(1), do: {:ok, true}
+	```
 
   All adapters are required to implement a clause for `:binary_id` types,
   since they are adapter specific. If your adapter does not provide binary

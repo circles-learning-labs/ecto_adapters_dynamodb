@@ -1,4 +1,7 @@
 defmodule Ecto.Adapters.DynamoDB.Cache do
+  @moduledoc """
+  An Elixir agent to cache DynamoDB table schemas and the first page of results for selected tables
+  """
 
   @typep table_name_t :: String.t
   @typep dynamo_response_t :: %{required(String.t) => term}
@@ -12,6 +15,9 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
                      } end, name: __MODULE__)
   end
 
+  @doc """
+  Returns the cached value for a call to DynamoDB, describe-table. The raw json is presented as an elixir map. Raises any errors as a result of the request
+  """
   @spec describe_table!(table_name_t) :: dynamo_response_t | no_return
   def describe_table!(table_name) do
     case describe_table(table_name) do
@@ -24,6 +30,9 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
   def describe_table(table_name),
   do: Agent.get_and_update(__MODULE__, &do_describe_table(&1, table_name))
 
+  @doc """
+  Performs a DynamoDB, describe-table, and caches (without returning) the result. Raises any errors as a result of the request
+  """
   @spec update_table_info!(table_name_t) :: :ok | no_return
   def update_table_info!(table_name) do
     case update_table_info(table_name) do
@@ -36,6 +45,9 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
   def update_table_info(table_name),
   do: Agent.get_and_update(__MODULE__, &do_update_table_info(&1, table_name))
 
+  @doc """
+  Returns the cached first page of results for a table. Performs a DynamoDB scan if not yet cached and raises any errors as a result of the request
+  """
   @spec scan!(table_name_t) :: dynamo_response_t | no_return
   def scan!(table_name) do
     case scan(table_name) do
@@ -48,6 +60,9 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
   def scan(table_name),
   do: Agent.get_and_update(__MODULE__, &do_scan(&1, table_name))
 
+  @doc """
+  Performs a DynamoDB scan and caches (without returning) the first page of results. Raises any errors as a result of the request
+  """
   @spec update_cached_table!(table_name_t) :: :ok | no_return
   def update_cached_table!(table_name) do
     case update_cached_table(table_name) do
@@ -60,6 +75,9 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
   def update_cached_table(table_name),
   do: Agent.get_and_update(__MODULE__, &do_update_cached_table(&1, table_name))
 
+  @doc """
+  Returns the current cache of table schemas, and cache of first page of results for selected tables, as an Elixir map
+  """
   # For testing and debugging use only:
   def get_cache,
   do: Agent.get(__MODULE__, &(&1))

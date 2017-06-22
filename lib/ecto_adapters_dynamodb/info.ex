@@ -7,8 +7,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   @typep dynamo_response_t :: %{required(String.t) => term}
 
   @doc """
-  Returns the raw amazon dynamo DB table schema information. The raw json is presented as
-  and elixir map.
+  Returns the raw amazon dynamo DB table schema information. The raw json is presented as an elixir map.
 
   Here is an example of what it may look like
   %{"AttributeDefinitions" => [%{"AttributeName" => "id",
@@ -51,7 +50,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
 
 
   @doc """
-  Get a list of the available indexes on a table. The format of this list is described in 
+  Get a list of the available indexes on a table. The format of this list is described in normalise_dynamo_index!
   """
   @spec indexes(table_name_t) :: [{:primary | String.t, [String.t]}]
   def indexes(tablename) do
@@ -62,8 +61,8 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   @doc """
   Returns the primary key/ID for a table. It may be a single field that is a HASH, OR
   it may be the dynamoDB {HASH, SORT} type of index. we return
-  {:primary, [index]}
-  in a format described in normalise_dynamo_index
+  \\{:primary, [index]}
+  in a format described in normalise_dynamo_index!
   """
   @spec primary_key!(table_name_t) :: {:primary, [String.t]} | no_return
   def primary_key!(tablename) do
@@ -121,10 +120,12 @@ defmodule Ecto.Adapters.DynamoDB.Info do
 
 
 
-  # dynamo raw index data is complex, and can contain either one or two fields along with their type (hash or range)
-  # This parses it and returns a simple list format. The first element of the list is the HASH key, the second
-  # (optional) is the range/sort key. eg:
-  # [hash_field_name, sort_field_name] or [hash_field_name]
+  @doc """
+  dynamo raw index data is complex, and can contain either one or two fields along with their type (hash or range)
+  This parses it and returns a simple list format. The first element of the list is the HASH key, the second
+  (optional) is the range/sort key. eg:
+  [hash_field_name, sort_field_name] or [hash_field_name]
+  """
   @spec normalise_dynamo_index!([%{required(String.t) => String.t}]) :: [String.t] | no_return
   defp normalise_dynamo_index!(index_fields) do
     # The data structure can look a little like these examples:
