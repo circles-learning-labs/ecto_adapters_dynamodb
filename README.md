@@ -1,42 +1,55 @@
 # Ecto.Adapters.DynamoDB
 
-This is a partial implementation of an Elixir Ecto driver for Amazon's DynamoDB. Due to the fact that DynamoDB is a key value store designed for very high scale and Ecto is very much oriented to classic relational SQL databases there have been significant compromises in the implementation of this adaptor. Please keep in mind that while we are using it in production, it's currently in use in non critical systems and should be considered **beta**. Do not deploy it without thouroughly testing it for your use cases.
+This is a partial implementation of an Elixir Ecto adapter for Amazon's DynamoDB. Keep in mind that DynamoDB is a key value store designed for very high scale while the Ecto abstractions are very much based around classic relational SQL databases. We've had to make significant compromises in the implementation of this adapter to make it work. Please understand that while we are using it in production, it's currently in use in non critical systems and should be considered **beta**. Do not deploy it without thouroughly testing it for your use cases.
 
-Before pushing commits, run `$ mix test` and confirm that processes are error-free.
+If you wish to contribute, please run `$ mix test` and confirm that processes are error-free before you push your commits. (Bonus points for improving our tests and adding your own tests for your changes. Patches are more likely to be accepted then, especially if they are significant.)
 
 ### Special thanks to ExAws project
 We use [ExAws](https://github.com/CargoSense/ex_aws/)' to wrap the actual DynamoDB API and requests. This project would not be possible without the extensive work in ExAws.
 
-**This does mean you'll need to configure ExAws separately from the Ecto driver!**
+**This does mean you'll need to configure ExAws separately from the Ecto adapter!**
 
 Please see the ExAws documentation at:
 
 [https://github.com/CargoSense/ex_aws/](https://github.com/CargoSense/ex_aws/)
 
 ### Design limitations - This driver is more 'plug and pray' than 'plug and play'
-Amazon is a key value store. Ecto is very strongly influenced by relational SQL databases. This fundamental difference means that there are a lot of pretty normal things you'd expect to do in Ecto against an SQL database that you just can't do (or do efficiently) in DynamoDB. This means that if you expect to pick up your existing Ecto based app and just switch in DynamoDB, you're going to be disappointed - You still have to approach DynamoDB from a key/value store perspective.
+Amazon is a key value store. Ecto is very strongly influenced by relational SQL databases. This fundamental difference means that there are a lot of pretty normal things you'd expect to do in Ecto against an SQL database that you just can't do (or do efficiently) in DynamoDB. If you expect to pick up your existing Ecto based app and just switch in DynamoDB, you're going to be disappointed - You still have to approach using DynamoDB and this adapter as a key/value store, and not a relational DB.
 
-Is DynamoDB the right choice for you?
+**Is DynamoDB the right choice for you?**
 It may not be.
-Understand the DynamoDB limitations. It's designed for very high scale, throughput, and reliability - But to achieve this there are significant limitations with what you can do - And many things that you can do, but probably shouldn't.
+Understand the DynamoDB limitations. It's designed for very high scale, throughput, and reliability. To achieve this there are significant limitations with what you can do, along many things that you can do, but probably shouldn't.
 
-A good starting point is Amazon's own documentation: 
+A good starting point is Amazon's own documentation:
 [Amazon: Best Practices for DynamoDB](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BestPractices.html)
 
-Our philophy when creating this adaptor can generally be summed up as *Do what the end user will expect the adaptor to do, **unless** it's likely to break amazon performance or just won't work*. An example of this is our handling of 'scan' (see below).
+Our philophy when creating this adapter can generally be summed up as:
+
+ *Do what the end user will expect the adapter to do, **unless** it's likely to break amazon performance or just won't work*.
+
+An example of this is our handling of 'scan' (see below).
 Lastly, please read and understand how DynamoDB and its queries/indexes work. If you don't then a lot of the following behaviour is going to seem random, and you'll be frustrated trying to figure out why things don't work the way you expect them to. We've done our best to simplify what we can, but underneath it all, it's still DynamoDB.
 
 
 #### How we use indexes
-In DynamoDB, we can fetch individual records or batches of records *very* quickly if we know the primary key to look up, or the key of an indexed field. We CAN'T easily (for example), perform the following: `select * from people where name like 'Ali%'`.
+In DynamoDB, we can fetch individual records or batches of records *very* quickly if we know the primary key to look up, or the key of an indexed field. We **can't** easily perform queries which don't have a simple key or ID to look up:
 
-We will try out best to parse the individual fields in the FROM portion of a request (Ecto Query), and find any DynamoDB index that exists on the table that can help us serve that query. This includes both HASH indexes, and HASH+RANGE indexes. (So the previous query might be made to work if you added the HASH criteria from HASH+RANGE index to the FROM.) If we do not find a full primary key or the HASH part of a composite primary key in the query WHERES, the adapter will opt for a DynamoDB scan; however, since a scan is the least efficient (and potentially most costly) way of querying DynamoDB, we have configured the adapter not to scan unless explicitly permitted either in configuration or inline.
+Will work: (note that this will be a *case sensitive* match as well.)
 
-The adaptor will query DynamoDB for a list of indexes and indexed fields on the table; and cache the results for use later.
+`select * from people where name = 'ALICE'`
 
-As long as the FROM clause contains at least **one** HASH key from a DynamoDB index, a query will be constructed using our best guess at the most specific matching index (May not be the best index - Unlike an SQL server, we don't understand the data in the table, so will select a best guess rather than what is known to be optimal). Any other fields in the FROM criteria will be converted to DynamoDB filters as required to ensure you only get back the records you requested.
+Won't Work:
 
-If there are NO matching indexes for the request, then by default, the query will give an error, unless 'scan' is enabled. Which leads us to:
+`select * from people where name like 'Ali%'`
+
+
+We will try our best to parse the individual fields in the FROM portion of a request (Ecto Query), and find any DynamoDB index that exists on the table that can help us serve that query. This includes both HASH indexes, and HASH+RANGE indexes. (See dynamoDB docs to explain what HASH and HASH+RANGE indexes are.) The previous search for 'Ali%' might be made to work if you added the HASH criteria from HASH+RANGE index to the FROM, and turned it in to, say `where company_id='BOBS' and name like 'Ali%'`.
+
+As long as the FROM clause contains at least **one** HASH key from a DynamoDB index, a query will be constructed using our best guess at the most specific matching index (May not be the best index - Unlike a SQL server, we don't understand the data in the table, so will select a best guess rather than what is known to be optimal). Any other fields in the FROM criteria will be converted to DynamoDB filters as required to ensure you only get back the records you requested.
+
+If we do not find any matching table index for the query (either a HASH key of an index or the HASH part of a composite HASH+RANGE key), the query will fail by default. It is possible to override this behaviour and have the adapter perform a dynamoDB *scan* instead. Since a scan is the least efficient (and potentially very costly with large data sets) way of querying DynamoDB, we have configured the adapter not to scan unless explicitly enabled via adapter configuration or inline as an option to 'get_item' and other query functions. (see the section below on **scan**)
+
+The adapter will query DynamoDB for a list of indexes and indexed fields on the table; and cache the results to avoid the overhead of requesting up indexes on every query. This does mean that if you update the indexes on a table in Dynamo, you may need to restart the adapter.
 
 
 #### Limited support for fetching all records. 'scan' disabled by default
@@ -51,19 +64,23 @@ If you need to do this a lot, you're discarding all the benefits of DynamoDB - t
 DynamoDB does not support joins. Thus neither do we. Pretty simple.
 While it's technically possible for us to decompose the query into multiple individual requests against each table and then perform the join ourselves, this will likely result in very poor performance, and burning through excess read units to do so. It's better to construct these 'joins' manually using key/value lookups against indexes carefully chosen to preserve your predictable key/value store performance.
 
-Having said that, it's possible that given decent indexes against each table that are guaranteed to return small subsets, we could add code to the adaptor to perform some simple joins. Feel free to submit a patch!
+This is one of those things that are technically possible, but would result in very unpredictable performance that could drag down your entire app, reducing or eliminating any benefit from DynamoDB. You're probably better off using another DB if this is a requirement.
+
 
 #### No transactions
 Similar deal as with joins. DynamoDB does not support transactions, so neither do we. And, unlike joins where we could theoretically emulate them, there's simply no way to provide support for transactions in the adapter.
 
+
 #### Limited sorting
-DynamoDB can ONLY return sorted results when there is a matching HASH+RANGE index, where the desired sort key is the RANGE portion of the index. For this case, we support the **:scan_index_forward** inline [option](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html). However, writing queries like 'select * from person order by last_name limit 50' may or may not be practical - We'd have to retrieve every record from the table to do this. (See also *DynamoDB LIMIT & Paging* below.)
+DynamoDB can ONLY return sorted results when there is a matching HASH+RANGE index, where the desired sort key is the RANGE portion of the index. In this case we support the **:scan_index_forward** [option](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html) as a parameter to Repo queries. However, writing queries like 'select * from person order by last_name limit 50' may or may not be practical - We'd have to retrieve every record from the table to do this. (See also *DynamoDB LIMIT & Paging* below.)
 
 From DynamoDB's [Query API](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html):
 >Query results are always sorted by the sort key value. If the data type of the sort key is Number, the results are returned in numeric order; otherwise, the results are returned in order of UTF-8 bytes. By default, the sort order is ascending. To reverse the order, set the ScanIndexForward parameter to false.
 
+
 #### Update support
-We currently support both `update` and `update_all` with some performance caveats. Since DynamoDB currently does not offer a batch update operation, `update_all` (and `update` if the full primary-key is not provided), we emulate it. The adaptor first fetches the query results to get all the relevant keys, then updates the records one by one (paging as it goes, see *DynamoDB LIMIT & Paging* below). Consequently, performance might be slower than expected due to multiple fetches followed by updates (plenty of network traffic). Also NOTE that this means that update operations are *not atomic*! Multiple concurrent updates to the same record from separate clients can race with each other, causing some updates to be silently lost.
+We currently support both `update` and `update_all` with some performance caveats. Since DynamoDB currently does not offer a batch update operation, `update_all` (and `update` if the full primary-key is not provided), we emulate it. The adapter first fetches the query results to get all the relevant keys, then updates the records one by one (paging as it goes, see *DynamoDB LIMIT & Paging* below). Consequently, performance might be slower than expected due to multiple fetches followed by updates (plenty of network traffic). Also please note that this means that update operations are *not atomic*! Multiple concurrent updates to the same record from separate clients can race with each other, causing some updates to be silently lost.
+
 
 #### DynamoDB LIMIT & Paging
 By default, we configure the adapter to fetch all pages recursively for a DynamoDB `query` operation, and to *not* fetch all pages recursively in the case of a DynamoDB `scan` operation. This default can be overridden with the inline **:recursive** and **:page_limit** options (see below). We do not respond to the Ecto `limit` option; rather, we support a **:scan_limit** option, which corresponds with DynamoDB's [limit option](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html#Query.Limit), limiting "the number of items that it returns in the result."
@@ -71,10 +88,10 @@ By default, we configure the adapter to fetch all pages recursively for a Dynamo
 ### Unimplemented Features
 While the previous section listed limitations that we're unlikely to work around due to philosphical differences between DynamoDB as a key/value store vs an SQL relational database, there are some features that we just haven't implemented yet. Feel free to help out if any of these are important to you!
 
-#### Adaptor.Migration & Adaptor.Storage
+#### Adapter.Migration & Adapter.Storage
 In the current release, we do not support creating tables and indexes in DynamoDB, nor do we support migrations to change them. You'll need to manually use the AWS DynamoDB web dashboard to create them, or another tool/scripting language.
 
-#### Adaptor.Structure
+#### Adapter.Structure
 Look, I have to be honest - I don't even know what this is for. So it's not going to work :)
 
 #### Associations & Embeds
@@ -82,7 +99,8 @@ While we've not tested these, without joins, it's unlikely they work well (if at
 
 
 ### So what DOES work?
-Well, basic CRUD really.
+Well, basic CRUD really, which is all you should really expect from a key/value store :).
+
 Get, Insert, Delete and Update. As long as it's simple queries against single tables, it's probably going to work. Anything beyond that probably isn't.
 
 * all/2
@@ -124,6 +142,8 @@ end
 
 
 ### Configuration
+Configuring a repository to use the DynamoDB ecto adapter is pretty similar to most other Ecto adapters. Set the adapter option in the Repo configuration to 'Ecto.Adapters.DynamoDB', and remove the database/user/password/etc options - You'll need to configure the equivalent options in ExAws instead (AWS access key, host and secret).
+
 
 Include the repo module that's configured for the adapter among the project's Ecto repos. File, "config/config.exs"
 ```
