@@ -8,7 +8,11 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      deps: deps(),
-     dialyzer: [plt_add_apps: [:ecto]]]
+     dialyzer: [plt_add_apps: [:ecto]],
+     description: "A DynamoDB adapter for Ecto supporting basic queries.",
+     package: package(),
+     source_url: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb"
+    ]
   end
 
   # Configuration for the OTP application
@@ -55,6 +59,15 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
       {:eqc_ex, "~> 1.4.2", only: [:dev, :test], runtime: false},
 	  {:ex_doc, "~> 0.16.1"}
+    ]
+  end
+
+  defp package do
+    [
+      # files: ["lib", "priv", "mix.exs", "README*", "readme*", "LICENSE*", "license*"],
+      maintainers: ["Franko Franicevich", "Darren Klein", "Gilad Barkan", "Nick Marino"],
+      licenses: ["Apache 2.0"],
+      links: %{"GitHub" => "https://github.com/circles-learning-labs/ecto_adapters_dynamodb"}
     ]
   end
 end
