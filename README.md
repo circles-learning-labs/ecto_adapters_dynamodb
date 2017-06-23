@@ -337,11 +337,15 @@ We currently only support the Ecto fragment of the form:
 
 ## Caching
 
-The adapter automatically caches its own calls to **describe_table** for retrieval of table information. We also offer the option to configure tables for scan caching (see configuration options below). To update the cache after making a change in a table, the cache offers two functions:
+The adapter automatically caches its own calls to **describe_table** for retrieval of table information. We also offer the option to configure tables for scan caching. To update the cache after making a change in a table, the cache offers two functions:
 
 **Ecto.Adapters.DynamoDB.Cache.update_table_info!(table_name)**, *table_name* :: string
 
+This re-fetches and caches the index data for the given table.
+
 **Ecto.Adapters.DynamoDB.Cache.update_cached_table!(table_name)**, *table_name* :: string
+
+This runs a scan against the given table and updates the in-memory cached copy of it.
 
 ## Developer Notes
 
