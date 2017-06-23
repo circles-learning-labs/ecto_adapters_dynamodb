@@ -10,6 +10,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   Returns the raw amazon dynamo DB table schema information. The raw json is presented as an elixir map.
 
   Here is an example of what it may look like
+  ```
   %{"AttributeDefinitions" => [%{"AttributeName" => "id",
        "AttributeType" => "S"},
      %{"AttributeName" => "person_id", "AttributeType" => "S"}],
@@ -29,6 +30,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
     "TableArn" => "arn:aws:dynamodb:ddblocal:000000000000:table/circle_members",
     "TableName" => "circle_members", "TableSizeBytes" => 7109,
     "TableStatus" => "ACTIVE"}
+  ```
   """
   @spec table_info(table_name_t) :: dynamo_response_t | no_return
   def table_info(tablename) do

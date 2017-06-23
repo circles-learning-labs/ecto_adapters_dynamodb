@@ -16,7 +16,7 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
   end
 
   @doc """
-  Returns the cached value for a call to DynamoDB, describe-table. The raw json is presented as an elixir map. Raises any errors as a result of the request
+  Returns the cached value for a call to DynamoDB, describe-table. Performs a DynamoDB scan if not yet cached and raises any errors as a result of the request. The raw json is presented as an elixir map.
   """
   @spec describe_table!(table_name_t) :: dynamo_response_t | no_return
   def describe_table!(table_name) do

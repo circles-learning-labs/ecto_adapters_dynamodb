@@ -1,6 +1,6 @@
 defmodule Ecto.Adapters.DynamoDB.QueryInfo do
   @moduledoc """
-  An Elixir agent used by the adapter to optionally record DynamoDB query information (like LastEvaluatedKey) that's not part of expected Ecto return values.
+  An Elixir agent to optionally record DynamoDB query information (like LastEvaluatedKey) that's not part of expected Ecto return values.
   """
 
   def start_link, do: Agent.start_link(fn -> %{} end, name: __MODULE__)

@@ -1,7 +1,7 @@
 defmodule Ecto.Adapters.DynamoDB.Query do
   @moduledoc """
   Some query wrapper functions for helping us query dynamo db. Selects indexes to use, etc.
-  Not to be confused with Ecto.Query (Should wec rename this module?)
+  Not to be confused with Ecto.Query (Should we rename this module?)
 
   """
 
@@ -318,10 +318,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
 
   @doc """
-  Given a map containing key values representing a search field and value to search for
-  (eg %{id => "franko"}, or %{circle_id => "123", person_id =>"abc"}), will return the
-  dynamo db index description that will help us match this search. return :not_found if
-  no index is found.
+  Given a map containing key values representing a search field, value and operator to search for (e.g., %{"id" => {"franko", :==}}, or %{"circle_id" => {"123", :==}, "person_id" => {"abc", :>}}), will return the dynamo db index description that will help us match this search. return :not_found if no index is found.
 
   Returns a tuple of {"index_name", [ hash_key or hash,range_key]]} or :not_found
   TODO: Does not help with range queries. -> The match_index_hash_part function is
