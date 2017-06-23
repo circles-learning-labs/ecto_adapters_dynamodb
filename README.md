@@ -188,13 +188,8 @@ Specific DynamoDB access information will be in the configuration for ExAws.
 ### ExAws
 Don't forget to configure ExAws as separate application per their documentation
 
-### Adapter options new to Ecto.Adapter.DynamoDB
-See below *Configuration Options* section
-
-## Configuration Options
-The following options are configured during compile time, and can be altered in the application's configuration files ("config/config.exs", "config/dev.exs", "config/test.exs" and "config/test.exs").
-
-For example, file "config/prod.exs":
+### Other adapter options
+The following are other application env options, which can be specified e.g. as follows in your project's config files:
 
 ```
 config :ecto_adapters_dynamodb,
@@ -202,23 +197,9 @@ config :ecto_adapters_dynamodb,
   remove_nil_fields_on_update: true,
   cached_tables: ["colour"]
 ```
-The above snippet will (1) set the adapter to ignore fields that are set to `nil` in the changeset, inserting the record without those attributes, (2) set the adapter to remove attributes in a record during an update where those fields are set to `nil` in the changeset, and (3) cache the first page of results for a call to `MyModule.Repo.all(MyModule.Colour)`, providing the cached result in subsequent calls. More details for each of those options follow.
+The above snippet will (1) set the adapter to ignore fields that are set to `nil` in the changeset, inserting the record without those attributes, (2) set the adapter to remove attributes in a record during an update where those fields are set to `nil` in the changeset, and (3) cache scan results from the "colour" table, providing the cached result in subsequent calls. More details for each of those options follow.
 
-**:scan_limit** :: integer, *default:* `100`
-
-Sets the default limit on the number of records scanned when calling DynamoDB's **scan** command. This can be overridden by the inline **:scan_limit** option. Included as **limit** in the DynamoDB query. (Removed from queries during recursive fetch.)
-
-**:scan_tables** :: [string], *default:* `[]`
-
-A list of table names for tables pre-approved for a DynamoDB **scan** command in case an indexed field is not provided in the query *wheres*.
-
-**:scan_all** :: boolean, *default:* `false`
-
-Pre-approves all tables for a DynamoDB **scan** command in case an indexed field is not provided in the query *wheres*.
-
-**:cached_tables** :: [string], *default:* `[]`
-
-A list of table names for tables assigned for caching of the first page of results (without setting DynamoDB's **limit** parameter in the scan request).
+#### `nil` value handling options
 
 **:insert_nil_fields** :: boolean, *default:* `true`
 
@@ -239,6 +220,23 @@ We provide a few informational log lines, such as which adapter call is being pr
 
 **:log_path** :: string, *default:* `""`
 
+#### Scan-related options
+**:scan_tables** :: [string], *default:* `[]`
+
+A list of table names for tables pre-approved for a DynamoDB **scan** command in case an indexed field is not provided in the query *wheres*. By default, scans are completely disabled on all tables. Use this option carefully; you may be better off using the inline query options to make sure you only perform table scans when you explicitly expect to do so.
+
+**:scan_limit** :: integer, *default:* `100`
+
+Sets the default limit on the number of records scanned when calling DynamoDB's **scan** command. This can be overridden by the inline **:scan_limit** option. Included as **limit** in the DynamoDB query. (This option does not apply to queries performing recursive fetches.)
+
+**:scan_all** :: boolean, *default:* `false`
+
+Pre-approves all tables for a DynamoDB **scan** command in case an indexed field is not provided in the query *wheres*.
+
+**:cached_tables** :: [string], *default:* `[]`
+
+A list of table names for tables assigned for caching of the first page of results (without setting DynamoDB's **limit** parameter in the scan request).
+
 ## Inline Options
 
 The following options can be passed during runtime in the Ecto calls. For example, consider a DynamoDB table with a composite index (HASH + RANGE):
@@ -250,16 +248,6 @@ MyModule.Repo.all(
 )
 ```
 will retrieve the first five results from the record set for the indexed HASH, "location_id" = "grand_canyon", disabling the default recursive page fetch for queries. (Please note that without `recursive: false`, the adapter would ignore the scan limit.)
-
-#### A Note About Ecto Query Parsing
-
-Please note that in order for Ecto to recognize options, the preceding parameters have to be clearly delineated. The query is enclosed in parentheses and updates are enclosed in brackets, `[]`. For example, these options would be parsed,
-
-`Repo.update_all((from ModelName, where: [attribute: value]), [set: [attribute: new_value]], option_field: option_value)`
-
-but these would throw an error:
-
-`Repo.update_all(from ModelName, where: [attribute: value], set: [attribute: new_value], option_field: option_value)`
 
 #### **Inline Options:** *Repo.update*
 
