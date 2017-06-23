@@ -501,7 +501,7 @@ defmodule Ecto.Adapters.DynamoDB do
   @doc """
   Deletes a single struct with the given filters.
 
-  While filters can be any record column, it is expected that at least the primary key (or any other key that uniquely identifies an existing record) be given as a filter. Deleting a record with a primary key not in the database will return ok, without advising that the record was not found.
+  While filters can be any record column, it is expected that at least the primary key (or any other key that uniquely identifies an existing record) be given as a filter. Deleting a record with a primary key not in the database will return success, without advising that the record was not found.
 
   Callback implementation for `Ecto.Adapter.delete/4`.
   """
