@@ -44,7 +44,7 @@ Won't Work:
 
 (Obviously these are SQL queries, not Ecto queries, but the above examples just provide a general illustration of what sorts of limitations to expect.)
 
-We will try our best to parse queries and find any relevant DynamoDB indexes that exists. (This includes both HASH indexes, and HASH+RANGE indexes.) As long as the FROM clause contains at least **one** HASH key from a DynamoDB index, a query will be constructed using our best guess at the most specific matching index. (This may not be the best index - unlike a SQL server, we don't understand the data in the table, so the adapter may have to guess.) Any other fields in the FROM criteria will be converted to DynamoDB filters as required to ensure you only get back the data you requested.
+We will try our best to parse queries and find any relevant DynamoDB indexes that exists. (This includes both HASH indexes, and HASH+RANGE indexes.) As long as the FROM clause contains at least **one** HASH key from a DynamoDB index, a query will be constructed using our best guess at the most specific matching index. (This may not be the best index - unlike a SQL server, we don't understand the data in the table, so the adapter may have to guess.) Any other fields in the FROM criteria will be converted to DynamoDB filters as required to ensure you only get back the data you requested. We also support `is_nil` in queries. This will test whether the attribute is either set to `null` *or* whether the attribute is missing from the record altogether. Please note that DynamoDB does not allow for this type of filtering on attributes that are being queried against, whether in the primary key or in a secondary index.
 
 If we do not find any matching table index for the query (either a HASH key of an index or the HASH part of a composite HASH+RANGE key), the query will fail by default. It is possible to override this behaviour and have the adapter perform a dynamoDB *scan* instead. Since scans do not scale well, they can potentially be very costly with large data sets, and we have configured the adapter not to scan unless scanning is explicitly enabled. This can be done via global configuration options, or inline as an option to 'Repo.all' and other query functions. See the section below on **scan** for more info.
 
@@ -324,10 +324,6 @@ Determines if fields in the changeset with `nil` values will be inserted as Dyna
 **:remove_nil_fields** :: boolean, *default:* set in configuration
 
 Determines if fields in the changeset with `nil` values will be removed from the record/s or set to the DynamoDB `null` value.
-
-### `is_nil` Queries
-
-We support `is_nil` in query `wheres`. This will query DynamoDB for the attribute either set to `null` or to be missing from the record.  Please note that DynamoDB does not allow filtering for `null` or missing-attribute on attributes that are part of the current query's key conditions.
 
 ### DynamoDB `between` and Ecto `:fragment`
 
