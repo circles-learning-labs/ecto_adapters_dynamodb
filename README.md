@@ -191,14 +191,6 @@ Don't forget to configure ExAws as separate application per their documentation
 ### Adapter options new to Ecto.Adapter.DynamoDB
 See below *Configuration Options* section
 
-## Caching
-
-The adapter automatically caches its own calls to **describe_table** for retrieval of table information. We also offer the option to configure tables for scan caching (see configuration options below). To update the cache after making a change in a table, the cache offers two functions:
-
-**Ecto.Adapters.DynamoDB.Cache.update_table_info!(table_name)**, *table_name* :: string
-
-**Ecto.Adapters.DynamoDB.Cache.update_cached_table!(table_name)**, *table_name* :: string
-
 ## Configuration Options
 The following options are configured during compile time, and can be altered in the application's configuration files ("config/config.exs", "config/dev.exs", "config/test.exs" and "config/test.exs").
 
@@ -343,9 +335,13 @@ We currently only support the Ecto fragment of the form:
 
 `from(m in Model, where: fragment("? between ? and ?", m.attribute, ^range_start, ^range_end)`
 
-## Ecto Associations and Migrations
+## Caching
 
-We currently do not support Ecto associations or migrations; we are looking forward to developing these features.
+The adapter automatically caches its own calls to **describe_table** for retrieval of table information. We also offer the option to configure tables for scan caching (see configuration options below). To update the cache after making a change in a table, the cache offers two functions:
+
+**Ecto.Adapters.DynamoDB.Cache.update_table_info!(table_name)**, *table_name* :: string
+
+**Ecto.Adapters.DynamoDB.Cache.update_cached_table!(table_name)**, *table_name* :: string
 
 ## Developer Notes
 
