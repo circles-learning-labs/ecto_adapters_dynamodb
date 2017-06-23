@@ -48,8 +48,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
 
-  # Will this query be a scan or a query?
-  # Returns an atom, :scan or :query
+  @doc """
+  Returns an atom, :scan or :query, specifying whether the current search will be a DynamoDB scan or a query.
+  """
   def scan_or_query?(table, search) do
     if get_best_index!(table, search) == :scan, do: :scan, else: :query
   end
@@ -398,7 +399,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
-
+  @doc """
+  Formats the recursive option according to whether the query is a DynamoDB scan or query. (The adapter defaults to recursive fetch in case of the latter but not the former)
+  """
   def parse_recursive_option(scan_or_query, opts) do
     case opts[:page_limit] do
       page_limit when (is_integer page_limit) and page_limit > 0 ->
@@ -487,6 +490,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
+  @doc """
+  Updates the recursive option during a recursive fetch, according to whether the option is a boolean or an integer (as in the case of page_limit)
+  """
   def update_recursive_option(r) when (is_boolean r), do: %{continue: r,     new_value: r}
   def update_recursive_option(r) when (is_integer r), do: %{continue: r > 1, new_value: r - 1}
 
