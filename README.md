@@ -249,11 +249,11 @@ MyModule.Repo.all(
 ```
 will retrieve the first five results from the record set for the indexed HASH, "location_id" = "grand_canyon", disabling the default recursive page fetch for queries. (Please note that without `recursive: false`, the adapter would ignore the scan limit.)
 
-#### **Inline Options:** *Repo.update*
+#### **Inline Options:** *Repo.update*, *Repo.delete*
 
 **:range_key** :: {attribute_name_atom, value}, *default:* none
 
-If the DynamoDB table queried has a composite primary key, an update query must supply both the `HASH` and the `RANGE` parts of the key. We assume that your Ecto model schema will correlate its primary id with DynamoDB's `HASH` part of the key. However, since Ecto will normally only supply the adapter with the primary id along with the changeset, we offer the range_key option to avoid an extra query to retrieve the complete key. The adapter will attempt to query the table for the complete key if the **:range_key** option is not supplied.
+If the DynamoDB table queried has a composite primary key, an update or delete query must supply both the `HASH` and the `RANGE` parts of the key. We assume that your Ecto model schema will correlate its primary id with DynamoDB's `HASH` part of the key. However, since Ecto will normally only supply the adapter with the primary id along with the changeset, we offer the range_key option to avoid an extra query to retrieve the complete key. The adapter will attempt to query the table for the complete key if the **:range_key** option is not supplied.
 
 #### **Inline Options:** *Repo.all, Repo.update_all, Repo.delete_all*
 
