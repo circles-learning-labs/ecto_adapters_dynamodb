@@ -100,7 +100,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     defp bool_decode(0), do: {:ok, false}
     defp bool_decode(1), do: {:ok, true}
-	```
+    ```
 
   All adapters are required to implement a clause for `:binary_id` types,
   since they are adapter specific. If your adapter does not provide binary
@@ -606,19 +606,34 @@ defmodule Ecto.Adapters.DynamoDB do
     end
 
     update_expression = construct_update_expression(fields, opts)
-    attribute_names = construct_expression_attribute_names(fields)
-    attribute_values = construct_expression_attribute_values(fields, opts)
+    # add updated_filters to attribute_ names and values for condition_expression
+    attribute_names = construct_expression_attribute_names(fields ++ keys_to_atoms(updated_filters))
+    attribute_values = construct_expression_attribute_values(fields ++ keys_to_atoms(updated_filters), opts)
 
     base_options = [expression_attribute_names: attribute_names,
                     update_expression: update_expression]
+    condition_expression = construct_condition_expression(updated_filters)
     options = maybe_add_attribute_values(base_options, attribute_values)
+           ++ [condition_expression: condition_expression]
+
     # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements
     record = if options[:expression_attribute_values], do: [options[:expression_attribute_values] |> Enum.into(%{})], else: []
 
-    Dynamo.update_item(table, updated_filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
-    {:ok, []}
+     result = Dynamo.update_item(table, updated_filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
+    case result do
+      %{} -> {:ok, []}
+      {:error, "ConditionalCheckFailedException"} -> {:error, :stale}
+    end
   end
 
+  defp keys_to_atoms(list),
+  do: for {k, v} <- list, do: {maybe_string_to_atom(k), v}
+
+  defp maybe_string_to_atom(s),
+  do: if is_binary(s), do: String.to_atom(s), else: s
+
+  defp construct_condition_expression(filters),
+  do: (for {field, _} <- filters, do: "##{to_string(field)}=:#{to_string(field)}") |> Enum.join(" and ")
 
   defp extract_query_info(result), do: result |> Map.take(["Count", "ScannedCount", "LastEvaluatedKey"])
 
@@ -860,7 +875,7 @@ defmodule Ecto.Adapters.DynamoDB do
   defp handle_error!(ex_aws_request_result, params) do
     case ex_aws_request_result do
       {:ok, result}   -> result
-      {:error, error} ->
+      {:error, {error_name, _} = error} ->
         # Check for inappropriate insert into indexed field
         indexed_fields = Ecto.Adapters.DynamoDB.Info.indexed_attributes(params.table)
 
@@ -876,9 +891,16 @@ defmodule Ecto.Adapters.DynamoDB do
           end)
         end)
 
-        case forbidden_insert_on_indexed_field do
-          false -> raise ExAws.Error, message: "ExAws Request Error! #{inspect error}"
-          _     -> raise "The following request error could be related to attempting to insert an empty string or attempting to insert a type other than a string or number on an indexed field. Indexed fields: #{inspect indexed_fields}. Records: #{inspect params.records}.\n\nExAws Request Error! #{inspect error}" 
+        cond do 
+          # we use this error to check if an update or delete record does not exist
+          error_name == "ConditionalCheckFailedException" ->
+            {:error, error_name}
+
+          forbidden_insert_on_indexed_field -> 
+            raise "The following request error could be related to attempting to insert an empty string or attempting to insert a type other than a string or number on an indexed field. Indexed fields: #{inspect indexed_fields}. Records: #{inspect params.records}.\n\nExAws Request Error! #{inspect error}" 
+
+          true ->
+            raise ExAws.Error, message: "ExAws Request Error! #{inspect error}"
         end
     end    
   end
