@@ -507,15 +507,47 @@ defmodule Ecto.Adapters.DynamoDB do
   """
   # In testing, 'filters' contained only the primary key and value 
   # TODO: handle cases of more than one tuple in 'filters'?
-  def delete(repo, schema_meta, filters, options) do
+  def delete(repo, schema_meta, filters, opts) do
     ecto_dynamo_log(:debug, "DELETE::\n\trepo: #{inspect repo}")
     ecto_dynamo_log(:debug, "\tschema_meta: #{inspect schema_meta}")
     ecto_dynamo_log(:debug, "\tfilters: #{inspect filters}")
-    ecto_dynamo_log(:debug, "\toptions: #{inspect options}")
+    ecto_dynamo_log(:debug, "\toptions: #{inspect opts}")
 
     {_, table} = schema_meta.source
 
-    case Dynamo.delete_item(table, filters) |> ExAws.request! do
+    # We offer the :range_key option for tables with composite primary key
+    # since Ecto will not provide the range_key value needed for the query.
+    # If :range_key is not provided, check if the table has a composite
+    # primary key and query for all the key values
+    updated_filters = case opts[:range_key] do
+      nil -> 
+        {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
+        if (length key_list) > 1 do
+          updated_opts = opts ++ [projection_expression: Enum.join(key_list, ", ")]
+          filters_as_strings = for {field, val} <- filters, do: {Atom.to_string(field), {val, :==}}
+          fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, filters_as_strings, updated_opts)
+          items = case fetch_result do
+            %{"Items" => fetch_items} -> fetch_items
+            %{"Item" => item}         -> [item]
+            _                         -> []
+          end
+
+          if items == [], do: raise "__MODULE__.update error: no results found for record: #{inspect filters}"
+          if (length items) > 1, do: raise "__MODULE__.update error: more than one result found for record: #{inspect filters}"
+          
+          for {field, key_map} <- Map.to_list(hd items) do
+            [{_field_type, val}] = Map.to_list(key_map)
+            {field, val}
+          end
+         else
+          filters
+         end
+
+      range_key ->
+        [range_key | filters]
+    end
+
+    case Dynamo.delete_item(table, updated_filters) |> ExAws.request! do
       %{} -> {:ok, []}
       error -> raise "Error deleting in DynamoDB. Error: #{inspect error}"
     end
