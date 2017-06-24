@@ -498,13 +498,6 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  @doc """
-  Deletes a single struct with the given filters.
-
-  While filters can be any record column, it is expected that at least the primary key (or any other key that uniquely identifies an existing record) be given as a filter. Deleting a record with a primary key not in the database will return success, without advising that the record was not found.
-
-  Callback implementation for `Ecto.Adapter.delete/4`.
-  """
   # In testing, 'filters' contained only the primary key and value 
   # TODO: handle cases of more than one tuple in 'filters'?
   def delete(repo, schema_meta, filters, opts) do
@@ -565,15 +558,6 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  @doc """
-  Updates a single struct with the given filters.
-
-  While filters can be any record column, it is expected that at least the primary key (or any other key that uniquely identifies an existing record) be given as a filter. Updating a record with a primary key not currently in the DynamoDB database will result in a new record being inserted with the key (most commonly this would be the 'id' field) and only the changes in the changeset.
-
-  Callback implementation for `Ecto.Adapter.update/6`.
-  """
-  # Again we rely on filters having the correct primary key value.
-  # TODO: any aditional checks missing here?
   def update(repo, schema_meta, fields, filters, returning, opts) do
     ecto_dynamo_log(:debug, "UPDATE::\n\trepo: #{inspect repo}")
     ecto_dynamo_log(:debug, "\tschema_meta: #{inspect schema_meta}")
@@ -651,6 +635,8 @@ defmodule Ecto.Adapters.DynamoDB do
   # Used in update_all
   defp extract_update_params([], _params), do: []
   defp extract_update_params([%{expr: key_list}], params) do
+    if Keyword.take(key_list, [:inc, :push, :pull]) != [], do: raise "#{inspect __MODULE__}.update_all error: :inc, :push, and :pull are currently not supported. Our DynamoDB adapter currently only supports the :set update." 
+
     case List.keyfind(key_list, :set, 0) do
       {_, set_list} ->
         for s <- set_list do
