@@ -547,9 +547,20 @@ defmodule Ecto.Adapters.DynamoDB do
         [range_key | filters]
     end
 
-    case Dynamo.delete_item(table, updated_filters) |> ExAws.request! do
+    attribute_names = construct_expression_attribute_names(keys_to_atoms(updated_filters))
+    attribute_values = construct_expression_attribute_values(keys_to_atoms(updated_filters), [])
+
+    base_options = [expression_attribute_names: attribute_names]
+    condition_expression = construct_condition_expression(updated_filters)
+    options = maybe_add_attribute_values(base_options, attribute_values)
+           ++ [condition_expression: condition_expression]
+
+    # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements
+    record = if options[:expression_attribute_values], do: [options[:expression_attribute_values] |> Enum.into(%{})], else: []
+
+    case Dynamo.delete_item(table, updated_filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []}) do
       %{} -> {:ok, []}
-      error -> raise "Error deleting in DynamoDB. Error: #{inspect error}"
+      {:error, "ConditionalCheckFailedException"} -> {:error, :stale}
     end
   end
 
@@ -619,8 +630,7 @@ defmodule Ecto.Adapters.DynamoDB do
     # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements
     record = if options[:expression_attribute_values], do: [options[:expression_attribute_values] |> Enum.into(%{})], else: []
 
-     result = Dynamo.update_item(table, updated_filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
-    case result do
+    case Dynamo.update_item(table, updated_filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []}) do
       %{} -> {:ok, []}
       {:error, "ConditionalCheckFailedException"} -> {:error, :stale}
     end
