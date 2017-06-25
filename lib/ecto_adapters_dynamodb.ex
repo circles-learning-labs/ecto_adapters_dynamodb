@@ -540,13 +540,11 @@ defmodule Ecto.Adapters.DynamoDB do
         [range_key | filters]
     end
 
-    attribute_names = construct_expression_attribute_names(keys_to_atoms(updated_filters))
-    attribute_values = construct_expression_attribute_values(keys_to_atoms(updated_filters), [])
+    attribute_names = construct_expression_attribute_names(keys_to_atoms(filters))
 
     base_options = [expression_attribute_names: attribute_names]
-    condition_expression = construct_condition_expression(updated_filters)
-    options = maybe_add_attribute_values(base_options, attribute_values)
-           ++ [condition_expression: condition_expression]
+    condition_expression = construct_condition_expression(filters)
+    options = base_options ++ [condition_expression: condition_expression]
 
     # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements
     record = if options[:expression_attribute_values], do: [options[:expression_attribute_values] |> Enum.into(%{})], else: []
@@ -602,12 +600,12 @@ defmodule Ecto.Adapters.DynamoDB do
 
     update_expression = construct_update_expression(fields, opts)
     # add updated_filters to attribute_ names and values for condition_expression
-    attribute_names = construct_expression_attribute_names(fields ++ keys_to_atoms(updated_filters))
-    attribute_values = construct_expression_attribute_values(fields ++ keys_to_atoms(updated_filters), opts)
+    attribute_names = construct_expression_attribute_names(fields ++ keys_to_atoms(filters))
+    attribute_values = construct_expression_attribute_values(fields, opts)
 
     base_options = [expression_attribute_names: attribute_names,
                     update_expression: update_expression]
-    condition_expression = construct_condition_expression(updated_filters)
+    condition_expression = construct_condition_expression(filters)
     options = maybe_add_attribute_values(base_options, attribute_values)
            ++ [condition_expression: condition_expression]
 
@@ -626,8 +624,8 @@ defmodule Ecto.Adapters.DynamoDB do
   defp maybe_string_to_atom(s),
   do: if is_binary(s), do: String.to_atom(s), else: s
 
-  defp construct_condition_expression(filters),
-  do: (for {field, _} <- filters, do: "##{to_string(field)}=:#{to_string(field)}") |> Enum.join(" and ")
+  defp construct_condition_expression([{field, _val}] = _filters),
+  do: "attribute_exists(##{to_string(field)})"
 
   defp extract_query_info(result), do: result |> Map.take(["Count", "ScannedCount", "LastEvaluatedKey"])
 
