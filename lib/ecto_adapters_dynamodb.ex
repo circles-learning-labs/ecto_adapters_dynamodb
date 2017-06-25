@@ -419,15 +419,15 @@ defmodule Ecto.Adapters.DynamoDB do
   #@callback insert(repo, schema_meta, fields, on_conflict, returning, options) ::
   #                  {:ok, fields} | {:invalid, constraints} | no_return
   #  def insert(_,_,_,_,_) do
-  def insert(repo, schema_meta, fields, on_conflict, returning, options) do
+  def insert(repo, schema_meta, fields, on_conflict, returning, opts) do
     ecto_dynamo_log(:debug, "INSERT::\n\trepo: #{inspect repo}")
     ecto_dynamo_log(:debug, "\tschema_meta: #{inspect schema_meta}")
     ecto_dynamo_log(:debug, "\tfields: #{inspect fields}")
     ecto_dynamo_log(:debug, "\ton_conflict: #{inspect on_conflict}")
     ecto_dynamo_log(:debug, "\treturning: #{inspect returning}")
-    ecto_dynamo_log(:debug, "\toptions: #{inspect options}")
+    ecto_dynamo_log(:debug, "\toptions: #{inspect opts}")
 
-    insert_nil_field_option = Keyword.get(options, :insert_nil_fields, true)
+    insert_nil_field_option = Keyword.get(opts, :insert_nil_fields, true)
     do_not_insert_nil_fields = insert_nil_field_option == false || Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
 
     {_, table} = schema_meta.source 
@@ -438,8 +438,25 @@ defmodule Ecto.Adapters.DynamoDB do
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.insert")
     ecto_dynamo_log(:info, "Table: #{inspect table}; Record: #{inspect record}")
 
-    Dynamo.put_item(table, record) |> ExAws.request |> handle_error!(%{table: table, records: [record]})
-    {:ok, []}
+    {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
+    filters = [{(hd key_list), nil}]
+    attribute_names = construct_expression_attribute_names(keys_to_atoms(filters))
+
+    options = case opts[:overwrite] do
+      true -> []
+      _ -> 
+        base_options = [expression_attribute_names: attribute_names]
+        condition_expression = "attribute_not_exists(##{hd key_list})"
+        base_options ++ [condition_expression: condition_expression]
+    end
+
+    case Dynamo.put_item(table, record, options) |> ExAws.request |> handle_error!(%{table: table, records: [record]}) do
+      {:error, "ConditionalCheckFailedException"} ->
+        {:invalid, [unique_partition_key: "record already exists. To overwrite, include the option, 'overwrite: true'. Ecto.Adapters.DynamoDB currently does not offer upserts."]}
+
+      %{} ->
+        {:ok, []}
+    end
   end
 
 
