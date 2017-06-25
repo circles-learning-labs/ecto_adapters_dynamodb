@@ -425,7 +425,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     cond do
       # TODO: we could use the cached scan and apply the search filters
       # ourselves when they are provided.
-      Enum.member?(Application.get_env(:ecto_adapters_dynamodb, :cached_tables), table) ->
+      Enum.member?(Application.get_env(:ecto_adapters_dynamodb, :cached_tables), table) and opts[:scan] != true ->
         Ecto.Adapters.DynamoDB.Cache.scan!(table)
 
       scan_enabled ->

@@ -233,11 +233,11 @@ Pre-approves all tables for a DynamoDB **scan** command in case an indexed field
 
 **:cached_tables** :: [string], *default:* `[]`
 
-A list of table names for tables assigned for caching of the first page of results (without setting DynamoDB's **limit** parameter in the scan request).
+A list of table names for tables assigned for caching of the first page of results (without setting DynamoDB's **limit** parameter in the scan request). For a set table, call `Repo.all(Model)` to cache the first page of results. To override the caching for a table in this list, and perform a regular scan with associated inline options (see below), provide an additional `scan: true` option with the query; for example, `Repo.all(Model, scan: true, recursive: true)`.
 
 ## Inline Options
 
-The following options can be passed during runtime in the Ecto calls. For example, consider a DynamoDB table with a composite index (HASH + RANGE):
+The adapter only supports our custom inline options; assume the regular inline options provided by Ecto will be ignored. The following options can be passed during runtime in the Ecto calls. For example, consider a DynamoDB table with a composite index (HASH + RANGE):
 ```
 MyModule.Repo.all(
   (from MyModule.HikingTrip, where: [location_id: "grand_canyon"]),
@@ -304,6 +304,10 @@ The returned map corresponds with DynamoDB's return values:
 **:insert_nil_fields** :: boolean, *default:* set in configuration
 
 Determines if fields in the changeset with `nil` values will be inserted as DynamoDB `null` values or not set at all.
+
+**:overwrite** :: boolean, *default:* none
+
+By default, the adapter will provide the condition expression, `attribute_not_exists(PARTITION_KEY_ATTRIBUTE)` with the DynamoDB query, failing to insert if the record already exists. To perform an uncoditional insert, possibly overwriting an existing record, provide the option `overwrite: true` in the insert query.
 
 #### **Inline Options:** *Repo.update, Repo.update_all*
 
