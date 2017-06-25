@@ -40,7 +40,7 @@ defmodule AdapterPropertyTest do
   property "test insert/get returns the same value" do
     forall person <- person_generator() do
       when_fail(IO.puts "Failed for person #{inspect person}") do
-        TestRepo.insert! Person.changeset(person)
+        TestRepo.insert!(Person.changeset(person), overwrite: true)
         result = TestRepo.get(Person, person.id)
         ensure person == result
       end
