@@ -1,6 +1,8 @@
 # Ecto.Adapters.DynamoDB
 
-This is a partial implementation of an Elixir Ecto adapter for Amazon's DynamoDB. Keep in mind that DynamoDB is a key-value store designed for very high scale, while the Ecto abstractions are primarily designed to work with relational databases. As such, we've had to make significant compromises in the implementation of this adapter to make it work. Please understand that while we are using it in production, it's currently in use in non-critical systems and should be considered **beta**. Do not deploy it without thouroughly testing it for your use cases.
+This is a partial implementation of an Elixir Ecto adapter for Amazon's DynamoDB. It's very much a work in progress, and has plenty of rough edges; but, it's at the point where we're actually using it in other projects, so we're opening it up to the community in hopes that others will find it useful as well :-)
+
+Keep in mind that DynamoDB is a key-value store designed for very high scale, while the Ecto abstractions are primarily designed to work with relational databases. As such, we've had to make significant compromises in the implementation of this adapter to make it work. Please understand that while we are using it in production, it's currently in use in non-critical systems and should be considered **beta**. Do not deploy it without thouroughly testing it for your use cases.
 
 If you wish to contribute, please run `$ mix test` and confirm that the test results are error-free before you push your commits. (Bonus points for improving our tests and adding your own tests for your changes. Patches with corresponding tests are more likely to be accepted, especially if they are significant.)
 
