@@ -44,6 +44,14 @@ defmodule Ecto.Adapters.DynamoDB do
     # we'll return our own start_link for now, but I don't think we actually need
     # an app here, we only need to ensure that our dependencies such as aws libs are started.
     # 
+
+    Application.put_env(:ex_aws, :debug_requests, true)
+    Application.put_env(:ex_aws, :access_key_id, opts[:access_key_id])
+    Application.put_env(:ex_aws, :secret_access_key, opts[:secret_access_key])
+    Application.put_env(:ex_aws, :region, opts[:region])
+    Application.put_env(:ex_aws, :dynamodb, opts[:dynamodb])
+    Application.put_env(:ex_aws, :dynamodb_streams, opts[:dynamodb_streams])
+
     import Supervisor.Spec
     child_spec = worker(__MODULE__, [repo, opts])
     ecto_dynamo_log(:debug, "child spec3. REPO: #{inspect repo}\n CHILD_SPEC: #{inspect child_spec}\nOPTS: #{inspect opts}")

@@ -9,12 +9,6 @@ If you wish to contribute, please run `$ mix test` and confirm that the test res
 ### Special thanks to ExAws project
 We use [ExAws](https://github.com/CargoSense/ex_aws/)' to wrap the actual DynamoDB API and requests. This project would not be possible without the extensive work in ExAws.
 
-**This does mean you'll need to configure ExAws separately from the Ecto adapter!**
-
-Please see the ExAws documentation at:
-
-[https://github.com/CargoSense/ex_aws/](https://github.com/CargoSense/ex_aws/)
-
 ### Design limitations
 There are a lot of common things you can do in Ecto with a SQL database that you just can't do (or can't do efficiently) with DynamoDB. If you expect to pick up your existing Ecto-based app and just swap in DynamoDB, you're going to be disappointed. You still have to use this adapter the same way you would approach using a key-value store, and avoid the kinds of patterns you'd use with a relational database.
 
@@ -146,8 +140,7 @@ end
 
 
 ### Configuration
-Configuring a repository to use the DynamoDB ecto adapter is pretty similar to most other Ecto adapters. Set the adapter option in the Repo configuration to 'Ecto.Adapters.DynamoDB', and remove the database/user/password/etc options - you'll need to configure the equivalent options in ExAws instead (AWS access key, host and secret).
-
+Configuring a repository to use the DynamoDB ecto adapter is pretty similar to most other Ecto adapters. Set the adapter option in the Repo configuration to 'Ecto.Adapters.DynamoDB', and remove the database/user/password/etc options - you'll need to configure the equivalent options instead (AWS access key, host and secret). Examples follow.
 
 Include the repo module that's configured for the adapter among the project's Ecto repos. File, "config/config.exs"
 ```
@@ -172,21 +165,37 @@ config :my_app, MyModule.Repo,
   adapter: Ecto.Adapters.DynamoDB,
   database: "database_name",
   username: "username",
-  password: "",                         
-  hostname: "localhost"
+  password: "",
+  hostname: "localhost",
+
+  # ExAws configuration
+  access_key_id: "abcd",
+  secret_access_key: "1234",
+  region: "us-east-1",
+  dynamodb: [
+    scheme: "http://",
+    host: "localhost",
+    port: 8000,
+    region: "us-east-1"
+  ],
+  dynamodb_streams: [
+    scheme: "http://",
+    host: "localhost",
+    port: 8000,
+    region: "us-east-1"
+  ]
 ```
 
 #### Production
 File, "config/prod.exs"
 ```
 config :my_app, MyModule.Repo,
-  adapter: Ecto.Adapters.DynamoDB
+  adapter: Ecto.Adapters.DynamoDB,
+  # ExAws configuration
+  access_key_id: [{:system, "AWS_ACCESS_KEY_ID"}, :instance_role],
+  secret_access_key: [{:system, "AWS_SECRET_ACCESS_KEY"}, :instance_role],
+  region: "us-east-1"
 ```
-Specific DynamoDB access information will be in the configuration for ExAws.
-
-
-### ExAws
-Don't forget to configure ExAws as separate application per their documentation
 
 ### Other adapter options
 The following are other application env options, which can be specified e.g. as follows in your project's config files:
