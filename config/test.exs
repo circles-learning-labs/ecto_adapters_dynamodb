@@ -11,12 +11,6 @@ config :ecto_adapters_dynamodb, Ecto.Adapters.DynamoDB.TestRepo,
     host: "localhost",
     port: 8000,
     region: "us-east-1"
-  ],
-  dynamodb_streams: [
-    scheme: "http://",
-    host: "localhost",
-    port: 8000,
-    region: "us-east-1"
   ]
 
 config :ecto_adapters_dynamodb,
