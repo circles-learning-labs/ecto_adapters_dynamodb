@@ -206,7 +206,7 @@ config :my_app, MyModule.Repo,
 ```
 
 ### Other adapter options
-The following are adapter options that apply to our Ecto driver, and a NOT related to ExAws configuration. They control certain behavioural aspects for the driver, enabling and disabling default behaviours and features on queries.
+The following are adapter options that apply to the Ecto adapter, and are NOT related to ExAws configuration. They control certain behavioural aspects for the driver, enabling and disabling default behaviours and features on queries.
 
 ```
 config :ecto_adapters_dynamodb,
