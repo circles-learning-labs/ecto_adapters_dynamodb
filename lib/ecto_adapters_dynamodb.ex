@@ -45,11 +45,9 @@ defmodule Ecto.Adapters.DynamoDB do
     # an app here, we only need to ensure that our dependencies such as aws libs are started.
     # 
 
-    Application.put_env(:ex_aws, :debug_requests, true)
-    Application.put_env(:ex_aws, :access_key_id, opts[:access_key_id])
-    Application.put_env(:ex_aws, :secret_access_key, opts[:secret_access_key])
-    Application.put_env(:ex_aws, :region, opts[:region])
-    if opts[:dynamodb] != nil, do: Application.put_env(:ex_aws, :dynamodb, opts[:dynamodb])
+   [:debug_requests, :access_key_id, :secret_access_key, :region, :dynamodb] |> Enum.map(fn key ->
+     if opts[key] != nil, do: Application.put_env(:ex_aws, key, opts[key])
+   end)
 
     import Supervisor.Spec
     child_spec = worker(__MODULE__, [repo, opts])
