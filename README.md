@@ -83,6 +83,10 @@ All of these caveats can be especially pernicious if you're performing eventuall
 #### DynamoDB LIMIT & Paging
 By default, we configure the adapter to fetch all pages recursively for a DynamoDB `query` operation, and to *not* fetch all pages recursively in the case of a DynamoDB `scan` operation. This default can be overridden with the inline **:recursive** and **:page_limit** options (see below). We do not respond to the Ecto `limit` option; rather, we support a **:scan_limit** option, which corresponds with DynamoDB's [limit option](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html#Query.Limit), limiting "the number of items that it returns in the result."
 
+#### Only ONE DynamoDB adapter can be configured
+We only launch one instance of ExAws application (and have not yet investigated running multiple instances). This means we can only point to a single amazon Dynamo instance. It's currently not possible to run against two different amazon AWS accounts concurrently. Hopefully this won't be a problem for most users.
+
+
 ### Unimplemented Features
 While the previous section listed limitations that we're unlikely to work around due to philosphical differences between DynamoDB as a key/value store vs an SQL relational database, there are some features that we just haven't implemented yet. Feel free to help out if any of these are important to you!
 
@@ -140,7 +144,15 @@ end
 
 
 ### Configuration
-Configuring a repository to use the DynamoDB ecto adapter is pretty similar to most other Ecto adapters. Set the adapter option in the Repo configuration to 'Ecto.Adapters.DynamoDB', and remove the database/user/password/etc options - you'll need to configure the equivalent options instead (AWS access key, host and secret). Examples follow.
+Configuring a repository to use the DynamoDB ecto adapter is pretty similar to most other Ecto adapters. Change the *adapter* option in the Repo configuration to 'Ecto.Adapters.DynamoDB', and then set the required (or optional) values in the keyword list that follows.
+
+These are **different** from the normal Ecto options. For example, in DynamoDB you don't have username, password or database options. You'll need to delete these lines. Instead you'll add amazon access keys and secrets, your region and the optional dynamo host and scheme options if you're not running gainst the default live amazon instances ( for example, running the local amazon dev version of dynamo for testing and development. )
+
+All these options are quietly passed through to ExAws. See [https://hexdocs.pm/ex_aws/ExAws.html#module-getting-started]( ExAws Getting Started) for more information on these options.
+
+A note on `access_key_id` and `secret_access_key`: This can simply be the actual key string, or it can be set to pull these from environment variables or amazon roles (as per ExAws configuration.) Some basic examples follow.
+
+You may also omit all these ExAws options from the adapter config if you wish to configure ExAws manually (for example if you're using other features from ExAws such as S3, or dynamo_streams.)
 
 Include the repo module that's configured for the adapter among the project's Ecto repos. File, "config/config.exs"
 ```
@@ -156,8 +168,8 @@ Include the adapter in the project's applications list. File, "mix.exs":
   end
 ```
 
-#### Development
-For development, we use the [local version](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) of DynamoDB, and some dummy variable assignments.
+#### Configuring a Development Environment against a local instance of Dynamo
+For development, we use the [local version](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) of DynamoDB, and some dummy variable assignments. Note that the access key/secret here are hardcoded in to the config, and that we set a 'dynamo' key that overrides the connection parameters from the defaults for AWS. We point it to localhost:8000 - the default for a local dynamoDB test server.
 
 File, "config/dev.exs":
 ```               
@@ -167,6 +179,7 @@ config :my_app, MyModule.Repo,
   access_key_id: "abcd",
   secret_access_key: "1234",
   region: "us-east-1",
+  debug_requests: true,	# ExAws option to enable debug on aws http request.
   dynamodb: [
     scheme: "http://",
     host: "localhost",
@@ -181,7 +194,13 @@ config :my_app, MyModule.Repo,
   ]
 ```
 
-#### Production
+#### Configuring a Production environment using Dynamo running on AWS
+For a production setup, it's much simpler. No need to specify the host/ports for dynamo, as it will default to the appriopriate AWS service in the region selected.
+
+In this example configration we do not hard coding the secret or access key. These following settings tell ExAws to first attempt to pull the secret and access key from environment variables labelled `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. If it cannot find those environment variables, it will attempt to fall back on AWS role based authentication (This only applies if this instance is running in an appropriately configured amazon instance.)
+
+To reiterate, this is just standard ExAws configuration that we're wrapping up in our adapter config. Please consult the ExAws docs for further information.
+
 File, "config/prod.exs"
 ```
 config :my_app, MyModule.Repo,
@@ -193,7 +212,7 @@ config :my_app, MyModule.Repo,
 ```
 
 ### Other adapter options
-The following are other application env options, which can be specified e.g. as follows in your project's config files:
+The following are adapter options that apply to our Ecto driver, and a NOT related to ExAws configuration. They control certain behavioural aspects for the driver, enabling and disabling default behaviours and features on queries.
 
 ```
 config :ecto_adapters_dynamodb,
