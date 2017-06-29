@@ -49,8 +49,7 @@ defmodule Ecto.Adapters.DynamoDB do
     Application.put_env(:ex_aws, :access_key_id, opts[:access_key_id])
     Application.put_env(:ex_aws, :secret_access_key, opts[:secret_access_key])
     Application.put_env(:ex_aws, :region, opts[:region])
-    Application.put_env(:ex_aws, :dynamodb, opts[:dynamodb])
-    Application.put_env(:ex_aws, :dynamodb_streams, opts[:dynamodb_streams])
+    if opts[:dynamodb] != nil, do: Application.put_env(:ex_aws, :dynamodb, opts[:dynamodb])
 
     import Supervisor.Spec
     child_spec = worker(__MODULE__, [repo, opts])
