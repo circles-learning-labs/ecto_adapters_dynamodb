@@ -185,12 +185,6 @@ config :my_app, MyModule.Repo,
     host: "localhost",
     port: 8000,
     region: "us-east-1"
-  ],
-  dynamodb_streams: [
-    scheme: "http://",
-    host: "localhost",
-    port: 8000,
-    region: "us-east-1"
   ]
 ```
 
