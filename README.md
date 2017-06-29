@@ -163,11 +163,6 @@ File, "config/dev.exs":
 ```               
 config :my_app, MyModule.Repo,
   adapter: Ecto.Adapters.DynamoDB,
-  database: "database_name",
-  username: "username",
-  password: "",
-  hostname: "localhost",
-
   # ExAws configuration
   access_key_id: "abcd",
   secret_access_key: "1234",
