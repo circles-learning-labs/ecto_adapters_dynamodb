@@ -7,7 +7,7 @@ Keep in mind that DynamoDB is a key-value store designed for very high scale, wh
 If you wish to contribute, please run `$ mix test` and confirm that the test results are error-free before you push your commits. (Bonus points for improving our tests and adding your own tests for your changes. Patches with corresponding tests are more likely to be accepted, especially if they are significant.)
 
 ### Special thanks to ExAws project
-We use [ExAws](https://github.com/CargoSense/ex_aws/)' to wrap the actual DynamoDB API and requests. This project would not be possible without the extensive work in ExAws.
+We use [ExAws](https://github.com/CargoSense/ex_aws/) to wrap the actual DynamoDB API and requests. This project would not be possible without the extensive work in ExAws.
 
 ### Design limitations
 There are a lot of common things you can do in Ecto with a SQL database that you just can't do (or can't do efficiently) with DynamoDB. If you expect to pick up your existing Ecto-based app and just swap in DynamoDB, you're going to be disappointed. You still have to use this adapter the same way you would approach using a key-value store, and avoid the kinds of patterns you'd use with a relational database.
@@ -191,7 +191,7 @@ config :my_app, MyModule.Repo,
 #### Configuring a Production environment using Dynamo running on AWS
 For a production setup, it's much simpler. No need to specify the host/ports for dynamo, as it will default to the appriopriate AWS service in the region selected.
 
-In this example configration we do not hard coding the secret or access key. These following settings tell ExAws to first attempt to pull the secret and access key from environment variables labelled `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. If it cannot find those environment variables, it will attempt to fall back on AWS role based authentication (This only applies if this instance is running in an appropriately configured amazon instance.)
+In this example configration we do not hard code the secret or access key. These following settings tell ExAws to first attempt to pull the secret and access key from environment variables labelled `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. If it cannot find those environment variables, it will attempt to fall back on AWS role based authentication (This only applies if this instance is running in an appropriately configured amazon instance.)
 
 To reiterate, this is just standard ExAws configuration that we're wrapping up in our adapter config. Please consult the ExAws docs for further information.
 
