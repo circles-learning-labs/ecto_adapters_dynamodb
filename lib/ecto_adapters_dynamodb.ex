@@ -250,9 +250,7 @@ defmodule Ecto.Adapters.DynamoDB do
           "ScannedCount" => last_scanned_count + Map.get(query_info, "ScannedCount", 0),
           "LastEvaluatedKey" => Map.get(fetch_result, "LastEvaluatedKey")}
 
-      %{"Item" => _} -> %{"Count" => 1}
-
-      _              -> query_info
+      _ -> query_info
     end
 
     items = case fetch_result do
@@ -275,7 +273,7 @@ defmodule Ecto.Adapters.DynamoDB do
         delete_all_recursive(table, lookup_fields, opts_with_offset, updated_recursive.new_value, updated_query_info)
     else
       if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], updated_query_info)
-      {updated_query_info["Count"], nil}
+      {updated_query_info["Count"] || length(items), nil}
     end
   end
 
@@ -324,9 +322,7 @@ defmodule Ecto.Adapters.DynamoDB do
           "ScannedCount" => last_scanned_count + Map.get(query_info, "ScannedCount", 0),
           "LastEvaluatedKey" => Map.get(fetch_result, "LastEvaluatedKey")}
 
-      %{"Item" => _} -> %{"Count" => 1}
-
-      _              -> query_info
+      _ -> query_info
     end
 
     items = case fetch_result do
@@ -346,7 +342,7 @@ defmodule Ecto.Adapters.DynamoDB do
         update_all_recursive(table, lookup_fields, opts_with_offset, base_update_options, key_list, attribute_values, model, updated_recursive.new_value, updated_query_info)
     else
       if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], updated_query_info)
-      {updated_query_info["Count"], []}
+      {updated_query_info["Count"] || length(items), []}
     end
   end
 
@@ -758,7 +754,7 @@ defmodule Ecto.Adapters.DynamoDB do
         for {key, _val} <- pull_list do
           key_str = Atom.to_string(key)
           index = case opts[:pull_indexes][key] do
-            nil -> raise "#{inspect __MODULE__}.construct_remove_statement error: :pull_indexes does not include the index for #{inspect key}. fields: #{inspect fields} opts: #{inspect opts}"
+            nil -> error "#{inspect __MODULE__}.construct_remove_statement error: :pull_indexes does not include the index for #{inspect key}. For DynamoDB 'REMOVE list[index]', an index must be supplied. Please see the ':pull_indexes' inline option in README.md. fields: #{inspect fields} opts: #{inspect opts}"
             idx -> idx
           end
 
