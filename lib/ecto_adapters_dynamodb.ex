@@ -196,12 +196,10 @@ defmodule Ecto.Adapters.DynamoDB do
         delete_all(table, lookup_fields, updated_opts)
 
       :update_all  -> 
-        update_params = extract_update_params(prepared.updates, params)
-
         ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute: update_all")
-        ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; Options: #{inspect updated_opts}; Update params: #{inspect update_params}")
+        ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; Options: #{inspect updated_opts}")
 
-        update_all(table, lookup_fields, updated_opts, update_params, model)
+        update_all(table, lookup_fields, updated_opts, prepared.updates, params, model)
 
       :all ->
         ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute")
@@ -251,7 +249,10 @@ defmodule Ecto.Adapters.DynamoDB do
         %{"Count" => last_count + Map.get(query_info, "Count", 0),
           "ScannedCount" => last_scanned_count + Map.get(query_info, "ScannedCount", 0),
           "LastEvaluatedKey" => Map.get(fetch_result, "LastEvaluatedKey")}
-      _ -> query_info
+
+      %{"Item" => _} -> %{"Count" => 1}
+
+      _              -> query_info
     end
 
     items = case fetch_result do
@@ -292,16 +293,17 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  defp update_all(table, lookup_fields, opts, update_params, model) do
+  defp update_all(table, lookup_fields, opts, updates, params, model) do
     scan_or_query = Ecto.Adapters.DynamoDB.Query.scan_or_query?(table, lookup_fields)
     recursive = Ecto.Adapters.DynamoDB.Query.parse_recursive_option(scan_or_query, opts)
 
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
     ecto_dynamo_log(:debug, "key_list: #{inspect key_list}")
 
-    update_expression = construct_update_expression(update_params, opts)
-    attribute_names = construct_expression_attribute_names(update_params)
-    attribute_values = construct_expression_attribute_values(update_params, opts)
+    {update_expression, update_fields} = construct_update_expression(updates, params, opts)
+    ecto_dynamo_log(:info, "Update fields: #{inspect update_fields}")
+    attribute_names = construct_expression_attribute_names(update_fields)
+    attribute_values = construct_expression_attribute_values(update_fields, opts)
 
     base_update_options = [expression_attribute_names: attribute_names,
                            update_expression: update_expression,
@@ -321,7 +323,10 @@ defmodule Ecto.Adapters.DynamoDB do
         %{"Count" => last_count + Map.get(query_info, "Count", 0),
           "ScannedCount" => last_scanned_count + Map.get(query_info, "ScannedCount", 0),
           "LastEvaluatedKey" => Map.get(fetch_result, "LastEvaluatedKey")}
-      _ -> query_info
+
+      %{"Item" => _} -> %{"Count" => 1}
+
+      _              -> query_info
     end
 
     items = case fetch_result do
@@ -612,23 +617,33 @@ defmodule Ecto.Adapters.DynamoDB do
 
 
   # Used in update_all
-  defp extract_update_params([], _params), do: []
-  defp extract_update_params([%{expr: key_list}], params) do
-    if Keyword.take(key_list, [:inc, :push, :pull]) != [], do: raise "#{inspect __MODULE__}.update_all error: :inc, :push, and :pull are currently not supported. Our DynamoDB adapter currently only supports the :set update." 
+  defp extract_update_params([], _action_atom, _params), do: []
+  defp extract_update_params([%{expr: key_list}], action_atom, params) do
+    case key_list[action_atom] do
+      nil ->
+        []
+      action_list ->
+        if action_atom in [:push, :pull],
+        do: raise "#{inspect __MODULE__}.extract_update_params error: :push and :pull not yet supported."
 
-    case List.keyfind(key_list, :set, 0) do
-      {_, set_list} ->
-        for s <- set_list do
+        for s <- action_list do
           {field_atom, {:^, _, [idx]}} = s
           {field_atom, Enum.at(params,idx)}
         end
-      _ -> error "#{inspect __MODULE__}.extract_update_params: Updates query :expr key list does not contain a :set key." 
     end
   end
 
-  defp extract_update_params([a], _params), do: error "#{inspect __MODULE__}.extract_update_params: Updates is either missing the :expr key or does not contain a struct or map: #{inspect a}"
-  defp extract_update_params(unsupported, _params), do: error "#{inspect __MODULE__}.extract_update_params: unsupported parameter construction. #{inspect unsupported}"
+  defp extract_update_params([a], _action_atom, _params), do: error "#{inspect __MODULE__}.extract_update_params: Updates is either missing the :expr key or does not contain a struct or map: #{inspect a}"
+  defp extract_update_params(unsupported, _action_atom, _params), do: error "#{inspect __MODULE__}.extract_update_params: unsupported parameter construction. #{inspect unsupported}"
 
+  # Ecto does not support push pull for types other than array.
+  # Therefore, we enable add and delete via opts
+  defp extract_update_params(key_list, action_atom) do
+    case key_list[action_atom] do
+      nil         -> []
+      action_list -> action_list
+    end
+  end
 
   # used in :update_all
   defp get_key_values_dynamo_map(dynamo_map, {:primary, keys}) do
@@ -667,6 +682,22 @@ defmodule Ecto.Adapters.DynamoDB do
     [expression_attribute_values: attribute_values] ++ options
   end
 
+  defp construct_update_expression(updates, params, opts) do
+    to_set = extract_update_params(updates, :set, params)
+          ++ extract_update_params(updates, :push, params)
+          ++ extract_update_params(updates, :pull, params)
+    to_add = extract_update_params(opts, :add) ++ extract_update_params(updates, :inc, params)
+    to_delete = extract_update_params(opts, :delete)
+
+    {construct_update_expression(to_set, opts) <> " " <>
+     construct_add_statement(to_add, opts) <> " " <>
+     construct_delete_statement(to_delete, opts),
+     to_set ++ to_add ++ to_delete}
+  end
+
+  # The update callback supplies fields in the paramaters
+  # whereas update_all includes a more complicated updates
+  # structure
   defp construct_update_expression(fields, opts) do
     remove_rather_than_set_to_null = opts[:remove_nil_fields] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
 
@@ -676,11 +707,11 @@ defmodule Ecto.Adapters.DynamoDB do
                       _    -> nil
                     end
     case {set_statement, rem_statement} do
-      {nil, nil} ->
-        error "update statements with no set or remove operations are not supported"
-      {_, nil} ->
+      {"", ""} ->
+        error "#{inspect __MODULE__}.construct_update_expression/2 called with no set or remove clauses. fields: #{inspect fields} opts: #{inspect opts}"
+      {_, ""} ->
         set_statement
-      {nil, _} ->
+      {"", _} ->
         rem_statement
       _ ->
         "#{set_statement} #{rem_statement}"
@@ -697,7 +728,7 @@ defmodule Ecto.Adapters.DynamoDB do
     end
     case set_clauses do
       [] ->
-        nil
+        ""
       _ ->
         "SET " <> Enum.join(set_clauses, ", ")
     end
@@ -709,9 +740,36 @@ defmodule Ecto.Adapters.DynamoDB do
     end
     case remove_clauses do
       [] ->
-        nil
+        ""
       _ ->
         "REMOVE " <> Enum.join(remove_clauses, ", ")
+    end
+  end
+
+  # fields::[{:field, val}]
+  defp construct_add_statement(fields, _opts) do
+    add_clauses = for {key, _val} <- fields do
+      key_str = Atom.to_string(key)
+      "##{key_str} :#{key_str}"
+    end
+    case add_clauses do
+      [] ->
+        ""
+      _ ->
+        "ADD " <> Enum.join(add_clauses, ", ")
+    end
+  end
+
+  defp construct_delete_statement(fields, _opts) do
+    delete_clauses = for {key, _val} <- fields do
+      key_str = Atom.to_string(key)
+      "##{key_str} :#{key_str}"
+    end
+    case delete_clauses do
+      [] ->
+        ""
+      _ ->
+        "DELETE " <> Enum.join(delete_clauses, ", ")
     end
   end
 

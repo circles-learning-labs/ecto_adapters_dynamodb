@@ -272,6 +272,35 @@ will retrieve the first five results from the record set for the indexed HASH, "
 
 If the DynamoDB table queried has a composite primary key, an update or delete query must supply both the `HASH` and the `RANGE` parts of the key. We assume that your Ecto model schema will correlate its primary id with DynamoDB's `HASH` part of the key. However, since Ecto will normally only supply the adapter with the primary id along with the changeset, we offer the range_key option to avoid an extra query to retrieve the complete key. The adapter will attempt to query the table for the complete key if the **:range_key** option is not supplied.
 
+#### **Inline Options:** *Repo.update_all*
+
+**:add / :delete** :: [{field_atom, MapSet}], *default:* none
+
+Ecto does not currently support :push and :pull on fields that are not :array type. To perform DynamoDB's **add** and **delete** on sets, pass the action, field and value as an option. For example,
+
+```
+Dynamotest.Repo.update_all(
+  (from Model, where: [id: "fffx"]), 
+  [set: [name: "Speedy"], inc: [int_field: 2]],
+  add: [set_field_1: MapSet.new([3,4]), set_field_2: MapSet.new(["add_this"])], delete: [set_field_3: MapSet.new(["remove_this"])])
+```
+
+#### DynamoDBSet
+
+For convenience, we have added an Ecto type, **Ecto.Adapters.DynamoDB.DynamoDBSet**, which casts and validates an elixir MapSet type. Once you've included it in your schema, or extended the Ecto.Type behaviour to MapSet, Ecto Repo insert, update and get commands; and the adapter's DynamoDb set related options, :add and :delete (mentioned in, *Inline Options: Repo.update_all*); will apply to the MapSet type.
+
+Here's an example of how to declare the DynamoDBSet type in an Ecto schema,
+
+```
+defmodule Model do
+  use Ecto.Schema
+  
+  schema "model" do
+    ...
+    field :set,  Ecto.Adapters.DynamoDB.DynamoDBSet
+    ...
+```
+
 #### **Inline Options:** *Repo.all, Repo.update_all, Repo.delete_all*
 
 **:scan_limit** :: integer, *default:* none, except configuration default applies to the DynamoDB `scan` command
