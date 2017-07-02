@@ -300,10 +300,10 @@ defmodule Ecto.Adapters.DynamoDB do
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
     ecto_dynamo_log(:debug, "key_list: #{inspect key_list}")
 
-    {update_expression, update_fields} = construct_update_expression(updates, params, opts)
+    {update_expression, update_fields, opts_with_push_pull} = construct_update_expression(updates, params, opts)
     ecto_dynamo_log(:info, "Update fields: #{inspect update_fields}")
     attribute_names = construct_expression_attribute_names(update_fields)
-    attribute_values = construct_expression_attribute_values(update_fields, opts)
+    attribute_values = construct_expression_attribute_values(update_fields, opts_with_push_pull)
 
     base_update_options = [expression_attribute_names: attribute_names,
                            update_expression: update_expression,
@@ -623,9 +623,6 @@ defmodule Ecto.Adapters.DynamoDB do
       nil ->
         []
       action_list ->
-        if action_atom in [:push, :pull],
-        do: raise "#{inspect __MODULE__}.extract_update_params error: :push and :pull not yet supported."
-
         for s <- action_list do
           {field_atom, {:^, _, [idx]}} = s
           {field_atom, Enum.at(params,idx)}
@@ -663,14 +660,24 @@ defmodule Ecto.Adapters.DynamoDB do
     # we're removing this attribute, not updating it, so filter out any such fields:
 
     if remove_rather_than_set_to_null do
-      for {k, v} <- fields, !is_nil(v), do: {k, v}
+      for {k, v} <- fields, !is_nil(v), do: {k, format_val(k, v, opts)}
     else
-      for {k, v} <- fields, do: {k, format_val(v)}
-    end
+      for {k, v} <- fields, do: {k, format_nil(k, v, opts)}
+    end |> Enum.filter(fn {x, _} -> not Keyword.has_key?(maybe_list(opts[:pull]), x) end)
   end
 
-  defp format_val(v) when is_nil(v), do: %{"NULL" => "true"}
-  defp format_val(v), do: v
+  defp maybe_list(l) when is_list(l), do: l
+  defp maybe_list(_), do: []
+
+  defp format_nil(_k, v, _opts) when is_nil(v), do: %{"NULL" => "true"}
+  defp format_nil(k, v, opts), do: format_val(k, v, opts)
+
+  defp format_val(k, v, opts) do
+    case opts[:push][k] do
+      nil -> v
+      _   -> [v]
+    end
+  end
 
   # DynamoDB throws an error if we pass in an empty list for attribute values,
   # so we have to implement this stupid little helper function to avoid hurting
@@ -684,38 +691,28 @@ defmodule Ecto.Adapters.DynamoDB do
 
   defp construct_update_expression(updates, params, opts) do
     to_set = extract_update_params(updates, :set, params)
-          ++ extract_update_params(updates, :push, params)
-          ++ extract_update_params(updates, :pull, params)
+    to_push = extract_update_params(updates, :push, params)
+    to_pull = extract_update_params(updates, :pull, params)
     to_add = extract_update_params(opts, :add) ++ extract_update_params(updates, :inc, params)
     to_delete = extract_update_params(opts, :delete)
 
-    {construct_update_expression(to_set, opts) <> " " <>
+    opts_with_push_pull = [push: to_push, pull: to_pull] ++ opts
+
+    {construct_update_expression(to_set, opts_with_push_pull) <> " " <>
      construct_add_statement(to_add, opts) <> " " <>
-     construct_delete_statement(to_delete, opts),
-     to_set ++ to_add ++ to_delete}
+     construct_delete_statement(to_delete, opts) |> String.trim(),
+     to_set ++ to_push ++ to_pull ++ to_add ++ to_delete,
+     opts_with_push_pull}
   end
 
   # The update callback supplies fields in the paramaters
   # whereas update_all includes a more complicated updates
   # structure
   defp construct_update_expression(fields, opts) do
-    remove_rather_than_set_to_null = opts[:remove_nil_fields] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
-
     set_statement = construct_set_statement(fields, opts)
-    rem_statement = case remove_rather_than_set_to_null do
-                      true -> construct_remove_statement(fields)
-                      _    -> nil
-                    end
-    case {set_statement, rem_statement} do
-      {"", ""} ->
-        error "#{inspect __MODULE__}.construct_update_expression/2 called with no set or remove clauses. fields: #{inspect fields} opts: #{inspect opts}"
-      {_, ""} ->
-        set_statement
-      {"", _} ->
-        rem_statement
-      _ ->
-        "#{set_statement} #{rem_statement}"
-    end
+    rem_statement = construct_remove_statement(fields, opts)
+
+    String.trim("#{set_statement} #{rem_statement}")
   end
 
   # fields::[{:field, val}]
@@ -726,6 +723,15 @@ defmodule Ecto.Adapters.DynamoDB do
       key_str = Atom.to_string(key)
       "##{key_str}=:#{key_str}"
     end
+    ++ case opts[:push] do
+      nil       -> []
+      push_list ->
+        for {key, _val} <- push_list do
+          key_str = Atom.to_string(key)
+          "##{key_str} = list_append(##{key_str}, :#{key_str})"
+        end
+    end
+
     case set_clauses do
       [] ->
         ""
@@ -734,10 +740,32 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  defp construct_remove_statement(fields) do
-    remove_clauses = for {key, val} <- fields, is_nil(val) do
-      "##{Atom.to_string(key)}"
+  defp construct_remove_statement(fields, opts) do
+    remove_rather_than_set_to_null = opts[:remove_nil_fields] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
+
+    remove_clauses =
+      if remove_rather_than_set_to_null do
+        for {key, val} <- fields, is_nil(val), do: "##{Atom.to_string(key)}"
+      else
+        []
+      end
+
+    # Ecto :pull update can be emulated provided
+    # we are given an index to remove in opts[:pull_indexes]
+    ++ case opts[:pull] do
+      nil       -> []
+      pull_list ->
+        for {key, _val} <- pull_list do
+          key_str = Atom.to_string(key)
+          index = case opts[:pull_indexes][key] do
+            nil -> raise "#{inspect __MODULE__}.construct_remove_statement error: :pull_indexes does not include the index for #{inspect key}. fields: #{inspect fields} opts: #{inspect opts}"
+            idx -> idx
+          end
+
+          "##{key_str}[#{index}]"
+        end
     end
+
     case remove_clauses do
       [] ->
         ""
