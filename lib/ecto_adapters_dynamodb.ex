@@ -830,14 +830,22 @@ defmodule Ecto.Adapters.DynamoDB do
         field_is_nil = is_nil Map.get(item, field)
   
         case model.__schema__(:type, field) do
-          _ when field_is_nil -> acc
+          _ when field_is_nil ->
+            acc
+
           :utc_datetime   ->
             update_fun = fn v ->
               {:ok, dt, _offset} = DateTime.from_iso8601(v)
               dt
             end
             Map.update!(acc, field, update_fun)
-          :naive_datetime -> Map.update!(acc, field, &NaiveDateTime.from_iso8601!/1)
+
+          :naive_datetime ->
+            Map.update!(acc, field, &NaiveDateTime.from_iso8601!/1)
+
+          type when type in [Ecto.Adapters.DynamoDB.DynamoDBSet, MapSet] ->
+            Map.update!(acc, field, &MapSet.new/1)
+            
           _               -> acc
         end 
       end)
