@@ -199,7 +199,7 @@ defmodule Ecto.Adapters.DynamoDB do
         ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute: update_all")
         ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; Options: #{inspect updated_opts}")
 
-        update_all(table, lookup_fields, updated_opts, prepared.updates, params, model)
+        update_all(table, lookup_fields, updated_opts, prepared.updates, params)
 
       :all ->
         ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute")
@@ -291,28 +291,32 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  defp update_all(table, lookup_fields, opts, updates, params, model) do
+  defp update_all(table, lookup_fields, opts, updates, params) do
     scan_or_query = Ecto.Adapters.DynamoDB.Query.scan_or_query?(table, lookup_fields)
     recursive = Ecto.Adapters.DynamoDB.Query.parse_recursive_option(scan_or_query, opts)
 
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
     ecto_dynamo_log(:debug, "key_list: #{inspect key_list}")
 
-    {update_expression, update_fields, opts_with_push_pull} = construct_update_expression(updates, params, opts)
-    ecto_dynamo_log(:info, "Update fields: #{inspect update_fields}")
-    attribute_names = construct_expression_attribute_names(update_fields)
-    attribute_values = construct_expression_attribute_values(update_fields, opts_with_push_pull)
+    # The remove statement must be constructed after finding pull-indexes, but it
+    # also includes possibly removing nil fields, and since we have one handler for
+    # both set and remove, we call it during the batch update process
+    {update_expression, update_fields_sans_set_remove, set_remove_fields} = construct_update_expression(updates, params, opts)
+    ecto_dynamo_log(:info, "update fields: #{inspect update_fields_sans_set_remove} set and remove fields: #{inspect set_remove_fields}")
+    attribute_names = construct_expression_attribute_names(update_fields_sans_set_remove)
+    attribute_values = construct_expression_attribute_values(update_fields_sans_set_remove, opts)
 
     base_update_options = [expression_attribute_names: attribute_names,
                            update_expression: update_expression,
                            return_values: :all_new]
 
     updated_opts = prepare_recursive_opts(opts)
+    update_options = maybe_add_attribute_values(base_update_options, attribute_values)
 
-    update_all_recursive(table, lookup_fields, updated_opts, base_update_options, key_list, attribute_values, model, recursive, %{})
+    update_all_recursive(table, lookup_fields, updated_opts, update_options, key_list, set_remove_fields, recursive, %{}, 0)
   end
 
-  defp update_all_recursive(table, lookup_fields, opts, base_update_options, key_list, attribute_values, model, recursive, query_info) do
+  defp update_all_recursive(table, lookup_fields, opts, update_options, key_list, set_remove_fields, recursive, query_info, total_updated) do
     fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, opts)
     ecto_dynamo_log(:debug, "fetch_result: #{inspect fetch_result}")
 
@@ -331,34 +335,76 @@ defmodule Ecto.Adapters.DynamoDB do
       _                         -> []
     end
 
-    if items != [],
-    # We are not collecting the updated results, but we could.
-    do: batch_update(table, items, key_list, base_update_options, attribute_values, model)
+    num_updated = if items != [] do
+      batch_update(table, items, key_list, update_options, set_remove_fields, opts)
+    else
+      0
+    end
 
     updated_recursive = Ecto.Adapters.DynamoDB.Query.update_recursive_option(recursive)
 
     if fetch_result["LastEvaluatedKey"] != nil and updated_recursive.continue do
         opts_with_offset = opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
-        update_all_recursive(table, lookup_fields, opts_with_offset, base_update_options, key_list, attribute_values, model, updated_recursive.new_value, updated_query_info)
+        update_all_recursive(table, lookup_fields, opts_with_offset, update_options, key_list, set_remove_fields, updated_recursive.new_value, updated_query_info, total_updated + num_updated)
     else
       if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], updated_query_info)
-      {updated_query_info["Count"] || length(items), []}
+      {total_updated + num_updated, []}
     end
   end
 
-  defp batch_update(table, items, key_list, base_update_options, attribute_values, model) do
-    Enum.reduce items, {0, []}, fn(result_to_update, acc) ->
+  defp batch_update(table, items, key_list, update_options, set_remove_fields, opts) do
+    Enum.reduce(items, 0, fn(result_to_update, acc) ->
       filters = get_key_values_dynamo_map(result_to_update, key_list)
-      options = maybe_add_attribute_values(base_update_options, attribute_values)
+      pull_fields_with_indexes = case set_remove_fields[:pull] do
+        nil         -> []
+        pull_fields ->
+          Enum.map(pull_fields, fn {field_atom, val} -> 
+            list = result_to_update[to_string(field_atom)]
+            {field_atom, find_all_indexes_in_dynamodb_list(list, val)}
+          end)
+      end
+      merged_pull_indexes = Keyword.merge(pull_fields_with_indexes, maybe_list(opts[:pull_indexes]))
+      opts_with_pull_indexes = Keyword.update(opts, :pull_indexes, merged_pull_indexes, fn _ -> merged_pull_indexes end)
 
-      # 'options' might not have the key, ':expression_attribute_values', when there are only removal statements.
-      record = if options[:expression_attribute_values], do: [options[:expression_attribute_values] |> Enum.into(%{})], else: []
+      options_with_set_and_remove = update_batch_update_options(update_options, set_remove_fields, opts_with_pull_indexes)
 
-      update_query_result = Dynamo.update_item(table, filters, options) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
+      # 'options_with_set_and_remove' might not have the key, ':expression_attribute_values',
+      # when there are only removal statements.
+      record = if options_with_set_and_remove[:expression_attribute_values],
+               do: [options_with_set_and_remove[:expression_attribute_values] |> Enum.into(%{})],
+               else: []
 
-      {count, result_list} = acc
-      {count + 1, [Dynamo.decode_item(update_query_result["Attributes"], as: model) |> custom_decode(model) | result_list]}
-    end
+      if options_with_set_and_remove[:update_expression] |> String.trim != "" do
+        Dynamo.update_item(table, filters, options_with_set_and_remove) |> ExAws.request |> handle_error!(%{table: table, records: record ++ []})
+        acc + 1
+      else
+        acc
+      end
+    end)
+  end
+
+  defp update_batch_update_options(update_options, set_remove_fields, opts) do
+    attribute_names = construct_expression_attribute_names(Keyword.values(set_remove_fields) |> List.flatten)
+    set_and_push_fields = maybe_list(set_remove_fields[:set]) ++ maybe_list(set_remove_fields[:push])
+    opts_with_push = opts ++ Keyword.take(set_remove_fields, [:push])
+    attribute_values = construct_expression_attribute_values(set_and_push_fields, opts_with_push)
+    set_statement = construct_set_statement(set_remove_fields[:set], opts_with_push)
+    opts_for_construct_remove = Keyword.take(set_remove_fields, [:pull]) ++ Keyword.take(opts, [:pull_indexes, :remove_nil_fields])
+    remove_statement = construct_remove_statement(set_remove_fields[:set], opts_for_construct_remove)
+
+    base_update_options =
+      [expression_attribute_names: Map.merge(attribute_names, update_options[:expression_attribute_names]),
+      update_expression: set_statement <> " " <> remove_statement <> " " <> update_options[:update_expression] |> String.trim,
+      return_values: :all_new]
+
+    maybe_add_attribute_values(base_update_options, attribute_values ++ maybe_list(update_options[:expression_attribute_values]))
+  end
+
+  # find indexes to remove for update :pull action
+  defp find_all_indexes_in_dynamodb_list(dynamodb_list, target) do
+    Dynamo.Decoder.decode(dynamodb_list)
+    |> Enum.with_index()
+    |> Enum.filter_map(fn {x, _} -> x == target end, fn {_, i} -> i end)
   end
 
 
@@ -692,13 +738,10 @@ defmodule Ecto.Adapters.DynamoDB do
     to_add = extract_update_params(opts, :add) ++ extract_update_params(updates, :inc, params)
     to_delete = extract_update_params(opts, :delete)
 
-    opts_with_push_pull = [push: to_push, pull: to_pull] ++ opts
-
-    {construct_update_expression(to_set, opts_with_push_pull) <> " " <>
-     construct_add_statement(to_add, opts) <> " " <>
+    {construct_add_statement(to_add, opts) <> " " <>
      construct_delete_statement(to_delete, opts) |> String.trim(),
-     to_set ++ to_push ++ to_pull ++ to_add ++ to_delete,
-     opts_with_push_pull}
+     to_add ++ to_delete,
+     [set: to_set, push: to_push, pull: to_pull]}
   end
 
   # The update callback supplies fields in the paramaters
@@ -748,17 +791,15 @@ defmodule Ecto.Adapters.DynamoDB do
 
     # Ecto :pull update can be emulated provided
     # we are given an index to remove in opts[:pull_indexes]
-    ++ case opts[:pull] do
-      nil       -> []
-      pull_list ->
-        for {key, _val} <- pull_list do
+    ++ cond do
+      !opts[:pull_indexes] or (Keyword.values(opts[:pull_indexes]) |> List.flatten) == [] ->
+        []
+      opts[:pull] == nil ->
+        []
+      true ->
+        for {key, _val} <- opts[:pull] do
           key_str = Atom.to_string(key)
-          index = case opts[:pull_indexes][key] do
-            nil -> error "#{inspect __MODULE__}.construct_remove_statement error: :pull_indexes does not include the index for #{inspect key}. For DynamoDB 'REMOVE list[index]', an index must be supplied. Please see the ':pull_indexes' inline option in README.md. fields: #{inspect fields} opts: #{inspect opts}"
-            idx -> idx
-          end
-
-          "##{key_str}[#{index}]"
+          Enum.map(opts[:pull_indexes][key], fn index -> "##{key_str}[#{index}]" end) |> Enum.join(", ")
         end
     end
 
