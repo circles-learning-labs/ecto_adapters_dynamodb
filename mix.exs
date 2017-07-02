@@ -49,11 +49,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   defp deps do
     [
       {:ecto, ">= 2.1.4"},
-      # {:ex_aws, "~> 1.0"},
-      # github has a more updated version of ex_aws
-      # but without specifying a version, we must keep track of
-      # bugs possibly introduced by updates to the dependency
-      {:ex_aws, git: "https://github.com/CargoSense/ex_aws.git"},
+      {:ex_aws, "~> 1.1"},
       {:poison, "~> 2.0"},
       {:hackney, "~> 1.6"},
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
