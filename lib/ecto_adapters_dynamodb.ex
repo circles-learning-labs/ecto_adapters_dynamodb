@@ -971,7 +971,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   @doc """
-  Logs message to console and optionally to file. Log colours and file path may be set in configuration (details in README.md).
+  Logs message to console and optionally to file. Log levels, colours and file path may be set in configuration (details in README.md).
   """
   def ecto_dynamo_log(level, message) do
     colors = Application.get_env(:ecto_adapters_dynamodb, :log_colors)
