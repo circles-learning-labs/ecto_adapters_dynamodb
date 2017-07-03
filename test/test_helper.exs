@@ -1,3 +1,11 @@
+# Load all our support files first, since we need some of them to define our helper modules
+
+files = File.ls!("./test/support") |> Enum.filter(&(String.ends_with?(&1, [".ex", ".exs"])))
+
+Enum.each files, fn(file) ->
+  Code.require_file "support/#{file}", __DIR__
+end
+
 defmodule TestHelper do
   alias ExAws.Dynamo
   alias Ecto.Adapters.DynamoDB.TestRepo
@@ -30,10 +38,39 @@ defmodule TestHelper do
   end
 end
 
-ExUnit.start()
+defmodule TestGenerators do
+  use EQC
 
-files = File.ls!("./test/support") |> Enum.filter(&(String.ends_with?(&1, [".ex", ".exs"])))
+  alias Ecto.Adapters.DynamoDB.TestRepo
+  alias Ecto.Adapters.DynamoDB.TestSchema.Person
 
-Enum.each files, fn(file) ->
-  Code.require_file "support/#{file}", __DIR__
+  def nonempty_str() do
+    such_that s <- utf8() do
+      # Ecto.Changeset.validate_required checks for all-whitespace
+      # strings in addition to empty ones, hence the trimming:
+      String.trim_leading(s) != ""
+    end
+  end
+
+  def circle_list() do
+    non_empty(list(nonempty_str()))
+  end
+
+  def person_generator() do
+    let {id, first, last, age, email, pass, circles} <-
+        {nonempty_str(), nonempty_str(), nonempty_str(), int(),
+          nonempty_str(), nonempty_str(), circle_list()} do
+      %Person{
+        id: id,
+        first_name: first,
+        last_name: last,
+        age: age,
+        email: email,
+        password: pass,
+        circles: circles
+      }
+    end
+  end
 end
+
+ExUnit.start()
