@@ -46,6 +46,8 @@ defmodule AdapterStateEqcTest do
   # the expected contents of the database
   def initial_state, do: %State{}
 
+  # INSERT
+
   def insert_args(_s) do
     [key(), value()]
   end
@@ -63,5 +65,24 @@ defmodule AdapterStateEqcTest do
   def insert_next(s, result, [key, _value]) do
     new_db = Map.put(s.db, key, result)
     %State{s | db: new_db}
+  end
+
+  # GET
+
+  def get_args(_s) do
+    [key()]
+  end
+
+  def get(key) do
+    TestRepo.get(Person, key)
+  end
+
+  def get_post(s, [key], result) do
+    case Map.get(s.db, key) do
+      nil ->
+        ensure result == nil
+      value ->
+        ensure result == value
+    end
   end
 end
