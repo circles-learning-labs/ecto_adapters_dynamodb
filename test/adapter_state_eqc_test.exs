@@ -9,7 +9,7 @@ defmodule AdapterStateEqcTest do
   alias Ecto.Adapters.DynamoDB.TestRepo
   alias Ecto.Adapters.DynamoDB.TestSchema.Person
 
-  @keys [:a, :b, :c, :d, :e]
+  @keys ~w[a b c d e]
 
   setup_all do
     TestHelper.setup_all("test_person")
@@ -36,16 +36,14 @@ defmodule AdapterStateEqcTest do
     forall cmds <- commands(__MODULE__) do
       for k <- @keys, do: delete_row(k)
 
-      #results = run_commands(cmds)
-      #pretty_commands(cmds, results, results.result)
-      true
+      results = run_commands(cmds)
+      pretty_commands(cmds, results, results[:result] == :ok)
     end
   end
 
   # Helper functions
 
-  def delete_row(key) do
-    id = Atom.to_string(key)
+  def delete_row(id) do
     TestRepo.delete_all((from p in Person, where: p.id == ^id))
   end
 
@@ -62,11 +60,13 @@ defmodule AdapterStateEqcTest do
   end
 
   def insert(value) do
-    TestRepo.insert! Person.changeset(value)
+    TestRepo.insert!(Person.changeset(value), overwrite: true)
   end
 
   def insert_post(_s, [value], result) do
-    ensure value == result
+    value = Map.delete(value, :__meta__)
+    result = Map.delete(value, :__meta__)
+    value == result
   end
 
   def insert_next(s, _result, [value]) do
@@ -89,9 +89,9 @@ defmodule AdapterStateEqcTest do
   def get_post(s, [key], result) do
     case Map.get(s.db, key) do
       nil ->
-        ensure result == nil
+        result == nil
       value ->
-        ensure result == value
+        result == value
     end
   end
 end
