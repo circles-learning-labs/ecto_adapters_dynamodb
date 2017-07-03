@@ -76,6 +76,24 @@ defmodule AdapterStateEqcTest do
 
   # INSERT_ALL
 
+  def insert_all_args(_s) do
+    [value_list()]
+  end
+
+  def insert_all(values) do
+    map_values = for v <- values, do: Map.drop(v, [:__meta__, :__struct__])
+    TestRepo.insert_all(Person, map_values)
+  end
+
+  def insert_all_post(_s, [values], result) do
+    result == {length(values), nil}
+  end
+
+  def insert_all_next(s, _result, [values]) do
+    new_db = for v <- values, into: s.db, do: {v.id, v}
+    %State{s | db: new_db}
+  end
+
   # GET
 
   def get_args(_s) do
