@@ -120,15 +120,15 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
 
   @spec construct_opts(atom, keyword) :: keyword
-  defp construct_opts(:get_item, opts) do
-    Keyword.take(opts, [:consistent_read])
-  end
-
-  defp construct_opts(:query, opts) do
+  defp construct_opts(query_type, opts) do
+    take_opts = case query_type do
+      :get_item -> [:consistent_read]
+      :query -> [:exclusive_start_key, :limit, :scan_index_forward, :consistent_read]
+    end
     case opts[:projection_expression] do
       nil -> [select: opts[:select] || :all_attributes]
       _   -> [projection_expression: opts[:projection_expression]]
-    end ++ Keyword.take(opts, [:exclusive_start_key, :limit, :scan_index_forward, :consistent_read])
+    end ++ Keyword.take(opts, take_opts)
   end
 
 
