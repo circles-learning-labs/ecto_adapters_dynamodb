@@ -41,7 +41,6 @@ end
 defmodule TestGenerators do
   use EQC
 
-  alias Ecto.Adapters.DynamoDB.TestRepo
   alias Ecto.Adapters.DynamoDB.TestSchema.Person
 
   def nonempty_str() do
