@@ -213,13 +213,16 @@ defmodule Ecto.Adapters.DynamoDB do
           # Empty map means "not found"
           {0, []}
         else
-          case result["Count"] do
-            nil   -> decoded = result |> Dynamo.decode_item(as: model) |> custom_decode(model)
-                     {1, [[decoded]]}
-            _ ->
-              # HANDLE .all(query) QUERIES
+          cond do
+            !result["Count"] and !result["Responses"] -> 
+              decoded = result |> Dynamo.decode_item(as: model) |> custom_decode(model)
+              {1, [[decoded]]}
 
-              decoded = Enum.map(result["Items"], fn(item) -> 
+            true ->
+              # batch_get_item returns "Responses" rather than "Items"
+              results_to_decode = if result["Items"], do: result["Items"], else: result["Responses"][table]
+
+              decoded = Enum.map(results_to_decode, fn(item) -> 
                 [Dynamo.decode_item(%{"Item" => item}, as: model) |> custom_decode(model)]
               end)
 

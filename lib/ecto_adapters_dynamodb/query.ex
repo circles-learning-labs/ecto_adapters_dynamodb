@@ -29,11 +29,14 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   def get_item(table, search, opts) do
 
     results = case get_best_index!(table, search) do
-      # primary key based lookup  uses the efficient 'get_item' operation
-      {:primary, _} = index->
+      # primary key based lookup uses the efficient 'get_item' operation
+      {:primary, indexes} = index->
         #https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
         query = construct_search(index, search, opts)
-        ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
+        {hash_values, op} = deep_find_key(search, hd indexes)
+        if op == :in,
+        do: ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_values, search, opts)) |> ExAws.request!,
+        else: ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
 
       # secondary index based lookups need the query functionality. 
       index when is_tuple(index) ->
@@ -244,6 +247,24 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
 
+  defp construct_batch_get_item_query(table, indexes, hash_values, search, opts) do
+    consistent_read_option = Keyword.take(opts, [:consistent_read])
+    keys = case indexes do
+      [hash_key] -> 
+        Enum.map(hash_values, fn hash_value -> [{String.to_atom(hash_key), hash_value}] end)
+
+      [hash_key, range_key] ->
+        {range_values, :in} = deep_find_key(search, range_key)
+        zipped = Enum.zip(hash_values, range_values)
+        Enum.map(zipped, fn {hash_value, range_value} ->
+          [{String.to_atom(hash_key), hash_value}, {String.to_atom(range_key), range_value}]
+        end)
+    end
+
+    %{table => [keys: keys] ++ consistent_read_option}
+  end
+
+
   # TODO: Given the search criteria, filter out other results that were caught in the
   # index read. TODO: Can we do this on the server side dynamo query instead?
   # see: http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-FilterExpression
@@ -354,13 +375,13 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         # Also, the hash part can only accept an :== operator.
         hash_key = deep_find_key(search, hash)
         range_key = deep_find_key(search, range)
-        if hash_key != nil and elem(hash_key, 1) == :==
+        if hash_key != nil and elem(hash_key, 1) in [:==, :in]
         and range_key != nil and elem(range_key, 1) != :is_nil,
         do: index, else: :not_found
 
       {_, [hash]} ->
         hash_key = deep_find_key(search, hash)
-        if hash_key != nil and elem(hash_key, 1) == :==, 
+        if hash_key != nil and elem(hash_key, 1) in [:==, :in], 
         do: index, else: :not_found
     end
   end
