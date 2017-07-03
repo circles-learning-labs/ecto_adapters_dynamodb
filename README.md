@@ -260,7 +260,7 @@ A list of table names for tables assigned for caching of the first page of resul
 
 ## Inline Options
 
-The adapter only supports our custom inline options; assume the regular inline options provided by Ecto will be ignored. The following options can be passed during runtime in the Ecto calls. For example, consider a DynamoDB table with a composite index (HASH + RANGE):
+The adapter supports a mix of Ecto options and custom inline options; if the Ecto option is not listed here, assume the adapter will ignored it. The following options can be passed during runtime in the Ecto calls. For example, consider a DynamoDB table with a composite index (HASH + RANGE):
 ```
 MyModule.Repo.all(
   (from MyModule.HikingTrip, where: [location_id: "grand_canyon"]),
@@ -269,6 +269,14 @@ MyModule.Repo.all(
 )
 ```
 will retrieve the first five results from the record set for the indexed HASH, "location_id" = "grand_canyon", disabling the default recursive page fetch for queries. (Please note that without `recursive: false`, the adapter would ignore the scan limit.)
+
+### Supported Ecto Options
+
+**:on_conflict** :: :raise | :nothing | :replace_all, *default:* :raise
+
+By default, the adapter will provide the condition expression, `attribute_not_exists(PARTITION_KEY_ATTRIBUTE)` with the DynamoDB query, failing to insert if the record already exists. To perform an uncoditional insert, possibly overwriting an existing record, provide the option `on_conflict: :replace_all` in the insert query. If `on_conflict: :nothing` is provided, a struct will be returned with the primary key field/s set to `nil`.
+
+### Custom Inline Options
 
 #### **Inline Options:** *Repo.update*, *Repo.delete*
 
@@ -367,10 +375,6 @@ The returned map corresponds with DynamoDB's return values:
 **:insert_nil_fields** :: boolean, *default:* set in configuration
 
 Determines if fields in the changeset with `nil` values will be inserted as DynamoDB `null` values or not set at all.
-
-**:overwrite** :: boolean, *default:* none
-
-By default, the adapter will provide the condition expression, `attribute_not_exists(PARTITION_KEY_ATTRIBUTE)` with the DynamoDB query, failing to insert if the record already exists. To perform an uncoditional insert, possibly overwriting an existing record, provide the option `overwrite: true` in the insert query.
 
 #### **Inline Options:** *Repo.update, Repo.update_all*
 

@@ -456,7 +456,7 @@ defmodule Ecto.Adapters.DynamoDB do
     ecto_dynamo_log(:debug, "\tfields: #{inspect fields}")
     ecto_dynamo_log(:debug, "\ton_conflict: #{inspect on_conflict}")
     ecto_dynamo_log(:debug, "\treturning: #{inspect returning}")
-    ecto_dynamo_log(:debug, "\toptions: #{inspect opts}")
+    ecto_dynamo_log(:debug, "\topts: #{inspect opts}")
 
     insert_nil_field_option = Keyword.get(opts, :insert_nil_fields, true)
     do_not_insert_nil_fields = insert_nil_field_option == false || Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
@@ -473,8 +473,10 @@ defmodule Ecto.Adapters.DynamoDB do
     filters = [{(hd key_list), nil}]
     attribute_names = construct_expression_attribute_names(keys_to_atoms(filters))
 
-    options = case opts[:overwrite] do
-      true -> []
+    on_conflict_action = elem(on_conflict, 0)
+
+    options = case on_conflict_action do
+      :replace_all -> []
       _ -> 
         base_options = [expression_attribute_names: attribute_names]
         condition_expression = "attribute_not_exists(##{hd key_list})"
@@ -483,7 +485,9 @@ defmodule Ecto.Adapters.DynamoDB do
 
     case Dynamo.put_item(table, record, options) |> ExAws.request |> handle_error!(%{table: table, records: [record]}) do
       {:error, "ConditionalCheckFailedException"} ->
-        {:invalid, [unique_partition_key: "record already exists. To overwrite, include the option, 'overwrite: true'. Ecto.Adapters.DynamoDB currently does not offer upserts."]}
+        if on_conflict_action == :nothing,
+        do: {:ok, (for key <- key_list, do: {String.to_atom(key), nil})},
+        else: {:invalid, [unique_partition_key: "record already exists. To overwrite, include the Ecto option, 'on_conflict: :replace_all'. Ecto.Adapters.DynamoDB currently does not offer upserts."]}
 
       %{} ->
         {:ok, []}

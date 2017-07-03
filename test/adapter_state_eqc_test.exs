@@ -77,7 +77,7 @@ defmodule AdapterStateEqcTest do
   end
 
   def insert(value) do
-    TestRepo.insert!(Person.changeset(value), overwrite: true)
+    TestRepo.insert!(Person.changeset(value), on_conflict: :replace_all)
   end
 
   def insert_post(_s, [value], result) do
