@@ -29,6 +29,23 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert result.last_name == "Lennon"
   end
 
+  test "primary key get/update/delete using query" do
+    test_id = "person-pkey_query"
+    test_person = %Person{id: test_id, circles: nil, first_name: "Albert", last_name: "Einstein", age: 76, email: "albert@einstein.com", password: "password"}
+    query = from p in Person, where: p.id == ^test_id
+
+    TestRepo.insert(test_person)
+    [result] = TestRepo.all(query)
+    assert result = test_person
+
+    TestRepo.update_all(query, set: [circles: ["circle-fakecirc"]])
+    [result] = TestRepo.all(query)
+    assert result.circles == ["circle-fakecirc"]
+
+    TestRepo.delete_all(query)
+    assert [] == TestRepo.all(query)
+  end
+
   # BATCH INSERT 2 RECORDS
   test "simple insert_all: multi-record" do
     person1 = %{id: "person-buster", circles: nil, first_name: "Buster", last_name: "Diavolo",
