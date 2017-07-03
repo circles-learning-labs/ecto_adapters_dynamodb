@@ -31,6 +31,23 @@ defmodule AdapterStateEqcTest do
     end
   end
 
+  def change_list do
+    let fs <- fields() do
+      for {name, type} <- fs, into: %{}, do: {name, gen_field_val(type)}
+    end
+  end
+
+  def fields do
+    Person.get_fields()
+    |> Enum.filter(&(elem(&1, 1) != :binary_id))
+    |> Enum.shuffle # order probably doesn't matter here, but can't hurt to mix it up!
+    |> sublist
+  end
+
+  def gen_field_val(:string), do: nonempty_str()
+  def gen_field_val(:integer), do: int()
+  def gen_field_val({:array, type}), do: type |> gen_field_val |> list |> non_empty
+
   # Properties
   property "stateful adapter test" do
     forall cmds <- commands(__MODULE__) do
@@ -110,6 +127,44 @@ defmodule AdapterStateEqcTest do
         result == nil
       value ->
         result == value
+    end
+  end
+
+  # UPDATE
+
+  def update_args(_s) do
+    [key(), change_list()]
+  end
+
+  def update(key, change_list) do
+    case TestRepo.get(Person, key) do
+      nil ->
+        :not_found
+      res ->
+        res
+        |> Person.changeset(change_list)
+        |> TestRepo.update!
+    end
+  end
+
+  def update_post(s, [key, change_list], result) do
+    case Map.get(s.db, key) do
+      nil ->
+        result == :not_found
+      _ ->
+        # TODO check return value of update! here?
+        true
+    end
+  end
+
+  def update_next(s, _result, [key, change_list]) do
+    case Map.get(s.db, key) do
+      nil ->
+        s
+      val ->
+        new_val = Map.merge(val, change_list)
+        new_db = %{s.db | key => new_val}
+        %State{s | db: new_db}
     end
   end
 end
