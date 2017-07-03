@@ -80,6 +80,10 @@ We currently support both `update` and `update_all` with some performance caveat
 
 All of these caveats can be especially pernicious if you're performing eventually consistent reads, as is the default for DynamoDB: you could write a new version of a record to a key, then attempt to perform an update to the same key, which could read from a zone that hasn't received your write yet. This would cause the update's fetch to return an older version of the record, which will then be modified and written back to DDB, overwriting your changes from the previous write! Thus, even if a single client synchronously updates a key, waits for success, then does another update, you may still experience a complete loss of the first of those two updates! So, the moral of the story is, be really careful with updates; and, you may want to use consistent reads unless you really know what you're doing (see the `consistent_read` option for more info).
 
+#### DynamoDB BatchGetItem
+
+We currently support DynamoDB's **BatchGetItem** via an **:in** clause in `Repo.all`. For example, `Repo.all(from m in Model, where: m.id in ["id_1", "id_2"])`. For tables with a composite primary key, range keys must be supplied in another **:in** clause in matching order.
+
 #### DynamoDB LIMIT & Paging
 By default, we configure the adapter to fetch all pages recursively for a DynamoDB `query` operation, and to *not* fetch all pages recursively in the case of a DynamoDB `scan` operation. This default can be overridden with the inline **:recursive** and **:page_limit** options (see below). We do not respond to the Ecto `limit` option; rather, we support a **:scan_limit** option, which corresponds with DynamoDB's [limit option](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html#Query.Limit), limiting "the number of items that it returns in the result."
 
