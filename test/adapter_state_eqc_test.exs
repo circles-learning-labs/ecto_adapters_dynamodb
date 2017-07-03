@@ -65,7 +65,7 @@ defmodule AdapterStateEqcTest do
 
   def insert_post(_s, [value], result) do
     value = Map.delete(value, :__meta__)
-    result = Map.delete(value, :__meta__)
+    result = Map.delete(result, :__meta__)
     value == result
   end
 
