@@ -313,7 +313,20 @@ defmodule Ecto.Adapters.DynamoDB do
     updated_opts = prepare_recursive_opts(opts)
     update_options = maybe_add_attribute_values(base_update_options, attribute_values)
 
-    update_all_recursive(table, lookup_fields, updated_opts, update_options, key_list, set_remove_fields, recursive, %{}, 0)
+    pull_actions_without_index =
+      Keyword.keys(set_remove_fields[:pull]) 
+      |> Enum.any?(fn x -> !Enum.member?(Keyword.keys(maybe_list(opts[:pull_indexes])), x) end)
+
+    {new_update_options, new_set_remove_fields} =
+      if pull_actions_without_index do
+        {update_options, set_remove_fields}
+      else
+        merged_pull_indexes = Keyword.merge(set_remove_fields[:pull], maybe_list(opts[:pull_indexes]))
+        opts_with_pull_indexes = Keyword.update(opts, :pull_indexes, merged_pull_indexes, fn _ -> merged_pull_indexes end)
+        {update_batch_update_options(update_options, set_remove_fields, opts_with_pull_indexes), []}
+      end
+
+    update_all_recursive(table, lookup_fields, updated_opts, new_update_options, key_list, new_set_remove_fields, recursive, %{}, 0)
   end
 
   defp update_all_recursive(table, lookup_fields, opts, update_options, key_list, set_remove_fields, recursive, query_info, total_updated) do
@@ -355,18 +368,22 @@ defmodule Ecto.Adapters.DynamoDB do
   defp batch_update(table, items, key_list, update_options, set_remove_fields, opts) do
     Enum.reduce(items, 0, fn(result_to_update, acc) ->
       filters = get_key_values_dynamo_map(result_to_update, key_list)
-      pull_fields_with_indexes = case set_remove_fields[:pull] do
-        nil         -> []
-        pull_fields ->
-          Enum.map(pull_fields, fn {field_atom, val} -> 
-            list = result_to_update[to_string(field_atom)]
-            {field_atom, find_all_indexes_in_dynamodb_list(list, val)}
-          end)
-      end
-      merged_pull_indexes = Keyword.merge(pull_fields_with_indexes, maybe_list(opts[:pull_indexes]))
-      opts_with_pull_indexes = Keyword.update(opts, :pull_indexes, merged_pull_indexes, fn _ -> merged_pull_indexes end)
 
-      options_with_set_and_remove = update_batch_update_options(update_options, set_remove_fields, opts_with_pull_indexes)
+      # we only update this on a case-by-case basis if pull actions
+      # without specific indexes are specified
+      options_with_set_and_remove = case set_remove_fields do
+        [] -> update_options
+        _  ->
+          pull_fields_with_indexes =
+            Enum.map(set_remove_fields[:pull], fn {field_atom, val} -> 
+              list = result_to_update[to_string(field_atom)]
+              {field_atom, find_all_indexes_in_dynamodb_list(list, val)}
+            end)
+          merged_pull_indexes = Keyword.merge(pull_fields_with_indexes, maybe_list(opts[:pull_indexes]))
+          opts_with_pull_indexes = Keyword.update(opts, :pull_indexes, merged_pull_indexes, fn _ -> merged_pull_indexes end)
+
+          update_batch_update_options(update_options, set_remove_fields, opts_with_pull_indexes)
+      end
 
       # 'options_with_set_and_remove' might not have the key, ':expression_attribute_values',
       # when there are only removal statements.
