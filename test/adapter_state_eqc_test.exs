@@ -4,6 +4,7 @@ defmodule AdapterStateEqcTest do
   use EQC.StateM
 
   import Ecto.Query
+  import TestGenerators
 
   alias Ecto.Adapters.DynamoDB.TestRepo
   alias Ecto.Adapters.DynamoDB.TestSchema.Person
@@ -20,7 +21,15 @@ defmodule AdapterStateEqcTest do
 
   # Generators
   def key, do: oneof(@keys)
-  def value, do: TestGenerators.person_with_id(key())
+  def value, do: person_with_id(key())
+
+  def key_list, do: @keys |> Enum.shuffle |> sublist
+  def value_list do
+    # Generates a list of people, all with different keys:
+    let keys <- key_list() do
+      for k <- keys, do: person_with_id(k)
+    end
+  end
 
   # Properties
   property "stateful adapter test" do
@@ -64,6 +73,8 @@ defmodule AdapterStateEqcTest do
     new_db = Map.put(s.db, value.id, value)
     %State{s | db: new_db}
   end
+
+  # INSERT_ALL
 
   # GET
 
