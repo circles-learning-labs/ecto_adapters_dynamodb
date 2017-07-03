@@ -57,8 +57,12 @@ defmodule TestGenerators do
   end
 
   def person_generator() do
+    person_with_id(nonempty_str())
+  end
+
+  def person_with_id(key_gen) do
     let {id, first, last, age, email, pass, circles} <-
-        {nonempty_str(), nonempty_str(), nonempty_str(), int(),
+        {key_gen, nonempty_str(), nonempty_str(), int(),
           nonempty_str(), nonempty_str(), circle_list()} do
       %Person{
         id: id,

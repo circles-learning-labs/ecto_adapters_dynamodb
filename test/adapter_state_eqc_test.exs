@@ -20,7 +20,7 @@ defmodule AdapterStateEqcTest do
 
   # Generators
   def key, do: oneof(@keys)
-  def value, do: TestGenerators.person_generator()
+  def value, do: TestGenerators.person_with_id(key())
 
   # Properties
   property "stateful adapter test" do
@@ -49,21 +49,19 @@ defmodule AdapterStateEqcTest do
   # INSERT
 
   def insert_args(_s) do
-    [key(), value()]
+    [value()]
   end
 
-  def insert(key, value) do
-    value = %{value | id: Atom.to_string(key)}
+  def insert(value) do
     TestRepo.insert! Person.changeset(value)
-    value
   end
 
-  def insert_post(_s, [key, value], result) do
-    ensure key == result.id
+  def insert_post(_s, [value], result) do
+    ensure value == result
   end
 
-  def insert_next(s, result, [key, _value]) do
-    new_db = Map.put(s.db, key, result)
+  def insert_next(s, _result, [value]) do
+    new_db = Map.put(s.db, value.id, value)
     %State{s | db: new_db}
   end
 
