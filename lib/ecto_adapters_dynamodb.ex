@@ -784,7 +784,9 @@ defmodule Ecto.Adapters.DynamoDB do
       push_list ->
         for {key, _val} <- push_list do
           key_str = Atom.to_string(key)
-          "##{key_str} = list_append(##{key_str}, :#{key_str})"
+          if Enum.member?(maybe_list(opts[:prepend_to_list]), key),
+          do: "##{key_str} = list_append(:#{key_str}, ##{key_str})",
+          else: "##{key_str} = list_append(##{key_str}, :#{key_str})"
         end
     end
 

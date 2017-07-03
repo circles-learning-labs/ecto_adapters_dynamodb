@@ -278,16 +278,21 @@ If the DynamoDB table queried has a composite primary key, an update or delete q
 
 Ecto does not currently support :push and :pull on fields that are not :array type. To perform DynamoDB's **add** and **delete** on sets, pass the action, field and value as an option.
 
+**:prepend_to_list** :: [field_atom], *default:* none
+
+To prepend a value during a :push action, include the field in this option.
+For example: `Repo.update_all((from Country, where: [name: "New Zealand"]), [push: [tags: "adventure"]], prepend_to_list: [:tags])`
+
 **:pull_indexes** :: [{field_atom, [integer]}], *default:* none
 
 To remove an element in a DynamoDB list, we must supply the list index of the element/s. Include them in this option. If :pull_indexes is not specified, the adapter will attempt to find and remove all the occurrences of the value in the :pull keyword in the corresponding list field.
 
 Here's an example including both of the options above:
 ```
-Dynamotest.Repo.update_all(
+Repo.update_all(
   (from Model, where: [id: "fffx"]), 
-  [set: [name: "Speedy"], inc: [int_field: 2], pull: [list_field: "value to remove"]],
-  add: [set_field_1: MapSet.new(["add_this"])], delete: [set_field_2: MapSet.new(["remove_this"])], pull_indexes: [list_field: 5]
+  [set: [name: "Speedy"], inc: [int_field: 2], pull: [list_field_1: "value to remove"], list_field_2: "value will be ignored"],
+  add: [set_field_1: MapSet.new(["add_this"])], delete: [set_field_2: MapSet.new(["remove_this"])], pull_indexes: [list_field_2: [5]]
 )
 ```
 
