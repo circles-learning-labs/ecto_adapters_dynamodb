@@ -485,9 +485,10 @@ defmodule Ecto.Adapters.DynamoDB do
 
     case Dynamo.put_item(table, record, options) |> ExAws.request |> handle_error!(%{table: table, records: [record]}) do
       {:error, "ConditionalCheckFailedException"} ->
-        if on_conflict_action == :nothing,
-        do: {:ok, (for key <- key_list, do: {String.to_atom(key), nil})},
-        else: {:invalid, [unique_partition_key: "record already exists. To overwrite, include the Ecto option, 'on_conflict: :replace_all'. Ecto.Adapters.DynamoDB currently does not offer upserts."]}
+        case on_conflict_action do
+          :nothing -> {:ok, (for key <- key_list, do: {String.to_atom(key), nil})}
+          :raise   -> {:invalid, [unique_partition_key: "record already exists. To overwrite, include the Ecto option, 'on_conflict: :replace_all'. Ecto.Adapters.DynamoDB currently does not offer upserts."]}
+        end
 
       %{} ->
         {:ok, []}
