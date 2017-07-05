@@ -487,7 +487,14 @@ defmodule Ecto.Adapters.DynamoDB do
       {:error, "ConditionalCheckFailedException"} ->
         case on_conflict_action do
           :nothing -> {:ok, (for key <- key_list, do: {String.to_atom(key), nil})}
-          :raise   -> {:invalid, [unique_partition_key: "record already exists. To overwrite, include the Ecto option, 'on_conflict: :replace_all'. Ecto.Adapters.DynamoDB currently does not offer upserts."]}
+          :raise   ->
+            # The only condition expression we specify is on the first part of the
+            # primary key, so if we get this particular error we should be able to infer
+            # the constraint that we hit and generate the corresponding default constraint
+            # name. This yields the correct behavior in the case the user has specified a
+            # unique constraint on the primary key in their schema.
+            constraint_name = "#{table}_#{hd key_list}_index"
+            {:invalid, [unique: constraint_name]}
         end
 
       %{} ->
