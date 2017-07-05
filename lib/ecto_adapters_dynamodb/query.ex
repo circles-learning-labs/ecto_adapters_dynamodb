@@ -35,7 +35,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         query = construct_search(index, search, opts)
         {hash_values, op} = deep_find_key(search, hd indexes)
         if op == :in,
-        do: ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_values, search, opts)) |> ExAws.request!,
+        do: ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_values, search, construct_opts(:get_item, opts))) |> ExAws.request!,
         else: ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
 
       # secondary index based lookups need the query functionality. 
@@ -130,7 +130,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
     case opts[:projection_expression] do
       nil -> [select: opts[:select] || :all_attributes]
-      _   -> [projection_expression: opts[:projection_expression]]
+      _   -> Keyword.take(opts, [:projection_expression])
     end ++ Keyword.take(opts, take_opts)
   end
 
@@ -248,7 +248,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
 
   defp construct_batch_get_item_query(table, indexes, hash_values, search, opts) do
-    consistent_read_option = Keyword.take(opts, [:consistent_read])
+    take_opts = Keyword.take(opts, [:consistent_read, :projection_expression])
     keys = case indexes do
       [hash_key] -> 
         Enum.map(hash_values, fn hash_value -> [{String.to_atom(hash_key), hash_value}] end)
@@ -261,7 +261,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         end)
     end
 
-    %{table => [keys: keys] ++ consistent_read_option}
+    %{table => [keys: keys] ++ take_opts}
   end
 
 

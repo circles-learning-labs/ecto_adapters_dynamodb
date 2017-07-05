@@ -240,26 +240,20 @@ defmodule Ecto.Adapters.DynamoDB do
     recursive = Ecto.Adapters.DynamoDB.Query.parse_recursive_option(scan_or_query, opts)
     updated_opts = prepare_recursive_opts(opts ++ [projection_expression: Enum.join(key_list, ", ")])
 
-    delete_all_recursive(table, lookup_fields, updated_opts, recursive, %{})
+    delete_all_recursive(table, lookup_fields, updated_opts, recursive, %{}, 0)
   end
 
-  defp delete_all_recursive(table, lookup_fields, opts, recursive, query_info) do
+  defp delete_all_recursive(table, lookup_fields, opts, recursive, query_info, total_processed) do
     # query the table for which records to delete
     fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, opts)
 
-    updated_query_info = case fetch_result do
-      %{"Count" => last_count, "ScannedCount" => last_scanned_count} -> 
-        %{"Count" => last_count + Map.get(query_info, "Count", 0),
-          "ScannedCount" => last_scanned_count + Map.get(query_info, "ScannedCount", 0),
-          "LastEvaluatedKey" => Map.get(fetch_result, "LastEvaluatedKey")}
-
-      _ -> query_info
-    end
+    ecto_dynamo_log(:debug, "fetch_result = #{inspect fetch_result}")
 
     items = case fetch_result do
-      %{"Items" => fetch_items} -> fetch_items
-      %{"Item" => item}         -> [item]
-      _                         -> []
+      %{"Items" => fetch_items}   -> fetch_items
+      %{"Item" => item}           -> [item]
+      %{"Responses" => table_map} -> table_map[table]
+      _                           -> []
     end
 
     prepared_data = for key_list <- Enum.map(items, &Map.to_list/1) do
@@ -267,30 +261,41 @@ defmodule Ecto.Adapters.DynamoDB do
       [delete_request: [key: key_map]]
     end
 
-    if prepared_data != [], do: batch_delete(table, prepared_data)
+    unprocessed_items = if prepared_data != [] do
+      batch_delete(table, prepared_data)
+    else
+      %{}
+    end
+
+    num_processed =
+      length(prepared_data) - if !unprocessed_items[table], do: 0, else: length(unprocessed_items[table])
+
+    updated_query_info = Enum.reduce(fetch_result, query_info, fn({key, val}, acc) ->
+      case key do
+        "Count" -> Map.update(acc, key, val, fn x -> x + val end)
+        "ScannedCount" -> Map.update(acc, key, val, fn x -> x + val end)
+        "LastEvaluatedKey" -> Map.update(acc, key, val, fn _ -> fetch_result["LastEvaluatedKey"] end)
+        _ -> acc
+      end
+    end) |> Map.update("UnprocessedItems", unprocessed_items, fn map -> if map == %{}, do: %{}, else: %{table => map[table] ++ unprocessed_items[table]} end)
 
     updated_recursive = Ecto.Adapters.DynamoDB.Query.update_recursive_option(recursive)
 
     if fetch_result["LastEvaluatedKey"] != nil and updated_recursive.continue do
         opts_with_offset = opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
-        delete_all_recursive(table, lookup_fields, opts_with_offset, updated_recursive.new_value, updated_query_info)
+        delete_all_recursive(table, lookup_fields, opts_with_offset, updated_recursive.new_value, updated_query_info, total_processed + num_processed)
     else
+      # We're not retrying unprocessed items yet, but we are providing the relevant info in the QueryInfo agent if :query_info_key is supplied
       if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], updated_query_info)
-      {updated_query_info["Count"] || length(items), nil}
+      {num_processed + total_processed, nil}
     end
   end
 
+  # returns unprocessed_items
   defp batch_delete(table, prepared_data) do
     batch_write_attempt = Dynamo.batch_write_item(%{table => prepared_data}) |> ExAws.request |> handle_error!(%{table: table, records: []})
 
-    cond do
-      batch_write_attempt["UnprocessedItems"] == %{} ->
-        :ok
-        
-      # TODO: handle unprocessed items?
-      batch_write_attempt["UnprocessedItems"] != %{} ->
-        raise "#{inspect __MODULE__}.delete_all: Handling not yet implemented for \"UnprocessedItems\" as a non-empty map. ExAws.Dynamo.batch_write_item response: #{inspect batch_write_attempt}"
-    end
+    batch_write_attempt["UnprocessedItems"]
   end
 
 
@@ -346,9 +351,10 @@ defmodule Ecto.Adapters.DynamoDB do
     end
 
     items = case fetch_result do
-      %{"Items" => fetch_items} -> fetch_items
-      %{"Item" => item}         -> [item]
-      _                         -> []
+      %{"Items" => fetch_items}   -> fetch_items
+      %{"Item" => item}           -> [item]
+      %{"Responses" => table_map} -> table_map[table]
+      _                           -> []
     end
 
     num_updated = if items != [] do
@@ -496,16 +502,16 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  def insert_all(repo, schema_meta, field_list, fields, on_conflict, returning, options) do
+  def insert_all(repo, schema_meta, field_list, fields, on_conflict, returning, opts) do
     ecto_dynamo_log(:debug, "INSERT ALL::\n\trepo: #{inspect repo}")
     ecto_dynamo_log(:debug, "\tschema_meta: #{inspect schema_meta}")
     ecto_dynamo_log(:debug, "\tfield_list: #{inspect field_list}")
     ecto_dynamo_log(:debug, "\tfields: #{inspect fields}")
     ecto_dynamo_log(:debug, "\ton_conflict: #{inspect on_conflict}")
     ecto_dynamo_log(:debug, "\treturning: #{inspect returning}")
-    ecto_dynamo_log(:debug, "\toptions: #{inspect options}")
+    ecto_dynamo_log(:debug, "\topts: #{inspect opts}")
 
-    insert_nil_field_option = Keyword.get(options, :insert_nil_fields, true)
+    insert_nil_field_option = Keyword.get(opts, :insert_nil_fields, true)
     do_not_insert_nil_fields = insert_nil_field_option == false || Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
 
     {_, table} = schema_meta.source
@@ -525,15 +531,15 @@ defmodule Ecto.Adapters.DynamoDB do
 
     batch_write_attempt = Dynamo.batch_write_item(%{table => prepared_fields}) |> ExAws.request |> handle_error!(%{table: table, records: records})
 
-    # THE FORMAT OF A SUCCESSFUL BATCH INSERT IS A MAP THAT WILL INCLUDE A MAP OF ANY UNPROCESSED ITEMS
-    cond do
-      # IDEALLY, THERE ARE NO UNPROCESSED ITEMS - THE MAP IS EMPTY
-      batch_write_attempt["UnprocessedItems"] == %{} ->
-        {length(records), nil}
-      # TO DO: DEVELOP A STRATEGY FOR HANDLING UNPROCESSED ITEMS.
-      # DOCS SUGGEST GATHERING THEM UP AND TRYING ANOTHER BATCH INSERT AFTER A SHORT DELAY
-      batch_write_attempt["UnprocessedItems"] != %{} ->
-        raise "#{inspect __MODULE__}.insert_all: Handling not yet implemented for \"UnprocessedItems\" as a non-empty map. ExAws.Dynamo.batch_write_item response: #{inspect batch_write_attempt}"
+    ecto_dynamo_log(:debug, "Batch-write result: #{inspect batch_write_attempt}")
+
+    # We're not retrying unprocessed items yet, but we are providing the relevant info in the QueryInfo agent if :query_info_key is supplied
+    if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], extract_query_info(batch_write_attempt))
+
+    if batch_write_attempt["UnprocessedItems"] == %{} do
+      {length(records), nil}
+    else
+      {length(records) - length(batch_write_attempt["UnprocessedItems"][table]), nil}
     end
   end
 
@@ -680,7 +686,7 @@ defmodule Ecto.Adapters.DynamoDB do
   defp construct_condition_expression([{field, _val}] = _filters),
   do: "attribute_exists(##{to_string(field)})"
 
-  defp extract_query_info(result), do: result |> Map.take(["Count", "ScannedCount", "LastEvaluatedKey"])
+  defp extract_query_info(result), do: result |> Map.take(["Count", "ScannedCount", "LastEvaluatedKey", "UnprocessedItems", "UnprocessedKeys"])
 
 
   # Used in update_all
