@@ -64,6 +64,12 @@ defmodule AdapterStateEqcTest do
     TestRepo.delete_all((from p in Person, where: p.id == ^id))
   end
 
+  def cmp_people(a, b) do
+    a = Map.delete(a, :__meta__)
+    b = Map.delete(b, :__meta__)
+    a == b
+  end
+
   # StateM callbacks
 
   # We'll keep a simple map as our state which represents
@@ -82,9 +88,7 @@ defmodule AdapterStateEqcTest do
 
   def insert_post(s, [value], {:ok, result}) do
     if !Map.has_key?(s.db, value.id) do
-      value = Map.delete(value, :__meta__)
-      result = Map.delete(result, :__meta__)
-      value == result
+      cmp_people(value, result)
     else
       # If we already have this key in our db, we
       # shouldn't have gotten back a successful result
@@ -164,9 +168,9 @@ defmodule AdapterStateEqcTest do
     case Map.get(s.db, key) do
       nil ->
         result == :not_found
-      _ ->
-        # TODO check return value of update! here?
-        true
+      state_val ->
+        next_val = Map.merge(state_val, change_list)
+        cmp_people(next_val, result)
     end
   end
 
