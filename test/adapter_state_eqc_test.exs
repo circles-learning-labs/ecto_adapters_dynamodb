@@ -48,6 +48,14 @@ defmodule AdapterStateEqcTest do
   def gen_field_val(:integer), do: int()
   def gen_field_val({:array, type}), do: type |> gen_field_val |> list |> non_empty
 
+  def insert_opts do
+    oneof([[on_conflict: :nothing],
+           [on_conflict: :replace_all],
+           [on_conflict: :raise],
+           [] # Should have same behavior as :raise, per Ecto docs
+    ])
+  end
+
   # Properties
   property "stateful adapter test" do
     forall cmds <- commands(__MODULE__) do
@@ -79,32 +87,36 @@ defmodule AdapterStateEqcTest do
   # INSERT
 
   def insert_args(_s) do
-    [value()]
+    [value(), insert_opts()]
   end
 
-  def insert(value) do
-    value |> Person.changeset |> TestRepo.insert
+  def insert(value, opts) do
+    value |> Person.changeset |> TestRepo.insert(opts)
   end
 
-  def insert_post(s, [value], {:ok, result}) do
-    if !Map.has_key?(s.db, value.id) do
-      cmp_people(value, result)
-    else
-      # If we already have this key in our db, we
-      # shouldn't have gotten back a successful result
-      false
+  def insert_post(s, [value, opts], result) do
+    on_conflict = Keyword.get(opts, :on_conflict, :raise)
+    value_exists = Map.has_key?(s.db, value.id)
+
+    case {on_conflict, value_exists, result} do
+      {:raise, true, {:error, %Ecto.Changeset{errors: [id: {"has already been taken", []}]}}} ->
+        true
+      {:nothing, true, {:ok, result_value}} ->
+        # The result should be the value we passed in with the primary key set to nil
+        cmp_people(%{value | id: nil}, result_value)
+      {_, _, {:ok, result_value}} ->
+        cmp_people(value, result_value)
     end
   end
-  def insert_post(s, [value], {:error,
-                               %Ecto.Changeset{errors: [id: {"has already been taken", []}]}}) do
-    Map.has_key?(s.db, value.id)
-  end
-  def insert_post(_s, _args, _res) do
-    false
-  end
 
-  def insert_next(s, _result, [value]) do
-    new_db = Map.put_new(s.db, value.id, value)
+  def insert_next(s, _result, [value, opts]) do
+    on_conflict = Keyword.get(opts, :on_conflict, :raise)
+    new_db = case on_conflict do
+      :replace_all ->
+        Map.put(s.db, value.id, value)
+      _ ->
+        Map.put_new(s.db, value.id, value)
+    end
     %State{s | db: new_db}
   end
 
