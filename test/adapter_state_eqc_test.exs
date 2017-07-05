@@ -77,17 +77,30 @@ defmodule AdapterStateEqcTest do
   end
 
   def insert(value) do
-    TestRepo.insert!(Person.changeset(value), on_conflict: :replace_all)
+    value |> Person.changeset |> TestRepo.insert
   end
 
-  def insert_post(_s, [value], result) do
-    value = Map.delete(value, :__meta__)
-    result = Map.delete(result, :__meta__)
-    value == result
+  def insert_post(s, [value], {:ok, result}) do
+    if !Map.has_key?(s.db, value.id) do
+      value = Map.delete(value, :__meta__)
+      result = Map.delete(result, :__meta__)
+      value == result
+    else
+      # If we already have this key in our db, we
+      # shouldn't have gotten back a successful result
+      false
+    end
+  end
+  def insert_post(s, [value], {:error,
+                               %Ecto.Changeset{errors: [id: {"has already been taken", []}]}}) do
+    Map.has_key?(s.db, value.id)
+  end
+  def insert_post(_s, _args, _res) do
+    false
   end
 
   def insert_next(s, _result, [value]) do
-    new_db = Map.put(s.db, value.id, value)
+    new_db = Map.put_new(s.db, value.id, value)
     %State{s | db: new_db}
   end
 
