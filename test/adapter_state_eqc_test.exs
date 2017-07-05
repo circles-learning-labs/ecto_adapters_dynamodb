@@ -48,6 +48,14 @@ defmodule AdapterStateEqcTest do
   def gen_field_val(:integer), do: int()
   def gen_field_val({:array, type}), do: type |> gen_field_val |> list |> non_empty
 
+  def insert_opts do
+    oneof([[on_conflict: :nothing],
+           [on_conflict: :replace_all],
+           [on_conflict: :raise],
+           [] # Should have same behavior as :raise, per Ecto docs
+    ])
+  end
+
   # Properties
   property "stateful adapter test" do
     forall cmds <- commands(__MODULE__) do
@@ -64,6 +72,12 @@ defmodule AdapterStateEqcTest do
     TestRepo.delete_all((from p in Person, where: p.id == ^id))
   end
 
+  def cmp_people(a, b) do
+    a = Map.delete(a, :__meta__)
+    b = Map.delete(b, :__meta__)
+    a == b
+  end
+
   # StateM callbacks
 
   # We'll keep a simple map as our state which represents
@@ -73,21 +87,36 @@ defmodule AdapterStateEqcTest do
   # INSERT
 
   def insert_args(_s) do
-    [value()]
+    [value(), insert_opts()]
   end
 
-  def insert(value) do
-    TestRepo.insert!(Person.changeset(value), on_conflict: :replace_all)
+  def insert(value, opts) do
+    value |> Person.changeset |> TestRepo.insert(opts)
   end
 
-  def insert_post(_s, [value], result) do
-    value = Map.delete(value, :__meta__)
-    result = Map.delete(result, :__meta__)
-    value == result
+  def insert_post(s, [value, opts], result) do
+    on_conflict = Keyword.get(opts, :on_conflict, :raise)
+    value_exists = Map.has_key?(s.db, value.id)
+
+    case {on_conflict, value_exists, result} do
+      {:raise, true, {:error, %Ecto.Changeset{errors: [id: {"has already been taken", []}]}}} ->
+        true
+      {:nothing, true, {:ok, result_value}} ->
+        # The result should be the value we passed in with the primary key set to nil
+        cmp_people(%{value | id: nil}, result_value)
+      {_, _, {:ok, result_value}} ->
+        cmp_people(value, result_value)
+    end
   end
 
-  def insert_next(s, _result, [value]) do
-    new_db = Map.put(s.db, value.id, value)
+  def insert_next(s, _result, [value, opts]) do
+    on_conflict = Keyword.get(opts, :on_conflict, :raise)
+    new_db = case on_conflict do
+      :replace_all ->
+        Map.put(s.db, value.id, value)
+      _ ->
+        Map.put_new(s.db, value.id, value)
+    end
     %State{s | db: new_db}
   end
 
@@ -151,9 +180,9 @@ defmodule AdapterStateEqcTest do
     case Map.get(s.db, key) do
       nil ->
         result == :not_found
-      _ ->
-        # TODO check return value of update! here?
-        true
+      state_val ->
+        next_val = Map.merge(state_val, change_list)
+        cmp_people(next_val, result)
     end
   end
 

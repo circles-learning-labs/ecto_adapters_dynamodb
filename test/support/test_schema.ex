@@ -16,6 +16,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
     person
     |> Ecto.Changeset.cast(params, [:first_name, :last_name, :age, :email, :password, :circles])
     |> Ecto.Changeset.validate_required([:first_name, :last_name])
+    |> Ecto.Changeset.unique_constraint(:id)
   end
 
   def get_fields() do
