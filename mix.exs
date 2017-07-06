@@ -3,13 +3,13 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
 
   def project do
     [app: :ecto_adapters_dynamodb,
-     version: "0.1.1",
+     version: "0.1.2",
      elixir: "~> 1.4",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      deps: deps(),
      dialyzer: [plt_add_apps: [:ecto]],
-     description: "A DynamoDB adapter for Ecto supporting basic queries.",
+     description: "A DynamoDB adapter for Ecto supporting basic queries. see https://github.com/circles-learning-labs/ecto_adapters_dynamodb for detailed instructions.",
      package: package(),
      source_url: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb"
     ]
