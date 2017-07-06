@@ -409,4 +409,7 @@ and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/ecto_adapters_dynamodb](https://hexdocs.pm/ecto_adapters_dynamodb).
 
 
+# License
+Copyright Circles Learning Labs
 
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this project except in compliance with the License.
