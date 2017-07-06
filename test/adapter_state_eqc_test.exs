@@ -196,4 +196,34 @@ defmodule AdapterStateEqcTest do
         %State{s | db: new_db}
     end
   end
+
+  # DELETE
+
+  def delete_args(_s) do
+    [key()]
+  end
+
+  def delete(key) do
+    try do
+      TestRepo.delete(%Person{id: key})
+    rescue
+      # Raising a "StaleEntryError" sure seems like a weird, unintuitive way
+      # to signal that we tried to delete a non-existent value, but this is
+      # also the way it works for other adapters so I'm assuming this is
+      # normal...🤔
+      Ecto.StaleEntryError -> :not_found
+    end
+  end
+
+  def delete_post(s, [key], {:ok, _}) do
+    Map.has_key?(s.db, key)
+  end
+  def delete_post(s, [key], :not_found) do
+    !Map.has_key?(s.db, key)
+  end
+
+  def delete_next(s, _result, [key]) do
+    new_db = Map.delete(s.db, key)
+    %State{s | db: new_db}
+  end
 end
