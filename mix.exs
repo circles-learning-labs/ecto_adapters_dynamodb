@@ -9,6 +9,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
      start_permanent: Mix.env == :prod,
      deps: deps(),
      dialyzer: [plt_add_apps: [:ecto]],
+     docs: [main: "readme", extras: ["README.md"]],
      description: "A DynamoDB adapter for Ecto supporting basic queries. see https://github.com/circles-learning-labs/ecto_adapters_dynamodb for detailed instructions.",
      package: package(),
      source_url: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb"
