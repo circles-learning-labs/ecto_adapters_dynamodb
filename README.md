@@ -129,12 +129,11 @@ Get, Insert, Delete and Update. As long as it's simple queries against single ta
 
 ## Installation
 
-We will be making the package available [Hex](https://hex.pm/) soon. Once available, the package can be installed
-by adding `ecto_adapters_dynamodb` to your list of dependencies in `mix.exs`:
+Install the [Hex](https://hex.pm/packages/ecto_adapters_dynamodb) package by adding `ecto_adapters_dynamodb` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
-  [{:ecto_adapters_dynamodb, "~> 0.1.0"}]
+  [{:ecto_adapters_dynamodb, "~> 0.1.2"}]
 end
 ```
 
