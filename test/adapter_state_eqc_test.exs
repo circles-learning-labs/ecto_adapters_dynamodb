@@ -12,7 +12,7 @@ defmodule AdapterStateEqcTest do
   @keys ~w[a b c d e]
 
   setup_all do
-    TestHelper.setup_all("test_person")
+    TestHelper.setup_all()
   end
 
   defmodule State do

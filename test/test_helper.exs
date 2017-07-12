@@ -10,12 +10,12 @@ defmodule TestHelper do
   alias ExAws.Dynamo
   alias Ecto.Adapters.DynamoDB.TestRepo
 
-  def setup_all(table_name) do
+  def setup_all() do
     IO.puts "starting test repo"
     TestRepo.start_link()
 
     IO.puts "deleting any leftover test tables that may exist"
-    Dynamo.delete_table(table_name) |> ExAws.request
+    Dynamo.delete_table("test_person") |> ExAws.request
     Dynamo.delete_table("test_book_page") |> ExAws.request
 
     IO.puts "creating test person table"
@@ -33,7 +33,7 @@ defmodule TestHelper do
                },
                projection: %{projection_type: "ALL"}
     }]
-    Dynamo.create_table(table_name, [id: :hash], key_definitions, 100, 100, indexes, []) |> ExAws.request!
+    Dynamo.create_table("test_person", [id: :hash], key_definitions, 100, 100, indexes, []) |> ExAws.request!
 
     IO.puts "creating test book page table"
     key_definitions = %{id: :string, page_num: :number}

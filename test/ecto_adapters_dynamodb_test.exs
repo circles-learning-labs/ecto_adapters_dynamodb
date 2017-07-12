@@ -10,7 +10,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   @test_table "test_person"
 
   setup_all do
-    TestHelper.setup_all(@test_table)
+    TestHelper.setup_all()
   end
 
   # A BASIC INSERT

@@ -6,7 +6,7 @@ defmodule AdapterPropertyTest do
   alias Ecto.Adapters.DynamoDB.TestSchema.Person
 
   setup_all do
-    TestHelper.setup_all("property_test_person")
+    TestHelper.setup_all()
   end
 
   property "test insert/get returns the same value" do
