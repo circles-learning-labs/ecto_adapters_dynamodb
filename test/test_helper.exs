@@ -14,10 +14,11 @@ defmodule TestHelper do
     IO.puts "starting test repo"
     TestRepo.start_link()
 
-    IO.puts "deleting any leftover test table that may exist"
+    IO.puts "deleting any leftover test tables that may exist"
     Dynamo.delete_table(table_name) |> ExAws.request
+    Dynamo.delete_table("test_book_page") |> ExAws.request
 
-    IO.puts "creating test table"
+    IO.puts "creating test person table"
     # Only need to define types for indexed fields:
     key_definitions = %{id: :string, email: :string}
     indexes = [%{
@@ -33,6 +34,10 @@ defmodule TestHelper do
                projection: %{projection_type: "ALL"}
     }]
     Dynamo.create_table(table_name, [id: :hash], key_definitions, 100, 100, indexes, []) |> ExAws.request!
+
+    IO.puts "creating test book page table"
+    key_definitions = %{id: :string, page_num: :number}
+    Dynamo.create_table("test_book_page", [id: :hash, page_num: :range], key_definitions, 100, 100, [], []) |> ExAws.request!
 
     :ok
   end

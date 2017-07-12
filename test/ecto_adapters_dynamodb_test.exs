@@ -5,6 +5,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
   alias Ecto.Adapters.DynamoDB.TestRepo
   alias Ecto.Adapters.DynamoDB.TestSchema.Person
+  alias Ecto.Adapters.DynamoDB.TestSchema.BookPage
 
   @test_table "test_person"
 
@@ -27,6 +28,33 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     result = TestRepo.get(Person, "person-john")
     assert result.first_name == "John"
     assert result.last_name == "Lennon"
+  end
+
+  test "insert and get with hash/range pkey" do
+    name = "houseofleaves"
+
+    page1 = %BookPage{id: name, page_num: 1, text: "abc"}
+    page2 = %BookPage{id: name, page_num: 2, text: "def"}
+    cs1 = BookPage.changeset(page1)
+    cs2 = BookPage.changeset(page2)
+    duplicate_page_cs = BookPage.changeset(%BookPage{id: name, page_num: 1, text: "ghi"})
+
+    {:ok, _} = TestRepo.insert(cs1)
+    {:ok, _} = TestRepo.insert(cs2)
+    {:error, _} = TestRepo.insert(duplicate_page_cs)
+
+    query = from p in BookPage, where: p.id == ^name
+    results = query |> TestRepo.all |> Enum.sort_by(&(&1.page_num))
+    IO.puts "results = #{inspect results}"
+
+    [res1, res2] = results
+    assert res1 == page1
+    assert res2 == page2
+
+    query1 = from p in BookPage, where: p.id == ^name and p.page_num == 1
+    query2 = from p in BookPage, where: p.id == ^name and p.page_num == 2
+    assert [page1] == TestRepo.all(query1)
+    assert [page2] == TestRepo.all(query2)
   end
 
   test "primary key get/update/delete using query" do
