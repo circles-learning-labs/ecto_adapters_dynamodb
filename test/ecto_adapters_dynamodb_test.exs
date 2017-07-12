@@ -24,7 +24,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
   # CREATE A RECORD AND THEN RETRIEVE IT - I.E. CREATE A NEW USER AND BE REDIRECTED TO THEIR PROFILE PAGE
   test "insert and get" do
-    TestRepo.insert %Person {id: "person-john", circles: nil, first_name: "John", last_name: "Lennon", age: 40, email: "john@beatles.com", password: "password"}
+    TestRepo.insert %Person {id: "person-john", circles: nil, first_name: "John", last_name: "Lennon", age: 40, email: "john@beatles.com", password: "password", role: "musician"}
     result = TestRepo.get(Person, "person-john")
     assert result.first_name == "John"
     assert result.last_name == "Lennon"
