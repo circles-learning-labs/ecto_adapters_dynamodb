@@ -486,8 +486,9 @@ defmodule Ecto.Adapters.DynamoDB do
     options = case on_conflict_action do
       :replace_all -> []
       _ -> 
-        attribute_names = %{"##{hash_key}" => hash_key}
-        condition_expression = "attribute_not_exists(##{hash_key})"
+        attribute_names = for k <- key_list, into: %{}, do: {"##{k}", k}
+        conditions = for k <- key_list, do: "attribute_not_exists(##{k})"
+        condition_expression = Enum.join(conditions, " and ")
         [expression_attribute_names: attribute_names,
          condition_expression: condition_expression]
     end
@@ -497,11 +498,8 @@ defmodule Ecto.Adapters.DynamoDB do
         case on_conflict_action do
           :nothing -> {:ok, (for key <- key_list, do: {String.to_atom(key), nil})}
           :raise   ->
-            # The only condition expression we specify is on the first part of the
-            # primary key, so if we get this particular error we should be able to infer
-            # the constraint that we hit and generate the corresponding default constraint
-            # name. This yields the correct behavior in the case the user has specified a
-            # unique constraint on the primary key in their schema.
+            # This constraint name yields the correct behavior in the case the user
+            # has specified a unique constraint on the primary key in their schema:
             constraint_name = "#{table}_#{hash_key}_index"
             {:invalid, [unique: constraint_name]}
         end
