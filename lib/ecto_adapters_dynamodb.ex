@@ -479,17 +479,17 @@ defmodule Ecto.Adapters.DynamoDB do
     ecto_dynamo_log(:info, "Table: #{inspect table}; Record: #{inspect record}")
 
     {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
-    filters = [{(hd key_list), nil}]
-    attribute_names = construct_expression_attribute_names(keys_to_atoms(filters))
+    hash_key = hd(key_list)
 
     on_conflict_action = elem(on_conflict, 0)
 
     options = case on_conflict_action do
       :replace_all -> []
       _ -> 
-        base_options = [expression_attribute_names: attribute_names]
-        condition_expression = "attribute_not_exists(##{hd key_list})"
-        base_options ++ [condition_expression: condition_expression]
+        attribute_names = %{"##{hash_key}" => hash_key}
+        condition_expression = "attribute_not_exists(##{hash_key})"
+        [expression_attribute_names: attribute_names,
+         condition_expression: condition_expression]
     end
 
     case Dynamo.put_item(table, record, options) |> ExAws.request |> handle_error!(%{table: table, records: [record]}) do
@@ -502,7 +502,7 @@ defmodule Ecto.Adapters.DynamoDB do
             # the constraint that we hit and generate the corresponding default constraint
             # name. This yields the correct behavior in the case the user has specified a
             # unique constraint on the primary key in their schema.
-            constraint_name = "#{table}_#{hd key_list}_index"
+            constraint_name = "#{table}_#{hash_key}_index"
             {:invalid, [unique: constraint_name]}
         end
 
