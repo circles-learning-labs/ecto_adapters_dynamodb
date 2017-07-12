@@ -22,6 +22,8 @@ defmodule Ecto.Adapters.DynamoDB do
 
   end
 
+  use Bitwise, only_operators: true
+
   alias ExAws.Dynamo
   alias Ecto.Query.BooleanExpr
 
@@ -85,7 +87,8 @@ defmodule Ecto.Adapters.DynamoDB do
   For the Ecto type, `:binary_id`, the adapter autogenerates a string, using `Ecto.UUID.generate()`
   """
 
-  def autogenerate(:id), do: Enum.random(1..3402823669209384634674607431768211456)
+  @max_id ((1 <<< 128) - 1) # biggest possible int in 128 bits
+  def autogenerate(:id), do: Enum.random(1..@max_id)
   def autogenerate(:embed_id), do: Ecto.UUID.generate()
   def autogenerate(:binary_id), do: Ecto.UUID.generate()
 
