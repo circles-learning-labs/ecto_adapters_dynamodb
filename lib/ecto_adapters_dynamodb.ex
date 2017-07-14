@@ -66,6 +66,12 @@ defmodule Ecto.Adapters.DynamoDB do
     {:ok, [repo]}
   end
 
+  def supports_ddl_transaction?, do: false
+
+  def execute_ddl(repo, command, options) do
+    Ecto.Adapters.DynamoDB.Migration.execute_ddl(repo, command, options)
+  end
+
 
 # moved to transaction.ex in ecto 2.1.4
 #  def in_transaction?(_repo), do: false
@@ -186,7 +192,16 @@ defmodule Ecto.Adapters.DynamoDB do
 
     limit_option = opts[:scan_limit]
     scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
-    updated_opts = Keyword.drop(opts, [:scan_limit, :limit]) ++ scan_limit
+
+    # Ecto migration does not know to specify 'scan: true' to retrieve the persisted migration versions
+    # from line 34, file "deps/ecto/lib/ecto/migration/schema_migration.ex"
+    migration_source = Keyword.get(repo.config, :migration_source, "schema_migrations")
+    updated_opts = if table == migration_source do
+      ecto_dynamo_log(:debug, "Table name corresponds with migration source: #{inspect migration_source}. Setting options for recursive scan.")
+      Keyword.drop(opts, [:timeout, :log]) ++ [recursive: true]
+    else
+      Keyword.drop(opts, [:scan_limit, :limit]) ++ scan_limit
+    end
 
     ecto_dynamo_log(:debug, "table = #{inspect table}")
     ecto_dynamo_log(:debug, "lookup_fields: #{inspect lookup_fields}")
@@ -218,15 +233,15 @@ defmodule Ecto.Adapters.DynamoDB do
         else
           cond do
             !result["Count"] and !result["Responses"] -> 
-              decoded = result |> Dynamo.decode_item(as: model) |> custom_decode(model)
-              {1, [[decoded]]}
+              decoded = result |> Dynamo.decode_item(as: model) |> custom_decode(model, prepared.select)
+              {1, [decoded]}
 
             true ->
               # batch_get_item returns "Responses" rather than "Items"
               results_to_decode = if result["Items"], do: result["Items"], else: result["Responses"][table]
 
               decoded = Enum.map(results_to_decode, fn(item) -> 
-                [Dynamo.decode_item(%{"Item" => item}, as: model) |> custom_decode(model)]
+                Dynamo.decode_item(%{"Item" => item}, as: model) |> custom_decode(model, prepared.select)
               end)
 
               {length(decoded), decoded}
@@ -260,7 +275,7 @@ defmodule Ecto.Adapters.DynamoDB do
     end
 
     prepared_data = for key_list <- Enum.map(items, &Map.to_list/1) do
-      key_map = for {key, val_map} <- key_list, into: %{}, do: {key, hd Map.values(val_map)}
+      key_map = for {key, val_map} <- key_list, into: %{}, do: {key, Dynamo.Decoder.decode(val_map)}
       [delete_request: [key: key_map]]
     end
 
@@ -725,8 +740,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # used in :update_all
   defp get_key_values_dynamo_map(dynamo_map, {:primary, keys}) do
-    # We assume that keys will be labled as "S" (String)
-    for k <- keys, do: {String.to_atom(k), dynamo_map[k]["S"]}
+    for k <- keys, do: {String.to_atom(k), Dynamo.Decoder.decode(dynamo_map[k])}
   end
 
 
@@ -987,32 +1001,55 @@ defmodule Ecto.Adapters.DynamoDB do
     raise ArgumentError, message: msg
   end
 
+
+  defp extract_select_fields(%Ecto.Query.SelectExpr{expr: expr} = _) do
+    case expr do
+      {_, _, [0]} ->
+        []
+
+      {{:., _, [{_, _, _}, field]}, _, _} ->
+        [field]
+
+      {:{}, _, clauses} ->
+        for {{_, _, [{_, _, _}, field]}, _, _} <- clauses, do: field
+    end
+  end
+
   # Decodes maps and datetime, seemingly unhandled by ExAws Dynamo decoder
   # (timestamps() corresponds with :naive_datetime)
-  defp custom_decode(item, model) do    
-    Enum.reduce(model.__schema__(:fields), item, fn (field, acc) ->
-        field_is_nil = is_nil Map.get(item, field)
-  
-        case model.__schema__(:type, field) do
-          _ when field_is_nil ->
-            acc
+  defp custom_decode(item, model, select) do
+    selected_fields = extract_select_fields(select)
 
-          :utc_datetime   ->
-            update_fun = fn v ->
-              {:ok, dt, _offset} = DateTime.from_iso8601(v)
-              dt
-            end
-            Map.update!(acc, field, update_fun)
+    case selected_fields do
+      [] ->
+        [Enum.reduce(model.__schema__(:fields), item, fn (field, acc) ->
+          Map.update!(acc, field, fn val -> decode_type(model.__schema__(:type, field), val) end)
+        end)]
+      fields ->
+        for field <- fields, do: decode_type(model.__schema__(:type, field), Map.get(item, field))
+    end
+  end
 
-          :naive_datetime ->
-            Map.update!(acc, field, &NaiveDateTime.from_iso8601!/1)
+  # This is used slightly differently 
+  # when handling select in custom_decode/2
+  defp decode_type(type, val) do
+	if is_nil val do
+      val
+    else
+      case type do
+        :utc_datetime ->
+          {:ok, dt, _offset} = DateTime.from_iso8601(val)
+          dt
 
-          type when type in [Ecto.Adapters.DynamoDB.DynamoDBSet, MapSet] ->
-            Map.update!(acc, field, &MapSet.new/1)
-            
-          _               -> acc
-        end 
-      end)
+        :naive_datetime ->
+          NaiveDateTime.from_iso8601!(val)
+
+        t when t in [Ecto.Adapters.DynamoDB.DynamoDBSet, MapSet] ->
+          MapSet.new(val)
+
+        _ -> val
+      end
+    end
   end
 
   # We found one instance where DynamoDB's error message could
@@ -1062,9 +1099,9 @@ defmodule Ecto.Adapters.DynamoDB do
     log_path = Application.get_env(:ecto_adapters_dynamodb, :log_path)
 
     if level in Application.get_env(:ecto_adapters_dynamodb, :log_levels) do
-      IO.ANSI.format([colors[level], formatted_message], true) |> IO.puts
+      IO.ANSI.format([colors[level] || :normal, formatted_message], true) |> IO.puts
 
-      if Regex.match?(~r/\S/, log_path), do: log_pipe(log_path, formatted_message)
+      if String.valid?(log_path) and Regex.match?(~r/\S/, log_path), do: log_pipe(log_path, formatted_message)
     end
   end
 
