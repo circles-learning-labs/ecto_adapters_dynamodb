@@ -4,11 +4,13 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   alias ExAws.Dynamo
 
   @moduledoc"""
-  Implements Ecto migrations for `create table` and `alter table`. The functions, `add`, `remove` and `modify` correspond to indexes on the DynamoDB table.
+  Implements Ecto migrations for `create table` and `alter table`.
   
-  Using `add`, the second parameter, field type (which corresponds with the DynamoDB attribute) must be specified. Use the third parameter to specify a primary key not already specified. For a HASH-only primary key, use `primary_key: true` as the third parameter. For a composite primary key (HASH and RANGE), set the third parameter to `range_key: true`. There should be only one primary key specified per table.
-  
-  To specify index details, such as providioned throughput, global and local indexes, use the 'options' keyword in `create` and `alter`, please see the examples directly below for greater detail:
+  The functions, `add`, `remove` and `modify` correspond to indexes on the DynamoDB table. Using `add`, the second parameter, field type (which corresponds with the DynamoDB attribute) must be specified. Use the third parameter to specify a primary key not already specified. For a HASH-only primary key, use `primary_key: true` as the third parameter. For a composite primary key (HASH and RANGE), in addition to the `primary_key` specification, set the third parameter on the range key attribute to `range_key: true`. There should be only one primary key (hash or composite) specified per table.
+ 
+  To specify index details, such as provisioned throughput, global and local indexes, use the `options` keyword in `create table` and `alter table`, please see the examples below for greater detail.
+
+  *Please note that `change` may not work as expected on rollback. We recommend specifying `up` and `down` instead.*
 
   ```
   Example:
@@ -16,7 +18,8 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   #Migration file 1:
 
     def change do
-      create table(:post, primary_key: false,
+      create table(:post,
+        primary_key: false,
         options: [
           global_indexes: [
             [index_name: "email_content",
@@ -26,8 +29,8 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
           provisioned_throughput: [20,20]
         ]) do
 
-        add :email,   :string, primary_key: true
-        add :title,   :string, range_key: true
+        add :email,   :string, primary_key: true  # primary composite key
+        add :title,   :string, range_key: true    # primary composite key
         add :content, :string
 
         timestamps()
