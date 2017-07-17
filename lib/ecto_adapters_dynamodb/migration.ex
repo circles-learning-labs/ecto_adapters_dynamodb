@@ -4,7 +4,11 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   alias ExAws.Dynamo
 
   @moduledoc"""
-  Implements some Ecto migrations.
+  Implements Ecto migrations for `create table` and `alter table`. The functions, `add`, `remove` and `modify` correspond to indexes on the DynamoDB table.
+  
+  Using `add`, the second parameter, field type (which corresponds with the DynamoDB attribute) must be specified. Use the third parameter to specify a primary key not already specified. For a HASH-only primary key, use `primary_key: true` as the third parameter. For a composite primary key (HASH and RANGE), set the third parameter to `range_key: true`. There should be only one primary key specified per table.
+  
+  To specify index details, such as providioned throughput, global and local indexes, use the 'options' keyword in `create` and `alter`, please see the examples directly below for greater detail:
 
   ```
   Example:
@@ -118,8 +122,8 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     :ok
   end
 
-  def execute_ddl({:create, %Ecto.Migration.Index{}}, _opts) do
-    raise ArgumentError, message: "Ecto.Adapters.Dynamodb migration does not support 'create index()', please use 'alter table()' instead, see README.md"
+  def execute_ddl({command, %Ecto.Migration.Index{}}, _opts) do
+    raise ArgumentError, message: "Ecto.Adapters.Dynamodb migration does not support '" <> to_string(command) <> " index', please use 'alter table' instead, see README.md"
   end
 
   def execute_ddl({:drop, %Ecto.Migration.Table{} = table}, _opts) do
@@ -154,8 +158,11 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     :ok
   end
 
-  def execute_ddl({command, _, _}, _opts), do:
-  raise ArgumentError, message: "#{inspect __MODULE__}.execute_ddl error: #{inspect command} is not supported"
+  def execute_ddl({command, struct, _}, _opts), do:
+  raise ArgumentError, message: "#{inspect __MODULE__}.execute_ddl error: '" <> to_string(command) <> " #{extract_ecto_migration_type(inspect struct.__struct__)}' is not supported"
+
+  def execute_ddl({command, struct}, _opts), do:
+  raise ArgumentError, message: "#{inspect __MODULE__}.execute_ddl error: '" <> to_string(command) <> " #{extract_ecto_migration_type(inspect struct.__struct__)}' is not supported"
 
 
   defp create_table(table_name, field_clauses, options) do
@@ -263,4 +270,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   defp proper_list([a | b], res) when not (is_list b), do: Enum.reverse([a | res])
   defp proper_list([a | b], res), do: proper_list(b, [a | res])
 
+  defp extract_ecto_migration_type(str),
+  do: str |> String.split(".") |> List.last |> String.downcase
 end
