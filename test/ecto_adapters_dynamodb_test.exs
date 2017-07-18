@@ -5,6 +5,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
   alias Ecto.Adapters.DynamoDB.TestRepo
   alias Ecto.Adapters.DynamoDB.TestSchema.Person
+  alias Ecto.Adapters.DynamoDB.TestSchema.Address
   alias Ecto.Adapters.DynamoDB.TestSchema.BookPage
 
   @test_table "test_person"
@@ -173,5 +174,20 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
     assert nil == TestRepo.get(Person, "person:delete_all_1")
     assert nil == TestRepo.get(Person, "person:delete_all_2")
+  end
+
+  test "embedded records" do
+    key = "person:address_test"
+    addr_list = [%Address{street_number: 245, street_name: "W 17th St"},
+                 %Address{street_number: 1385, street_name: "Broadway"}]
+    rec = %Person{id: key, email: "addr@test.com", addresses: addr_list}
+    {:ok, inserted} = TestRepo.insert(rec)
+
+    result = TestRepo.get(Person, key)
+
+    # Remove the metadata to allow for a direct comparison:
+    inserted = Map.delete(inserted, :__meta__)
+    result = Map.delete(result, :__meta__)
+    assert result == inserted
   end
 end
