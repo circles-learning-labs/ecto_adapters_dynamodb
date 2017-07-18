@@ -1047,6 +1047,9 @@ defmodule Ecto.Adapters.DynamoDB do
         :naive_datetime ->
           NaiveDateTime.from_iso8601!(val)
 
+        {:embed, _} ->
+          decode_embed(type, val)
+
         t when t in [Ecto.Adapters.DynamoDB.DynamoDBSet, MapSet] ->
           MapSet.new(val)
 
@@ -1055,6 +1058,15 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
+  defp decode_embed(type, val) do
+    case Ecto.Adapters.SQL.load_embed(type, val) do
+      {:ok, decoded_value} ->
+        decoded_value
+      :error ->
+        ecto_dynamo_log(:info, "failed to decode embedded value: #{inspect val}")
+        nil
+    end
+  end
   # We found one instance where DynamoDB's error message could
   # be more instructive - when trying to set an indexed field to something
   # other than a string or number - so we're adding a more helpful message.
