@@ -63,7 +63,10 @@ defmodule Ecto.Adapters.DynamoDB do
   """
   def ensure_all_started(repo, type) do
     ecto_dynamo_log(:debug, "ensure all started: type: #{inspect type} #{inspect repo}")
-    {:ok, [repo]}
+    with {:ok, _} = Application.ensure_all_started(:ecto_adapters_dynamodb)
+    do
+      {:ok, [repo]}
+    end
   end
 
   def supports_ddl_transaction?, do: false
@@ -1033,7 +1036,7 @@ defmodule Ecto.Adapters.DynamoDB do
   # This is used slightly differently 
   # when handling select in custom_decode/2
   defp decode_type(type, val) do
-	if is_nil val do
+    if is_nil val do
       val
     else
       case type do
