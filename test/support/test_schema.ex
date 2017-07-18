@@ -1,8 +1,19 @@
+defmodule Ecto.Adapters.DynamoDB.TestSchema.Address do
+  use Ecto.Schema
+
+  embedded_schema do
+    field :street_number, :integer
+    field :street_name, :string
+  end
+end
+
 defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
   use Ecto.Schema
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   
+  alias Ecto.Adapters.DynamoDB.TestSchema.Address
+
   schema "test_person" do
     field :first_name, :string
     field :last_name,  :string
@@ -11,6 +22,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
     field :password,   :string
     field :role,       :string
     field :circles,    {:array, :string}
+    embeds_many :addresses, Address
   end
 
   def changeset(person, params \\ %{}) do

@@ -47,6 +47,7 @@ defmodule AdapterStateEqcTest do
   def gen_field_val(:string), do: nonempty_str()
   def gen_field_val(:integer), do: int()
   def gen_field_val({:array, type}), do: type |> gen_field_val |> list |> non_empty
+  def gen_field_val({:embed, %Ecto.Embedded{cardinality: :many}}), do: []
 
   def insert_opts do
     oneof([[on_conflict: :nothing],
