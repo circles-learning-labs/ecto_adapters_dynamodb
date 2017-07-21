@@ -121,13 +121,11 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   end
 
 
+  # dynamo raw index data is complex, and can contain either one or two fields along with their type (hash or range)
+  # This parses it and returns a simple list format. The first element of the list is the HASH key, the second
+  # (optional) is the range/sort key. eg:
+  # [hash_field_name, sort_field_name] or [hash_field_name]
 
-  @doc """
-  dynamo raw index data is complex, and can contain either one or two fields along with their type (hash or range)
-  This parses it and returns a simple list format. The first element of the list is the HASH key, the second
-  (optional) is the range/sort key. eg:
-  [hash_field_name, sort_field_name] or [hash_field_name]
-  """
   @spec normalise_dynamo_index!([%{required(String.t) => String.t}]) :: [String.t] | no_return
   defp normalise_dynamo_index!(index_fields) do
     # The data structure can look a little like these examples:

@@ -87,6 +87,14 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
  ```
   """
 
+
+  # DynamoDB has restrictions on what can be done while tables are being created or
+  # updated so we allow for a custom wait between requests if certain resource-access
+  # errors are returned
+  @wait_interval Application.get_env(:ecto_adapters_dynamodb, :migration_wait_interval) || 500
+  @max_wait Application.get_env(:ecto_adapters_dynamodb, :migration_max_wait) || 30000
+
+
   # Adapted from line 620, https://github.com/michalmuskala/mongodb_ecto/blob/master/lib/mongo_ecto.ex
   def execute_ddl(_repo, string, _opts) when is_binary(string) do
     raise ArgumentError, message: "Ecto.Adapters.Dynamodb does not support SQL statements in `execute`"
@@ -98,10 +106,10 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     ecto_dynamo_log(:debug, "command: #{inspect command}")
     ecto_dynamo_log(:debug, "options: #{inspect options}")
 
-    execute_ddl(command, options)
+    execute_ddl(command)
   end
 
-  def execute_ddl({:create_if_not_exists, %Ecto.Migration.Table{} = table, field_clauses}, _opts) do
+  def execute_ddl({:create_if_not_exists, %Ecto.Migration.Table{} = table, field_clauses}) do
     table_name = Atom.to_string(table.name)
     %{"TableNames" => table_list} = Dynamo.list_tables |> ExAws.request!
 
@@ -117,7 +125,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     :ok
   end
 
-  def execute_ddl({:create, %Ecto.Migration.Table{} = table, field_clauses}, _opts) do
+  def execute_ddl({:create, %Ecto.Migration.Table{} = table, field_clauses}) do
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: create table")
     ecto_dynamo_log(:info, "Creating table #{inspect table.name}")
 
@@ -125,11 +133,11 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     :ok
   end
 
-  def execute_ddl({command, %Ecto.Migration.Index{}}, _opts) do
+  def execute_ddl({command, %Ecto.Migration.Index{}}) do
     raise ArgumentError, message: "Ecto.Adapters.Dynamodb migration does not support '" <> to_string(command) <> " index', please use 'alter table' instead, see README.md"
   end
 
-  def execute_ddl({:drop, %Ecto.Migration.Table{} = table}, _opts) do
+  def execute_ddl({:drop, %Ecto.Migration.Table{} = table}) do
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: drop")
     ecto_dynamo_log(:info, "Removing table #{inspect table.name}")
 
@@ -137,7 +145,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     :ok
   end
 
-  def execute_ddl({:alter, %Ecto.Migration.Table{} = table, field_clauses}, _opts) do
+  def execute_ddl({:alter, %Ecto.Migration.Table{} = table, field_clauses}) do
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: alter table")
 
     {delete, update, key_list} = build_delete_and_update(field_clauses)
@@ -157,16 +165,36 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     data = %{global_secondary_index_updates: create ++ delete ++ update}
            |> Map.merge(if create == [], do: %{}, else: %{attribute_definitions: attribute_definitions})
 
-    Dynamo.update_table(table.name, data) |> ExAws.request!
-    :ok
+    update_table_recursive(table.name, data, 0)
   end
 
-  def execute_ddl({command, struct, _}, _opts), do:
+  def execute_ddl({command, struct, _}), do:
   raise ArgumentError, message: "#{inspect __MODULE__}.execute_ddl error: '" <> to_string(command) <> " #{extract_ecto_migration_type(inspect struct.__struct__)}' is not supported"
 
-  def execute_ddl({command, struct}, _opts), do:
+  def execute_ddl({command, struct}), do:
   raise ArgumentError, message: "#{inspect __MODULE__}.execute_ddl error: '" <> to_string(command) <> " #{extract_ecto_migration_type(inspect struct.__struct__)}' is not supported"
 
+
+  defp update_table_recursive(table_name, data, time_waited) do
+    case Dynamo.update_table(table_name, data) |> ExAws.request do
+      {:ok, _} ->
+        ecto_dynamo_log(:info, "Table #{inspect table_name} altered successfully")
+        :ok
+
+      {:error, {error, _message}} when (error in ["ResourceInUseException"]) ->
+        if (time_waited + @wait_interval) <= @max_wait do
+          ecto_dynamo_log(:info, "#{inspect error} ... waiting #{inspect @wait_interval} milliseconds")
+          :timer.sleep(@wait_interval)
+          update_table_recursive(table_name, data, time_waited + @wait_interval)
+        else
+          ecto_dynamo_log(:info, "#{inspect error} ... wait exceeded configured max wait time, skipping update table #{inspect table_name}...")
+          :ok
+        end
+
+      {:error, error_tuple} ->
+        ecto_dynamo_log(:info, "Error attempting to update table #{inspect table_name}: #{inspect error_tuple}. Skipping...")
+    end
+  end
 
   defp create_table(table_name, field_clauses, options) do
     {key_schema, key_definitions} = build_key_schema_and_definitions(table_name, field_clauses, options)
@@ -174,7 +202,29 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     global_indexes = build_secondary_indexes(options[:global_indexes])
     local_indexes = build_secondary_indexes(options[:local_indexes])
 
-    Dynamo.create_table(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes) |> ExAws.request!
+    create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, 0)
+  end
+
+  defp create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, time_waited) do
+
+    case Dynamo.create_table(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes) |> ExAws.request do
+      {:ok, _} ->
+        ecto_dynamo_log(:info, "Table #{inspect table_name} created successfully")
+        :ok
+
+      {:error, {error, _message}} when (error in ["LimitExceededException"]) ->
+        if (time_waited + @wait_interval) <= @max_wait do
+          ecto_dynamo_log(:info, "#{inspect error} ... waiting #{inspect @wait_interval} milliseconds")
+          :timer.sleep(@wait_interval)
+          create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, time_waited + @wait_interval)
+        else
+          ecto_dynamo_log(:info, "#{inspect error} ... wait exceeded configured max wait time, skipping create table #{inspect table_name}...")
+          :ok
+        end
+
+      {:error, error_tuple} ->
+        ecto_dynamo_log(:info, "Error attempting to create table #{inspect table_name}: #{inspect error_tuple}. Skipping...")
+    end
   end
 
   defp build_key_schema_and_definitions(table_name, field_clauses, options) do
