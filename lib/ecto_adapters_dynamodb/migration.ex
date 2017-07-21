@@ -91,7 +91,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   # DynamoDB has restrictions on what can be done while tables are being created or
   # updated so we allow for a custom wait between requests if certain resource-access
   # errors are returned
-  @wait_interval Application.get_env(:ecto_adapters_dynamodb, :migration_wait_interval) || 500
+  @wait_interval Application.get_env(:ecto_adapters_dynamodb, :migration_wait_interval) || 1000
   @max_wait Application.get_env(:ecto_adapters_dynamodb, :migration_max_wait) || 30000
 
 
@@ -183,7 +183,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
       {:error, {error, _message}} when (error in ["ResourceInUseException"]) ->
         if (time_waited + @wait_interval) <= @max_wait do
-          ecto_dynamo_log(:info, "#{inspect error} ... waiting #{inspect @wait_interval} milliseconds")
+          ecto_dynamo_log(:info, "#{inspect error} ... waiting #{inspect @wait_interval} milliseconds (interval: #{inspect @wait_interval} ms, waited so far: #{inspect time_waited} ms)")
           :timer.sleep(@wait_interval)
           update_table_recursive(table_name, data, time_waited + @wait_interval)
         else
@@ -214,7 +214,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
       {:error, {error, _message}} when (error in ["LimitExceededException"]) ->
         if (time_waited + @wait_interval) <= @max_wait do
-          ecto_dynamo_log(:info, "#{inspect error} ... waiting #{inspect @wait_interval} milliseconds")
+          ecto_dynamo_log(:info, "#{inspect error} ... waiting #{inspect @wait_interval} milliseconds (interval: #{inspect @wait_interval} ms, waited so far: #{inspect time_waited} ms)")
           :timer.sleep(@wait_interval)
           create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, time_waited + @wait_interval)
         else
