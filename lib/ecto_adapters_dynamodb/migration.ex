@@ -91,8 +91,9 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   # DynamoDB has restrictions on what can be done while tables are being created or
   # updated so we allow for a custom wait between requests if certain resource-access
   # errors are returned
-  @wait_interval Application.get_env(:ecto_adapters_dynamodb, :migration_wait_interval) || 1000
-  @max_wait Application.get_env(:ecto_adapters_dynamodb, :migration_max_wait) || 30000
+  @initial_wait Application.get_env(:ecto_adapters_dynamodb, :migration_initial_wait) || 1000
+  @wait_exponent Application.get_env(:ecto_adapters_dynamodb, :migration_wait_exponent) || 1.05
+  @max_wait Application.get_env(:ecto_adapters_dynamodb, :migration_max_wait) || 15000
 
 
   # Adapted from line 620, https://github.com/michalmuskala/mongodb_ecto/blob/master/lib/mongo_ecto.ex
@@ -165,7 +166,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     data = %{global_secondary_index_updates: create ++ delete ++ update}
            |> Map.merge(if create == [], do: %{}, else: %{attribute_definitions: attribute_definitions})
 
-    update_table_recursive(table.name, data, 0)
+    update_table_recursive(table.name, data, @initial_wait, 0)
   end
 
   def execute_ddl({command, struct, _}), do:
@@ -175,19 +176,21 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   raise ArgumentError, message: "#{inspect __MODULE__}.execute_ddl error: '" <> to_string(command) <> " #{extract_ecto_migration_type(inspect struct.__struct__)}' is not supported"
 
 
-  defp update_table_recursive(table_name, data, time_waited) do
+  defp update_table_recursive(table_name, data, wait_interval, time_waited) do
     case Dynamo.update_table(table_name, data) |> ExAws.request do
       {:ok, _} ->
         ecto_dynamo_log(:info, "Table #{inspect table_name} altered successfully")
         :ok
 
       {:error, {error, _message}} when (error in ["ResourceInUseException"]) ->
-        if (time_waited + @wait_interval) <= @max_wait do
-          ecto_dynamo_log(:info, "#{inspect error} ... waiting #{inspect @wait_interval} milliseconds (interval: #{inspect @wait_interval} ms, waited so far: #{inspect time_waited} ms)")
-          :timer.sleep(@wait_interval)
-          update_table_recursive(table_name, data, time_waited + @wait_interval)
+        to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
+
+        if (time_waited + to_wait) <= @max_wait do
+          ecto_dynamo_log(:info, "#{inspect error} ... waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
+          :timer.sleep(to_wait)
+          update_table_recursive(table_name, data, to_wait, time_waited + to_wait)
         else
-          ecto_dynamo_log(:info, "#{inspect error} ... wait exceeded configured max wait time, skipping update table #{inspect table_name}...")
+          ecto_dynamo_log(:info, "#{inspect error} ... wait exceeding configured max wait time, skipping update table #{inspect table_name}...")
           :ok
         end
 
@@ -202,10 +205,10 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     global_indexes = build_secondary_indexes(options[:global_indexes])
     local_indexes = build_secondary_indexes(options[:local_indexes])
 
-    create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, 0)
+    create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, @initial_wait, 0)
   end
 
-  defp create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, time_waited) do
+  defp create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, wait_interval, time_waited) do
 
     case Dynamo.create_table(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes) |> ExAws.request do
       {:ok, _} ->
@@ -213,12 +216,14 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         :ok
 
       {:error, {error, _message}} when (error in ["LimitExceededException"]) ->
-        if (time_waited + @wait_interval) <= @max_wait do
-          ecto_dynamo_log(:info, "#{inspect error} ... waiting #{inspect @wait_interval} milliseconds (interval: #{inspect @wait_interval} ms, waited so far: #{inspect time_waited} ms)")
-          :timer.sleep(@wait_interval)
-          create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, time_waited + @wait_interval)
+        to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
+
+        if (time_waited + to_wait) <= @max_wait do
+          ecto_dynamo_log(:info, "#{inspect error} ... waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
+          :timer.sleep(to_wait)
+          create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, to_wait, time_waited + to_wait)
         else
-          ecto_dynamo_log(:info, "#{inspect error} ... wait exceeded configured max wait time, skipping create table #{inspect table_name}...")
+          ecto_dynamo_log(:info, "#{inspect error} ... wait exceeding configured max wait time, skipping create table #{inspect table_name}...")
           :ok
         end
 
