@@ -107,7 +107,10 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     ecto_dynamo_log(:debug, "command: #{inspect command}")
     ecto_dynamo_log(:debug, "options: #{inspect options}")
 
-    execute_ddl(command)
+    # We provide a configuration option for migration_table_capacity
+    updated_command = maybe_add_schema_migration_table_capacity(repo, command)
+
+    execute_ddl(updated_command)
   end
 
   def execute_ddl({:create_if_not_exists, %Ecto.Migration.Table{} = table, field_clauses}) do
@@ -175,6 +178,23 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   def execute_ddl({command, struct}), do:
   raise ArgumentError, message: "#{inspect __MODULE__}.execute_ddl error: '" <> to_string(command) <> " #{extract_ecto_migration_type(inspect struct.__struct__)}' is not supported"
 
+
+  # We provide a configuration option for migration_table_capacity
+  defp maybe_add_schema_migration_table_capacity(repo, {:create_if_not_exists, %Ecto.Migration.Table{} = table, field_clauses} = command) do
+    migration_source = Keyword.get(repo.config, :migration_source, "schema_migrations")
+
+    if to_string(table.name) == migration_source do
+      migration_table_capacity = Application.get_env(:ecto_adapters_dynamodb, :migration_table_capacity) || [1,1]
+      updated_table_options = case table.options do
+        nil  -> [provisioned_throughput: migration_table_capacity]
+		opts -> Keyword.put(opts, :provisioned_throughput, migration_table_capacity)
+      end
+	  {:create_if_not_exists, Map.put(table, :options, updated_table_options), field_clauses}
+    else
+      command
+    end
+  end
+  defp maybe_add_schema_migration_table_capacity(_repo, command), do: command
 
   defp update_table_recursive(table_name, data, wait_interval, time_waited) do
     case Dynamo.update_table(table_name, data) |> ExAws.request do

@@ -91,7 +91,7 @@ By default, we configure the adapter to fetch all pages recursively for a Dynamo
 We only launch one instance of ExAws application (and have not yet investigated running multiple instances). This means we can only point to a single amazon Dynamo instance. It's currently not possible to run against two different amazon AWS accounts concurrently. Hopefully this won't be a problem for most users.
 
 #### Adapter.Migration
-We support Ecto migration tasks via **create_table** and **alter_table** only. The functions, `add`, `remove` and `modify` work with corresponding indexes on the DynamoDB table. The adapter will automatically wait and retry requests when encountering DynamoDB's ResourceInUseException or LimitExceededException, according to an exponential backoff schedule. Since working with DynamoDB indexes and describing tables includes many options outside of Ecto's scope, for our supported syntax, please see details and examples in the **Ecto.Adapters.DynamoDB.Migration** moduledoc, as well as the configuration options, `:migration_initial_wait`, `:migration_wait_exponent`, and `:migration_max_wait`.
+We support Ecto migration tasks via **create_table** and **alter_table** only. The functions, `add`, `remove` and `modify` work with corresponding indexes on the DynamoDB table. The adapter will automatically wait and retry requests when encountering DynamoDB's ResourceInUseException or LimitExceededException, according to an exponential backoff schedule. Since working with DynamoDB indexes and describing tables includes many options outside of Ecto's scope, for our supported syntax, please see details and examples in the **Ecto.Adapters.DynamoDB.Migration** moduledoc, as well as the configuration options, `:migration_initial_wait`, `:migration_wait_exponent`, `:migration_max_wait`, `:migration_table_capacity`.
 
 ### Unimplemented Features
 While the previous section listed limitations that we're unlikely to work around due to philosphical differences between DynamoDB as a key/value store vs an SQL relational database, there are some features that we just haven't implemented yet. Feel free to help out if any of these are important to you!
@@ -260,17 +260,21 @@ Pre-approves all tables for a DynamoDB **scan** command in case an indexed field
 A list of table names for tables assigned for caching of the first page of results (without setting DynamoDB's **limit** parameter in the scan request). For a set table, call `Repo.all(Model)` to cache the first page of results. To override the caching for a table in this list, and perform a regular scan with associated inline options (see below), provide an additional `scan: true` option with the query; for example, `Repo.all(Model, scan: true, recursive: true)`.
 
 #### Migration-related options
-**:migration_initial_wait** :: [integer], *default:* `1000`
+**:migration_initial_wait** :: integer, *default:* `1000`
 
 The time in milliseconds of the first wait period before retrying a DynamoDB **create_table** or **update_table** request.
 
-**:migration_wait_exponent** :: [float], *default:* `1.05`
+**:migration_wait_exponent** :: float, *default:* `1.05`
 
 The exponent to which the wait time between sequential retries of **create_table** or **update_table** requests is raised.
 
-**:migration_max_wait** :: [integer], *default:* `15000`
+**:migration_max_wait** :: integer, *default:* `15000`
 
 The maximum wait time in milliseconds over sequential retries of a particular **create_table** or **update_table** request. Set this to zero to avoid retries altogether. 
+
+**:migration_table_capacity** :: [integer, integer], *default:* `[1,1]`
+
+ProvisionedThroughput as `[ReadCapacityUnits, WriteCapacityUnits]`, for the Schema Migrations table only, automatically created by Ecto if it does not exist.
 
 ## Inline Options
 
