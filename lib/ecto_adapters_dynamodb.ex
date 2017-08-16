@@ -1112,8 +1112,9 @@ defmodule Ecto.Adapters.DynamoDB do
     d = DateTime.utc_now 
     formatted_message = "\n[Ecto Dynamo #{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC] #{message}"
     log_path = Application.get_env(:ecto_adapters_dynamodb, :log_path)
+    log_levels = Application.get_env(:ecto_adapters_dynamodb, :log_levels) || [:info]
 
-    if level in Application.get_env(:ecto_adapters_dynamodb, :log_levels) do
+    if level in log_levels do
       IO.ANSI.format([colors[level] || :normal, formatted_message], true) |> IO.puts
 
       if String.valid?(log_path) and Regex.match?(~r/\S/, log_path), do: log_pipe(log_path, formatted_message)

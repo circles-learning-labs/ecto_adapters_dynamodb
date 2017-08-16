@@ -93,6 +93,8 @@ We only launch one instance of ExAws application (and have not yet investigated 
 #### Adapter.Migration
 We support Ecto migration tasks via **create_table** and **alter_table** only. The functions, `add`, `remove` and `modify` work with corresponding indexes on the DynamoDB table. The adapter will automatically wait and retry requests when encountering DynamoDB's ResourceInUseException or LimitExceededException, according to an exponential backoff schedule. Since working with DynamoDB indexes and describing tables includes many options outside of Ecto's scope, for our supported syntax, please see details and examples in the **Ecto.Adapters.DynamoDB.Migration** moduledoc, as well as the configuration options, `:migration_initial_wait`, `:migration_wait_exponent`, `:migration_max_wait`, `:migration_table_capacity`.
 
+Please note: Ecto migration calls Repo.all on the *schema_migrations* table, which corresponds with a DynamoDB scan. To run migrations, add "schema_migrations" (or the alternate name you've configured for it) in the configuration file to the config variable, **:scan_tables**.
+
 ### Unimplemented Features
 While the previous section listed limitations that we're unlikely to work around due to philosphical differences between DynamoDB as a key/value store vs an SQL relational database, there are some features that we just haven't implemented yet. Feel free to help out if any of these are important to you!
 
