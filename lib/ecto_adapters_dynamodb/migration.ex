@@ -149,6 +149,24 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     :ok
   end
 
+  def execute_ddl({:drop_if_exists, %Ecto.Migration.Table{} = table}) do
+    table_name = Atom.to_string(table.name)
+    %{"TableNames" => table_list} = Dynamo.list_tables |> ExAws.request!
+
+    ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: drop_if_exists (table)")
+    
+    if Enum.member?(table_list, table_name) do
+      ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: drop_if_exists")
+      ecto_dynamo_log(:info, "Removing table #{inspect table.name}")
+
+      Dynamo.delete_table(table.name) |> ExAws.request!
+    else
+      ecto_dynamo_log(:info, "Table #{inspect table.name} does not exist, skipping...")
+    end
+
+    :ok
+  end
+
   def execute_ddl({:alter, %Ecto.Migration.Table{} = table, field_clauses}) do
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: alter table")
 
