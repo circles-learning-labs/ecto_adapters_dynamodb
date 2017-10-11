@@ -123,7 +123,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       ecto_dynamo_log(:info, "Creating table #{inspect table.name}")
       create_table(table_name, field_clauses, table.options)
     else
-      ecto_dynamo_log(:info, "Table #{inspect table.name} already exists, skipping...")
+      ecto_dynamo_log(:info, "add_if_exists table #{inspect table.name}: table already exists. Done.")
     end
 
     :ok
@@ -161,7 +161,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
       Dynamo.delete_table(table.name) |> ExAws.request!
     else
-      ecto_dynamo_log(:info, "Table #{inspect table.name} does not exist, skipping...")
+      ecto_dynamo_log(:info, "drop_if_exists table #{inspect table.name}: table does not exist. Done.")
     end
 
     :ok
