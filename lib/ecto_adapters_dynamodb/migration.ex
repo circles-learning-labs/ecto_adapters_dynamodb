@@ -228,12 +228,12 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
           :timer.sleep(to_wait)
           update_table_recursive(table_name, data, to_wait, time_waited + to_wait)
         else
-          ecto_dynamo_log(:info, "#{inspect error} ... wait exceeding configured max wait time, skipping update table #{inspect table_name}...")
-          :ok
+          raise "#{inspect error} ... wait exceeding configured max wait time, stopping migration at update table #{inspect table_name}..."
         end
 
       {:error, error_tuple} ->
         ecto_dynamo_log(:info, "Error attempting to update table #{inspect table_name}: #{inspect error_tuple}. Skipping...")
+        raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
     end
   end
 
@@ -261,12 +261,12 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
           :timer.sleep(to_wait)
           create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, to_wait, time_waited + to_wait)
         else
-          ecto_dynamo_log(:info, "#{inspect error} ... wait exceeding configured max wait time, skipping create table #{inspect table_name}...")
-          :ok
+          raise "#{inspect error} ... wait exceeding configured max wait time, stopping migration at create table #{inspect table_name}..."
         end
 
       {:error, error_tuple} ->
         ecto_dynamo_log(:info, "Error attempting to create table #{inspect table_name}: #{inspect error_tuple}. Skipping...")
+        raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
     end
   end
 
