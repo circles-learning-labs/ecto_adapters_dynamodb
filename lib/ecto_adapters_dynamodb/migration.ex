@@ -93,7 +93,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   # errors are returned
   @initial_wait Application.get_env(:ecto_adapters_dynamodb, :migration_initial_wait) || 1000
   @wait_exponent Application.get_env(:ecto_adapters_dynamodb, :migration_wait_exponent) || 1.05
-  @max_wait Application.get_env(:ecto_adapters_dynamodb, :migration_max_wait) || 15000
+  @max_wait Application.get_env(:ecto_adapters_dynamodb, :migration_max_wait) || 10 * 60 * 1000
 
 
   # Adapted from line 620, https://github.com/michalmuskala/mongodb_ecto/blob/master/lib/mongo_ecto.ex
