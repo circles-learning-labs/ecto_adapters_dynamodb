@@ -232,7 +232,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         end
 
       {:error, error_tuple} ->
-        ecto_dynamo_log(:info, "Error attempting to update table #{inspect table_name}: #{inspect error_tuple}. Skipping...")
+        ecto_dynamo_log(:info, "Error attempting to update table #{inspect table_name}: #{inspect error_tuple}. Stopping...")
         raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
     end
   end
@@ -265,7 +265,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         end
 
       {:error, error_tuple} ->
-        ecto_dynamo_log(:info, "Error attempting to create table #{inspect table_name}: #{inspect error_tuple}. Skipping...")
+        ecto_dynamo_log(:info, "Error attempting to create table #{inspect table_name}: #{inspect error_tuple}. Stopping...")
         raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
     end
   end
