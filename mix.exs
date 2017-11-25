@@ -49,8 +49,8 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   # Type "mix help deps" for more examples and options
   defp deps do
     [
-      {:ecto, ">= 2.1.4"},
-      {:ex_aws, "~> 1.1"},
+      {:ecto, "~> 2.2"},
+      {:ex_aws_dynamo, "~> 2.0"},
       {:poison, "~> 2.0"},
       {:hackney, "~> 1.6"},
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
