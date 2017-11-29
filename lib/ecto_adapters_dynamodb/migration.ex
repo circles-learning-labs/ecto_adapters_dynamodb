@@ -93,7 +93,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   # errors are returned
   @initial_wait Application.get_env(:ecto_adapters_dynamodb, :migration_initial_wait) || 1000
   @wait_exponent Application.get_env(:ecto_adapters_dynamodb, :migration_wait_exponent) || 1.05
-  @max_wait Application.get_env(:ecto_adapters_dynamodb, :migration_max_wait) || 10 * 60 * 1000
+  @max_wait Application.get_env(:ecto_adapters_dynamodb, :migration_max_wait) || 10 * 60 * 1000 # 10 minutes
 
 
   # Adapted from line 620, https://github.com/michalmuskala/mongodb_ecto/blob/master/lib/mongo_ecto.ex
@@ -220,7 +220,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         ecto_dynamo_log(:info, "Table #{inspect table_name} altered successfully")
         :ok
 
-      {:error, {error, _message}} when (error in ["ResourceInUseException"]) ->
+      {:error, {error, _message}} when (error in ["ResourceInUseException", "LimitExceededException"]) ->
         to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
 
         if (time_waited + to_wait) <= @max_wait do
