@@ -214,26 +214,68 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
   defp maybe_add_schema_migration_table_capacity(_repo, command), do: command
 
-  defp update_table_recursive(table_name, data, wait_interval, time_waited) do
-    case Dynamo.update_table(table_name, data) |> ExAws.request do
-      {:ok, _} ->
-        ecto_dynamo_log(:info, "Table #{inspect table_name} altered successfully")
-        :ok
+  defp poll_table(table_name) do
+    table_info = Dynamo.describe_table(table_name) |> ExAws.request
 
-      {:error, {error, _message}} when (error in ["ResourceInUseException", "LimitExceededException"]) ->
-        to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
-
-        if (time_waited + to_wait) <= @max_wait do
-          ecto_dynamo_log(:info, "#{inspect error} ... waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
-          :timer.sleep(to_wait)
-          update_table_recursive(table_name, data, to_wait, time_waited + to_wait)
-        else
-          raise "#{inspect error} ... wait exceeding configured max wait time, stopping migration at update table #{inspect table_name}..."
-        end
+    case table_info do
+      {:ok, %{"Table" => table}} -> 
+        ecto_dynamo_log(:info, "poll_table: table #{inspect table_name} ::: #{inspect table}")
+        table
 
       {:error, error_tuple} ->
-        ecto_dynamo_log(:info, "Error attempting to update table #{inspect table_name}: #{inspect error_tuple}. Stopping...")
+        ecto_dynamo_log(:info, "Error attempting to poll table #{inspect table_name}: #{inspect error_tuple}. Stopping...")
         raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
+    end
+  end
+
+  defp list_non_active_statuses(table_info) do
+    secondary_index_statuses = (table_info["GlobalSecondaryIndexes"] || []) |> Enum.map(fn index -> {index["IndexName"], index["IndexStatus"]} end)
+
+    [{"TableStatus", table_info["TableStatus"]}] ++ secondary_index_statuses |> Enum.filter(fn {_, y} -> y != "ACTIVE" end)
+  end
+
+  defp update_table_recursive(table_name, data, wait_interval, time_waited) do
+    ecto_dynamo_log(:info, "update_table_recursive: polling table #{inspect table_name}...")
+    table_info = poll_table(table_name)
+    non_active_statuses = list_non_active_statuses(table_info)
+
+    if non_active_statuses != [] do
+      ecto_dynamo_log(:info, "update_table_recursive: non-active status found in table #{inspect table_name}: #{inspect non_active_statuses}")
+      to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
+      if (time_waited + to_wait) <= @max_wait do
+        ecto_dynamo_log(:info, "Waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
+        :timer.sleep(to_wait)
+        update_table_recursive(table_name, data, to_wait, time_waited + to_wait)
+      else
+        raise "Wait exceeding configured max wait time, stopping migration at update table #{inspect table_name}...\nData: #{inspect data}"
+      end
+
+    else
+      result = Dynamo.update_table(table_name, data) |> ExAws.request
+
+      ecto_dynamo_log(:info, "update_table_recursive DynamoDB/ExAws response ::: #{inspect result}")
+
+      case result do
+        {:ok, _} ->
+          ecto_dynamo_log(:info, "Table #{inspect table_name} altered successfully")
+          :ok
+
+        {:error, {error, _message}} when (error in ["LimitExceededException", "ProvisionedThroughputExceededException", "ThrottlingException"]) ->
+          to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
+
+          if (time_waited + to_wait) <= @max_wait do
+            ecto_dynamo_log(:info, "#{inspect error} ... waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
+            :timer.sleep(to_wait)
+            update_table_recursive(table_name, data, to_wait, time_waited + to_wait)
+          else
+            raise "#{inspect error} ... wait exceeding configured max wait time, stopping migration at update table #{inspect table_name}...\nData: #{inspect data}"
+          end
+
+        {:error, error_tuple} ->
+          ecto_dynamo_log(:info, "Error attempting to update table #{inspect table_name}: #{inspect error_tuple}. Stopping...\nData: #{inspect data}")
+          raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
+      end
+
     end
   end
 
@@ -247,13 +289,16 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   defp create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, wait_interval, time_waited) do
+    result = Dynamo.create_table(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes) |> ExAws.request
 
-    case Dynamo.create_table(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes) |> ExAws.request do
+    ecto_dynamo_log(:info, "create_table_recursive: DynamoDB/ExAws response ::: #{inspect result}")
+
+    case result do
       {:ok, _} ->
         ecto_dynamo_log(:info, "Table #{inspect table_name} created successfully")
         :ok
 
-      {:error, {error, _message}} when (error in ["LimitExceededException"]) ->
+      {:error, {error, _message}} when (error in ["LimitExceededException", "ProvisionedThroughputExceededException", "ThrottlingException"]) ->
         to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
 
         if (time_waited + to_wait) <= @max_wait do
