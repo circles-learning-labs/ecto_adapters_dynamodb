@@ -451,7 +451,8 @@ defmodule Ecto.Adapters.DynamoDB do
   defp find_all_indexes_in_dynamodb_list(dynamodb_list, target) do
     Dynamo.Decoder.decode(dynamodb_list)
     |> Enum.with_index()
-    |> Enum.filter_map(fn {x, _} -> x == target end, fn {_, i} -> i end)
+    |> Enum.filter(fn {x, _} -> x == target end)
+    |> Enum.map(fn {_, i} -> i end)
   end
 
 
