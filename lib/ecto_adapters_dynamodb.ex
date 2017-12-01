@@ -128,6 +128,7 @@ defmodule Ecto.Adapters.DynamoDB do
     {:ok, (datetime |> Ecto.DateTime.cast! |> Ecto.DateTime.to_iso8601) <> "Z"}
   end
 
+
   @doc """
   Commands invoked to prepare a query for `all`, `update_all` and `delete_all`.
 
