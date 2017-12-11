@@ -9,7 +9,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   @typep key :: String.t
   @typep table_name :: String.t
-  @typep query_op :: :== | :> | :< |:>= | :<= | :is_nil | :between | :in
+  @typep query_op :: :== | :> | :< |:>= | :<= | :is_nil | :between | :begins_with | :in
   @typep boolean_op :: :and | :or
   @typep match_clause :: {term, query_op}
   @typep search_clause :: {key, match_clause} | {boolean_op, [search_clause]}
@@ -113,6 +113,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   @spec construct_range_params(key, match_clause) :: {String.t, %{required(String.t) => key}, keyword()}
   defp construct_range_params(range, {[range_start, range_end], :between}) do
     {"##{range} between :range_start and :range_end", %{"##{range}" => range}, [range_start: range_start, range_end: range_end]} 
+  end
+  defp construct_range_params(range, {prefix, :begins_with}) do
+    {"begins_with(##{range}, :prefix)", %{"##{range}" => range}, [prefix: prefix]} 
   end
   defp construct_range_params(range, {range_val, :==}) do
     {"##{range} = :range_key", %{"##{range}" => range}, [range_key: range_val]}

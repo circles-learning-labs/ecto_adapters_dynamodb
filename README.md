@@ -404,9 +404,11 @@ Determines if fields in the changeset with `nil` values will be removed from the
 
 ### DynamoDB `between` and Ecto `:fragment`
 
-We currently only support the Ecto fragment of the form:
+We currently only support the Ecto fragments of the form:
 
-`from(m in Model, where: fragment("? between ? and ?", m.attribute, ^range_start, ^range_end)`
+`from(m in Model, where: fragment("? between ? and ?", m.attribute, ^range_start, ^range_end))`
+
+`from(m in Model, where: fragment("begins_with(?, ?)", m.attribute, ^prefix))`
 
 ## Caching
 

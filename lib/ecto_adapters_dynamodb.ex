@@ -975,17 +975,24 @@ defmodule Ecto.Adapters.DynamoDB do
     # group the expression into fields, values, and operators,
     # only supporting the example with values in params
     case raw_expr_mixed_list do
+      # between
       [raw: _, expr: {{:., [], [{:&, [], [0]}, field_atom]}, [], []}, raw: between_str, expr: {:^, [], [idx1]}, raw: and_str, expr: {:^, [], [idx2]}, raw: _] ->
         if not (Regex.match?(~r/^\s*between\s*and\s*$/i, between_str <> and_str)), do:
           parse_raw_expr_mixed_list_error(raw_expr_mixed_list)
         {to_string(field_atom), {[Enum.at(params, idx1), Enum.at(params, idx2)], :between}}
-        
+
+      # begins_with
+      [raw: begins_with_str, expr: {{:., [], [{:&, [], [0]}, field_atom]}, [], []}, raw: comma_str, expr: {:^, [], [idx]}, raw: closing_parenthesis_str] ->
+        if not (Regex.match?(~r/^\s*begins_with\(\s*,\s*\)\s*$/i, begins_with_str <> comma_str <> closing_parenthesis_str)), do:
+          parse_raw_expr_mixed_list_error(raw_expr_mixed_list)
+        {to_string(field_atom), {Enum.at(params, idx), :begins_with}}
+
       _ -> parse_raw_expr_mixed_list_error(raw_expr_mixed_list) 
     end
   end
 
   defp parse_raw_expr_mixed_list_error(raw_expr_mixed_list), do:
-    raise "#{inspect __MODULE__}.parse_raw_expr_mixed_list parse error. We currently only support the Ecto fragment of the form, 'where: fragment(\"? between ? and ?\", FIELD_AS_VARIABLE, VALUE_AS_VARIABLE, VALUE_AS_VARIABLE)'. Received: #{inspect raw_expr_mixed_list}" 
+    raise "#{inspect __MODULE__}.parse_raw_expr_mixed_list parse error. We currently only support the Ecto fragments of the form, 'where: fragment(\"? between ? and ?\", FIELD_AS_VARIABLE, VALUE_AS_VARIABLE, VALUE_AS_VARIABLE)'; and 'where: fragment(\"begins_with(?, ?)\", FIELD_AS_VARIABLE, VALUE_AS_VARIABLE)'. Received: #{inspect raw_expr_mixed_list}"
 
   defp get_op_clause(left, right, params) do
     field = left |> get_field |> Atom.to_string
