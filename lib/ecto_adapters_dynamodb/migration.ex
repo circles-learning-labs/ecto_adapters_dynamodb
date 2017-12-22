@@ -114,7 +114,8 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   def execute_ddl({:create_if_not_exists, %Ecto.Migration.Table{} = table, field_clauses}) do
-    table_name = Atom.to_string(table.name)
+    # :schema_migrations might be provided as an atom, while 'table.name' is now usually a binary
+    table_name = if is_atom(table.name), do: Atom.to_string(table.name), else: table.name
     %{"TableNames" => table_list} = Dynamo.list_tables |> ExAws.request!
 
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: create_if_not_exists (table)")
