@@ -248,7 +248,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp construct_conditional_statement({field, {[_start_val, _end_val], :between}}) do
     "##{field} between :#{field <> "_start_val"} and :#{field <> "_end_val"}"
   end
-  defp construct_conditional_statement({field, {val, :begins_with}}) do
+  defp construct_conditional_statement({field, {_val, :begins_with}}) do
     "begins_with(##{field}, :#{field}_val)"
   end
 
