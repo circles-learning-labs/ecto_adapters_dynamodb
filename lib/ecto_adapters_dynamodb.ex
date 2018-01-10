@@ -5,7 +5,7 @@ defmodule Ecto.Adapters.DynamoDB do
   Currently for a fairly limited subset of Ecto, enough for basic operations.
   """
 
-  #NOTE: in ecto, Repo.get[!] ends up calling: 
+  #NOTE: in ecto, Repo.get[!] ends up calling:
     #-> querable.get
     #-> queryable.one
     #-> queryable.all
@@ -45,7 +45,7 @@ defmodule Ecto.Adapters.DynamoDB do
     # * Start dynamo connector/aws libraries
     # we'll return our own start_link for now, but I don't think we actually need
     # an app here, we only need to ensure that our dependencies such as aws libs are started.
-    # 
+    #
 
    [:debug_requests, :access_key_id, :secret_access_key, :region, :dynamodb] |> Enum.map(fn key ->
      if opts[key] != nil, do: Application.put_env(:ex_aws, key, opts[key])
@@ -92,7 +92,7 @@ defmodule Ecto.Adapters.DynamoDB do
   For the Ecto type, `:id`, the adapter autogenerates a 128-bit integer
 
   For the Ecto type, `:embed_id`, the adapter autogenerates a string, using `Ecto.UUID.generate()`
-  
+
   For the Ecto type, `:binary_id`, the adapter autogenerates a string, using `Ecto.UUID.generate()`
   """
 
@@ -142,7 +142,7 @@ defmodule Ecto.Adapters.DynamoDB do
     ecto_dynamo_log(:debug, inspect(query, structs: false))
     {:nocache, {:all, query}}
   end
-  
+
 
   def prepare(:update_all, query) do
     ecto_dynamo_log(:debug, "PREPARE::UPDATE_ALL:::")
@@ -217,7 +217,7 @@ defmodule Ecto.Adapters.DynamoDB do
         ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; Options: #{inspect updated_opts}")
         delete_all(table, lookup_fields, updated_opts)
 
-      :update_all  -> 
+      :update_all  ->
         ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute: update_all")
         ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; Options: #{inspect updated_opts}")
 
@@ -236,7 +236,7 @@ defmodule Ecto.Adapters.DynamoDB do
           {0, []}
         else
           cond do
-            !result["Count"] and !result["Responses"] -> 
+            !result["Count"] and !result["Responses"] ->
               decoded = result |> Dynamo.decode_item(as: model) |> custom_decode(model, prepared.select)
               {1, [decoded]}
 
@@ -244,7 +244,7 @@ defmodule Ecto.Adapters.DynamoDB do
               # batch_get_item returns "Responses" rather than "Items"
               results_to_decode = if result["Items"], do: result["Items"], else: result["Responses"][table]
 
-              decoded = Enum.map(results_to_decode, fn(item) -> 
+              decoded = Enum.map(results_to_decode, fn(item) ->
                 Dynamo.decode_item(%{"Item" => item}, as: model) |> custom_decode(model, prepared.select)
               end)
 
@@ -344,7 +344,7 @@ defmodule Ecto.Adapters.DynamoDB do
     update_options = maybe_add_attribute_values(base_update_options, attribute_values)
 
     pull_actions_without_index =
-      Keyword.keys(set_remove_fields[:pull]) 
+      Keyword.keys(set_remove_fields[:pull])
       |> Enum.any?(fn x -> !Enum.member?(Keyword.keys(maybe_list(opts[:pull_indexes])), x) end)
 
     {new_update_options, new_set_remove_fields} =
@@ -364,7 +364,7 @@ defmodule Ecto.Adapters.DynamoDB do
     ecto_dynamo_log(:debug, "fetch_result: #{inspect fetch_result}")
 
     updated_query_info = case fetch_result do
-      %{"Count" => last_count, "ScannedCount" => last_scanned_count} -> 
+      %{"Count" => last_count, "ScannedCount" => last_scanned_count} ->
         %{"Count" => last_count + Map.get(query_info, "Count", 0),
           "ScannedCount" => last_scanned_count + Map.get(query_info, "ScannedCount", 0),
           "LastEvaluatedKey" => Map.get(fetch_result, "LastEvaluatedKey")}
@@ -406,7 +406,7 @@ defmodule Ecto.Adapters.DynamoDB do
         [] -> update_options
         _  ->
           pull_fields_with_indexes =
-            Enum.map(set_remove_fields[:pull], fn {field_atom, val} -> 
+            Enum.map(set_remove_fields[:pull], fn {field_atom, val} ->
               list = result_to_update[to_string(field_atom)]
               {field_atom, find_all_indexes_in_dynamodb_list(list, val)}
             end)
@@ -490,7 +490,7 @@ defmodule Ecto.Adapters.DynamoDB do
     insert_nil_field_option = Keyword.get(opts, :insert_nil_fields, true)
     do_not_insert_nil_fields = insert_nil_field_option == false || Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
 
-    {_, table} = schema_meta.source 
+    {_, table} = schema_meta.source
     model = schema_meta.schema
     fields_map = Enum.into(fields, %{})
     record = if do_not_insert_nil_fields, do: fields_map, else: build_record_map(model, fields_map)
@@ -505,7 +505,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     options = case on_conflict_action do
       :replace_all -> []
-      _ -> 
+      _ ->
         attribute_names = for k <- key_list, into: %{}, do: {"##{k}", k}
         conditions = for k <- key_list, do: "attribute_not_exists(##{k})"
         condition_expression = Enum.join(conditions, " and ")
@@ -578,14 +578,22 @@ defmodule Ecto.Adapters.DynamoDB do
     # of empty lists since those cannot be inserted to indexed fields, but we'd like to
     # catch the removal of fields with empty strings by ExAws to support our option, :remove_nil_fields,
     # so we convert these to nil.
-    empty_strings_to_nil = fields_to_insert 
+    fields = model.__schema__(:fields)
+    sources = fields |> Enum.into(%{}, fn f -> {f, model.__schema__(:field_source, f)} end)
+    empty_strings_to_nil = fields_to_insert
                          |> Enum.map(fn {field, val} -> {field, (if val == "", do: nil, else: val)} end)
                          |> Enum.into(%{})
-    model.__struct__ |> Map.delete(:__meta__) |> Map.from_struct |> Map.merge(empty_strings_to_nil)
+    model.__struct__
+    |> Map.delete(:__meta__)
+    |> Map.from_struct
+    |> Enum.reduce(%{}, fn {k, v}, acc ->
+      Map.put(acc, Map.get(sources, k), v)
+    end)
+    |> Map.merge(empty_strings_to_nil)
   end
 
 
-  # In testing, 'filters' contained only the primary key and value 
+  # In testing, 'filters' contained only the primary key and value
   # TODO: handle cases of more than one tuple in 'filters'?
   def delete(repo, schema_meta, filters, opts) do
     ecto_dynamo_log(:debug, "DELETE::\n\trepo: #{inspect repo}")
@@ -600,7 +608,7 @@ defmodule Ecto.Adapters.DynamoDB do
     # If :range_key is not provided, check if the table has a composite
     # primary key and query for all the key values
     updated_filters = case opts[:range_key] do
-      nil -> 
+      nil ->
         {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
         if (length key_list) > 1 do
           updated_opts = opts ++ [projection_expression: Enum.join(key_list, ", ")]
@@ -614,7 +622,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
           if items == [], do: raise "__MODULE__.update error: no results found for record: #{inspect filters}"
           if (length items) > 1, do: raise "__MODULE__.update error: more than one result found for record: #{inspect filters}"
-          
+
           for {field, key_map} <- Map.to_list(hd items) do
             [{_field_type, val}] = Map.to_list(key_map)
             {field, val}
@@ -658,7 +666,7 @@ defmodule Ecto.Adapters.DynamoDB do
     # If :range_key is not provided, check if the table has a composite
     # primary key and query for all the key values
     updated_filters = case opts[:range_key] do
-      nil -> 
+      nil ->
         {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
         if (length key_list) > 1 do
           updated_opts = opts ++ [projection_expression: Enum.join(key_list, ", ")]
@@ -672,7 +680,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
           if items == [], do: raise "__MODULE__.update error: no results found for record: #{inspect filters}"
           if (length items) > 1, do: raise "__MODULE__.update error: more than one result found for record: #{inspect filters}"
-          
+
           for {field, key_map} <- Map.to_list(hd items) do
             [{_field_type, val}] = Map.to_list(key_map)
             {field, val}
@@ -756,7 +764,7 @@ defmodule Ecto.Adapters.DynamoDB do
   defp construct_expression_attribute_values(fields, opts) do
     remove_rather_than_set_to_null = opts[:remove_nil_fields] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
 
-    # If the value is nil and the :remove_nil_fields option is set, 
+    # If the value is nil and the :remove_nil_fields option is set,
     # we're removing this attribute, not updating it, so filter out any such fields:
 
     if remove_rather_than_set_to_null do
@@ -920,11 +928,11 @@ defmodule Ecto.Adapters.DynamoDB do
       _                        -> query
     end
 
-    case maybe_extract_from_expr do 
+    case maybe_extract_from_expr do
       # A logical operator points to a list of conditionals
       {op, _, [left, right]} when op in [:==, :<, :>, :<=, :>=, :in] ->
         {field, value} = get_op_clause(left, right, params)
-        updated_lookup_fields = 
+        updated_lookup_fields =
           case List.keyfind(lookup_fields, field, 0) do
             # we assume the most ops we can apply to one field is two, otherwise this might throw an error
             {field, {old_val, old_op}} ->
@@ -946,10 +954,10 @@ defmodule Ecto.Adapters.DynamoDB do
       {:fragment, _, raw_expr_mixed_list} ->
         parsed_fragment = parse_raw_expr_mixed_list(raw_expr_mixed_list, params)
         extract_lookup_fields(queries, params, [parsed_fragment | lookup_fields])
-        
+
       # We perform a post-query is_nil filter on indexed fields and have DynamoDB filter
-      # for nil non-indexed fields (although post-query nil-filters on (missing) indexed 
-      # attributes could only find matches when the attributes are not the range part of 
+      # for nil non-indexed fields (although post-query nil-filters on (missing) indexed
+      # attributes could only find matches when the attributes are not the range part of
       # a queried partition key (hash part) since those would not return the sought records).
       {:is_nil, _, [arg]} ->
         {{:., _, [_, field_name]}, _, _} = arg
@@ -987,7 +995,7 @@ defmodule Ecto.Adapters.DynamoDB do
           parse_raw_expr_mixed_list_error(raw_expr_mixed_list)
         {to_string(field_atom), {Enum.at(params, idx), :begins_with}}
 
-      _ -> parse_raw_expr_mixed_list_error(raw_expr_mixed_list) 
+      _ -> parse_raw_expr_mixed_list_error(raw_expr_mixed_list)
     end
   end
 
@@ -1042,7 +1050,7 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  # This is used slightly differently 
+  # This is used slightly differently
   # when handling select in custom_decode/2
   defp decode_type(type, val) do
     if is_nil val do
@@ -1088,7 +1096,7 @@ defmodule Ecto.Adapters.DynamoDB do
         indexed_fields = Ecto.Adapters.DynamoDB.Info.indexed_attributes(params.table)
 
         # Repo.insert_all can present multiple records at once
-        forbidden_insert_on_indexed_field = Enum.reduce(params.records, false, fn (record, acc) -> 
+        forbidden_insert_on_indexed_field = Enum.reduce(params.records, false, fn (record, acc) ->
            acc || Enum.any?(record, fn {field, val} ->
             [type] = ExAws.Dynamo.Encoder.encode(val) |> Map.keys
             # Ecto does not convert Empty strings to nil before passing them to Repo.update_all or
@@ -1099,18 +1107,18 @@ defmodule Ecto.Adapters.DynamoDB do
           end)
         end)
 
-        cond do 
+        cond do
           # we use this error to check if an update or delete record does not exist
           error_name == "ConditionalCheckFailedException" ->
             {:error, error_name}
 
-          forbidden_insert_on_indexed_field -> 
-            raise "The following request error could be related to attempting to insert an empty string or attempting to insert a type other than a string or number on an indexed field. Indexed fields: #{inspect indexed_fields}. Records: #{inspect params.records}.\n\nExAws Request Error! #{inspect error}" 
+          forbidden_insert_on_indexed_field ->
+            raise "The following request error could be related to attempting to insert an empty string or attempting to insert a type other than a string or number on an indexed field. Indexed fields: #{inspect indexed_fields}. Records: #{inspect params.records}.\n\nExAws Request Error! #{inspect error}"
 
           true ->
             raise ExAws.Error, message: "ExAws Request Error! #{inspect error}"
         end
-    end    
+    end
   end
 
   @doc """
@@ -1118,7 +1126,7 @@ defmodule Ecto.Adapters.DynamoDB do
   """
   def ecto_dynamo_log(level, message) do
     colors = Application.get_env(:ecto_adapters_dynamodb, :log_colors)
-    d = DateTime.utc_now 
+    d = DateTime.utc_now
     formatted_message = "\n[Ecto Dynamo #{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC] #{message}"
     log_path = Application.get_env(:ecto_adapters_dynamodb, :log_path)
     log_levels = Application.get_env(:ecto_adapters_dynamodb, :log_levels) || [:info]
