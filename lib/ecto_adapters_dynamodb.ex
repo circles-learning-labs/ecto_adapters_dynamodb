@@ -235,19 +235,22 @@ defmodule Ecto.Adapters.DynamoDB do
           # Empty map means "not found"
           {0, []}
         else
+          sources =
+            model.__schema__(:fields)
+            |> Enum.into(%{}, fn f ->
+              {model.__schema__(:field_source, f), f}
+            end)
+
           cond do
             !result["Count"] and !result["Responses"] ->
-              decoded = result |> Dynamo.decode_item(as: model) |> custom_decode(model, prepared.select)
+              decoded = decode_item(result["Item"], model, sources, prepared.select)
               {1, [decoded]}
 
             true ->
               # batch_get_item returns "Responses" rather than "Items"
               results_to_decode = if result["Items"], do: result["Items"], else: result["Responses"][table]
 
-              decoded = Enum.map(results_to_decode, fn(item) ->
-                Dynamo.decode_item(%{"Item" => item}, as: model) |> custom_decode(model, prepared.select)
-              end)
-
+              decoded = Enum.map(results_to_decode, &(decode_item(&1, model, sources, prepared.select)))
               {length(decoded), decoded}
           end
         end
@@ -1048,6 +1051,17 @@ defmodule Ecto.Adapters.DynamoDB do
       fields ->
         for field <- fields, do: decode_type(model.__schema__(:type, field), Map.get(item, field))
     end
+  end
+
+  defp decode_item(item, model, sources, select) do
+    item = Enum.reduce(item, %{}, fn {k, v}, acc ->
+      key = to_string(Map.get(sources, String.to_atom(k)))
+      Map.put(acc, key, v)
+    end)
+
+    %{"Item" => item}
+    |> Dynamo.decode_item(as: model)
+    |> custom_decode(model, select)
   end
 
   # This is used slightly differently
