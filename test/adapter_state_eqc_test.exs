@@ -1,6 +1,8 @@
+# Skip EQC testing if we don't have it installed:
+if Code.ensure_compiled?(:eqc) do
 defmodule AdapterStateEqcTest do
   use ExUnit.Case
-  use EQC.ExUnit  
+  use EQC.ExUnit
   use EQC.StateM
 
   import Ecto.Query
@@ -227,4 +229,5 @@ defmodule AdapterStateEqcTest do
     new_db = Map.delete(s.db, key)
     %State{s | db: new_db}
   end
+end
 end

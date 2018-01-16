@@ -1,6 +1,8 @@
+# Skip EQC testing if we don't have it installed:
+if Code.ensure_compiled?(:eqc) do
 defmodule AdapterPropertyTest do
   use ExUnit.Case
-  use EQC.ExUnit  
+  use EQC.ExUnit
 
   alias Ecto.Adapters.DynamoDB.TestRepo
   alias Ecto.Adapters.DynamoDB.TestSchema.Person
@@ -18,4 +20,5 @@ defmodule AdapterPropertyTest do
       end
     end
   end
+end
 end

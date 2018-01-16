@@ -43,42 +43,47 @@ defmodule TestHelper do
   end
 end
 
-defmodule TestGenerators do
-  use EQC
+# Skip EQC testing if we don't have it installed:
+if Code.ensure_compiled?(:eqc) do
+  defmodule TestGenerators do
+    use EQC
 
-  alias Ecto.Adapters.DynamoDB.TestSchema.Person
+    alias Ecto.Adapters.DynamoDB.TestSchema.Person
 
-  def nonempty_str() do
-    such_that s <- utf8() do
-      # Ecto.Changeset.validate_required checks for all-whitespace
-      # strings in addition to empty ones, hence the trimming:
-      String.trim_leading(s) != ""
+    def nonempty_str() do
+      such_that s <- utf8() do
+        # Ecto.Changeset.validate_required checks for all-whitespace
+        # strings in addition to empty ones, hence the trimming:
+        String.trim_leading(s) != ""
+      end
+    end
+
+    def circle_list() do
+      non_empty(list(nonempty_str()))
+    end
+
+    def person_generator() do
+      person_with_id(nonempty_str())
+    end
+
+    def person_with_id(key_gen) do
+      let {id, first, last, age, email, pass, circles} <-
+          {key_gen, nonempty_str(), nonempty_str(), int(),
+            nonempty_str(), nonempty_str(), circle_list()} do
+        %Person{
+          id: id,
+          first_name: first,
+          last_name: last,
+          age: age,
+          email: email,
+          password: pass,
+          circles: circles
+        }
+      end
     end
   end
-
-  def circle_list() do
-    non_empty(list(nonempty_str()))
-  end
-
-  def person_generator() do
-    person_with_id(nonempty_str())
-  end
-
-  def person_with_id(key_gen) do
-    let {id, first, last, age, email, pass, circles} <-
-        {key_gen, nonempty_str(), nonempty_str(), int(),
-          nonempty_str(), nonempty_str(), circle_list()} do
-      %Person{
-        id: id,
-        first_name: first,
-        last_name: last,
-        age: age,
-        email: email,
-        password: pass,
-        circles: circles
-      }
-    end
-  end
+else
+  IO.puts "Could not find eqc module - skipping property based testing!"
 end
 
 ExUnit.start()
