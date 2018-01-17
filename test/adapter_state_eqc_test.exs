@@ -104,9 +104,8 @@ defmodule AdapterStateEqcTest do
     case {on_conflict, value_exists, result} do
       {:raise, true, {:error, %Ecto.Changeset{errors: [id: {"has already been taken", []}]}}} ->
         true
-      {:nothing, true, {:ok, result_value}} ->
-        # The result should be the value we passed in with the primary key set to nil
-        cmp_people(%{value | id: nil}, result_value)
+      {:nothing, true, {:ok, []}} ->
+        true
       {_, _, {:ok, result_value}} ->
         cmp_people(value, result_value)
     end
