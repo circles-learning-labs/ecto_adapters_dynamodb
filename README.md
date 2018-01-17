@@ -294,7 +294,7 @@ will retrieve the first five results from the record set for the indexed HASH, "
 
 **:on_conflict** :: :raise | :nothing | :replace_all, *default:* :raise
 
-By default, the adapter will provide the condition expression, `attribute_not_exists(PARTITION_KEY_ATTRIBUTE)` with the DynamoDB query, failing to insert if the record already exists. To perform an uncoditional insert, possibly overwriting an existing record, provide the option `on_conflict: :replace_all` in the insert query. If `on_conflict: :nothing` is provided, a struct will be returned with the primary key field/s set to `nil`.
+By default, the adapter will provide the condition expression, `attribute_not_exists(PARTITION_KEY_ATTRIBUTE)` with the DynamoDB query, failing to insert if the record already exists. To perform an unconditional insert, possibly overwriting an existing record, provide the option `on_conflict: :replace_all` in the insert query. If `on_conflict: :nothing` is provided, a struct will be returned, although the record will not be inserted if there is a preexisting record with the same primary key.
 
 ### Custom Inline Options
 
