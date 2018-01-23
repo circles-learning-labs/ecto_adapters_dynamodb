@@ -234,13 +234,13 @@ Determines if fields in the changeset with `nil` values will be inserted as Dyna
 Determines if, during **Repo.update** or **Repo.update_all**, fields in the changeset with `nil` values will be removed from the record/s or set to the DynamoDB `null` value. This option is also available inline per query.
 
 #### Logging Configuration
-The adapter's logging options are configured during compile time, and can be altered in the application's configuration files ("config/config.exs", "config/dev.exs", "config/test.exs" and "config/test.exs"). 
+The adapter's logging options are configured during compile time, and can be altered in the application's configuration files ("config/config.exs", "config/dev.exs", "config/test.exs" and "config/test.exs"). To enable logging in colour, the `MIX_ENV` environment variable must be explicitly exported as `dev` during compilation.
 
 We provide a few informational log lines, such as which adapter call is being processed, as well as the table, lookup fields, and options detected. Configure an optional log path to have the messages recorded on file.
 
 **:log_levels** :: [log-level-atom], *default:* `[:info]`, *log-level-atom can be :info and/or :debug*
 
-**:log_colors** :: %{log-level-atom: IO.ANSI-color-atom}, *default:* `info: :green, debug: :normal`
+**:log_colours** :: %{log-level-atom: IO.ANSI-colour-atom}, *default:* `info: :green, debug: :normal`
 
 **:log_path** :: string, *default:* `""`
 

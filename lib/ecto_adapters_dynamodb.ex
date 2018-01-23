@@ -1143,14 +1143,18 @@ defmodule Ecto.Adapters.DynamoDB do
   Logs message to console and optionally to file. Log levels, colours and file path may be set in configuration (details in README.md).
   """
   def ecto_dynamo_log(level, message) do
-    colors = Application.get_env(:ecto_adapters_dynamodb, :log_colors)
+    colors = Application.get_env(:ecto_adapters_dynamodb, :log_colours)
     d = DateTime.utc_now
     formatted_message = "\n[Ecto Dynamo #{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC] #{message}"
     log_path = Application.get_env(:ecto_adapters_dynamodb, :log_path)
     log_levels = Application.get_env(:ecto_adapters_dynamodb, :log_levels) || [:info]
 
     if level in log_levels do
-      IO.ANSI.format([colors[level] || :normal, formatted_message], true) |> IO.puts
+      if Application.get_env(:ecto_adapters_dynamodb, :log_in_colour) do
+        IO.ANSI.format([colors[level] || :normal, formatted_message], true) |> IO.puts
+      else
+        formatted_message |> IO.puts
+      end
 
       if String.valid?(log_path) and Regex.match?(~r/\S/, log_path), do: log_pipe(log_path, formatted_message)
     end
