@@ -1166,4 +1166,15 @@ defmodule Ecto.Adapters.DynamoDB do
     File.close(file)
   end
 
+  defp chisel(str, _depth) when is_binary(str), do: str
+  defp chisel(num, _depth) when is_number(num), do: num
+  defp chisel(any, _depth) when (not is_map(any) and not is_list(any)), do: inspect any
+  defp chisel(_, 0), do: "beyond_log_depth"
+  defp chisel(map, depth) when is_map(map) do
+    for {k, v} <- map, into: %{}, do: {k, chisel(v, depth - 1)}
+  end
+  defp chisel(list, depth) when is_list(list) do
+    Stream.with_index(list) |> Enum.reduce(%{}, fn({v,k}, acc)-> Map.put(acc, k, chisel(v, depth - 1)) end)
+  end
+
 end
