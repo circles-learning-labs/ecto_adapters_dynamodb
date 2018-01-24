@@ -1130,14 +1130,17 @@ defmodule Ecto.Adapters.DynamoDB do
     {:ok, log_message} = Poison.encode(%{message: formatted_message, attributes: chisel(attributes, depth)})
 
     log_path = Application.get_env(:ecto_adapters_dynamodb, :log_path)
+    log_levels = Application.get_env(:ecto_adapters_dynamodb, :log_levels) || [:info]
 
-    if Application.get_env(:ecto_adapters_dynamodb, :log_in_colour) do
-      IO.ANSI.format([colours[level] || :normal, log_message], true) |> IO.puts
-    else
-      log_message |> IO.puts
+    if level in log_levels do
+      if Application.get_env(:ecto_adapters_dynamodb, :log_in_colour) do
+        IO.ANSI.format([colours[level] || :normal, log_message], true) |> IO.puts
+      else
+        log_message |> IO.puts
+      end
+
+      if String.valid?(log_path) and Regex.match?(~r/\S/, log_path), do: log_pipe(log_path, log_message)
     end
-
-    if String.valid?(log_path) and Regex.match?(~r/\S/, log_path), do: log_pipe(log_path, log_message)
   end
 
   defp chisel(str, _depth) when is_binary(str), do: str
