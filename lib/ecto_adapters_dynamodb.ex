@@ -29,7 +29,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # I don't think this is necessary: Probably under child_spec and ensure_all_started
   def start_link(repo, opts) do
-    ecto_dynamo_log(:debug, "start_link repo: #{inspect repo} opts: #{inspect opts}")
+    ecto_dynamo_log("#{inspect __MODULE__}.start_link", %{"#{inspect __MODULE__}.start_link-params" => %{repo: repo, opts: opts}}, [level: :debug])
     Agent.start_link fn -> [] end
   end
 
@@ -53,7 +53,9 @@ defmodule Ecto.Adapters.DynamoDB do
 
     import Supervisor.Spec
     child_spec = worker(__MODULE__, [repo, opts])
-    ecto_dynamo_log(:debug, "child spec3. REPO: #{inspect repo}\n CHILD_SPEC: #{inspect child_spec}\nOPTS: #{inspect opts}")
+
+    ecto_dynamo_log("#{inspect __MODULE__}.child_spec", %{"#{inspect __MODULE__}.child_spec-params" => %{repo: repo, child_spec: child_spec, opts: opts}}, [level: :debug])
+
     child_spec
   end
 
@@ -62,7 +64,8 @@ defmodule Ecto.Adapters.DynamoDB do
   Ensure all applications necessary to run the adapter are started.
   """
   def ensure_all_started(repo, type) do
-    ecto_dynamo_log(:debug, "ensure all started: type: #{inspect type} #{inspect repo}")
+    ecto_dynamo_log("#{inspect __MODULE__}.ensure_all_started", %{"#{inspect __MODULE__}.ensure_all_started-params" => %{type: type, repo: repo}}, [level: :debug])
+
     with {:ok, _} = Application.ensure_all_started(:ecto_adapters_dynamodb)
     do
       {:ok, [repo]}
@@ -138,23 +141,23 @@ defmodule Ecto.Adapters.DynamoDB do
   #          {:cache, prepared} | {:nocache, prepared}
   def prepare(:all, query) do
     # 'preparing' is more a SQL concept - Do we really need to do anything here or just pass the params through?
-    ecto_dynamo_log(:debug, "PREPARE:::")
-    ecto_dynamo_log(:debug, inspect(query, structs: false))
+    ecto_dynamo_log("#{inspect __MODULE__}.prepare: :all", %{"#{inspect __MODULE__}.prepare-params" => %{query: inspect(query, structs: false)}}, [level: :debug])
+ 
     {:nocache, {:all, query}}
   end
 
 
   def prepare(:update_all, query) do
-    ecto_dynamo_log(:debug, "PREPARE::UPDATE_ALL:::")
-    ecto_dynamo_log(:debug, inspect(query, structs: false))
+    ecto_dynamo_log("#{inspect __MODULE__}.prepare: :update_all", %{"#{inspect __MODULE__}.prepare-params" => %{query: inspect(query, structs: false)}}, [level: :debug])
+
     {:nocache, {:update_all, query}}
   end
   # do: {:cache, {System.unique_integer([:positive]), @conn.update_all(query)}}
 
 
   def prepare(:delete_all, query) do
-    ecto_dynamo_log(:debug, "PREPARE::DELETE_ALL:::")
-    ecto_dynamo_log(:debug, inspect(query, structs: false))
+    ecto_dynamo_log("#{inspect __MODULE__}.prepare: :delete_all", %{"#{inspect __MODULE__}.prepare-params" => %{query: inspect(query, structs: false)}}, [level: :debug])
+
     {:nocache, {:delete_all, query}}
   end
   # do: {:cache, {System.unique_integer([:positive]), @conn.delete_all(query)}}
@@ -182,13 +185,7 @@ defmodule Ecto.Adapters.DynamoDB do
   #                 {:cached, (prepared -> :ok), cached} |
   #                 {:cache, (cached -> :ok), prepared}
   def execute(repo, meta, {:nocache, {func, prepared}}, params, process, opts) do
-    ecto_dynamo_log(:debug, "EXECUTE... EXECUTING!=============================")
-    ecto_dynamo_log(:debug, "REPO::: #{inspect repo, structs: false}")
-    ecto_dynamo_log(:debug, "META::: #{inspect meta, structs: false}")
-    ecto_dynamo_log(:debug, "PREPARED::: #{inspect prepared, structs: false}")
-    ecto_dynamo_log(:debug, "PARAMS::: #{inspect params, structs: false}")
-    ecto_dynamo_log(:debug, "PROCESS::: #{inspect process, structs: false}")
-    ecto_dynamo_log(:debug, "OPTS::: #{inspect opts, structs: false}")
+    ecto_dynamo_log("#{inspect __MODULE__}.execute", %{"#{inspect __MODULE__}.execute-params" => %{repo: repo, meta: meta, prepared: prepared, params: params, process: process, opts: opts}}, [level: :debug])
 
     {table, model} = prepared.from
     validate_where_clauses!(prepared)
@@ -201,33 +198,28 @@ defmodule Ecto.Adapters.DynamoDB do
     # from line 34, file "deps/ecto/lib/ecto/migration/schema_migration.ex"
     migration_source = Keyword.get(repo.config, :migration_source, "schema_migrations")
     updated_opts = if table == migration_source do
-      ecto_dynamo_log(:debug, "Table name corresponds with migration source: #{inspect migration_source}. Setting options for recursive scan.")
+      ecto_dynamo_log("#{inspect __MODULE__}.execute: table name corresponds with migration source: #{inspect migration_source}. Setting options for recursive scan.", %{}, [level: :debug])
+
       Keyword.drop(opts, [:timeout, :log]) ++ [recursive: true]
     else
       Keyword.drop(opts, [:scan_limit, :limit]) ++ scan_limit
     end
 
-    ecto_dynamo_log(:debug, "table = #{inspect table}")
-    ecto_dynamo_log(:debug, "lookup_fields: #{inspect lookup_fields}")
-    ecto_dynamo_log(:debug, "scan_limit: #{inspect scan_limit}")
+    ecto_dynamo_log("#{inspect __MODULE__}.execute: local variables", %{"#{inspect __MODULE__}.execute-vars" => %{table: table, lookup_fields: lookup_fields, scan_limit: scan_limit}}, [level: :debug])
 
     case func do
       :delete_all ->
-        ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute: delete_all")
-        ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; Options: #{inspect updated_opts}")
         delete_all(table, lookup_fields, updated_opts)
 
       :update_all  ->
-        ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute: update_all")
-        ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; Options: #{inspect updated_opts}")
-
         update_all(table, lookup_fields, updated_opts, prepared.updates, params)
 
       :all ->
-        ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute")
-        ecto_dynamo_log(:info, "Table: #{inspect table}; Lookup fields: #{inspect lookup_fields}; options: #{inspect updated_opts}")
+        ecto_dynamo_log("#{inspect __MODULE__}.execute: :all", %{"#{inspect __MODULE__}.execute-all-vars" => %{table: table, lookup_fields: lookup_fields, updated_opts: updated_opts}})
+
         result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, updated_opts)
-        ecto_dynamo_log(:debug, "result = #{inspect result}")
+
+        ecto_dynamo_log("#{inspect __MODULE__}.execute: all: result", %{"#{inspect __MODULE__}.execute-all-result" => inspect result}, [level: :debug])
 
         if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], extract_query_info(result))
 
@@ -259,6 +251,8 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # delete_all allows for the recursive option, scanning through multiple pages
   defp delete_all(table, lookup_fields, opts) do
+    ecto_dynamo_log("#{inspect __MODULE__}.delete_all", %{"#{inspect __MODULE__}.delete_all-params" => %{table: table, lookup_fields: lookup_fields, opts: opts}})
+
     # select only the key
     {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
     scan_or_query = Ecto.Adapters.DynamoDB.Query.scan_or_query?(table, lookup_fields)
@@ -272,7 +266,7 @@ defmodule Ecto.Adapters.DynamoDB do
     # query the table for which records to delete
     fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, opts)
 
-    ecto_dynamo_log(:debug, "fetch_result = #{inspect fetch_result}")
+    ecto_dynamo_log("#{inspect __MODULE__}.delete_all_recursive: fetch_result", %{"#{inspect __MODULE__}.delete_all_recursive-fetch_result" => inspect fetch_result}, [level: :debug])
 
     items = case fetch_result do
       %{"Items" => fetch_items}   -> fetch_items
@@ -325,17 +319,22 @@ defmodule Ecto.Adapters.DynamoDB do
 
 
   defp update_all(table, lookup_fields, opts, updates, params) do
+    ecto_dynamo_log("#{inspect __MODULE__}.update_all", %{"#{inspect __MODULE__}.update_all-params" => %{table: table, lookup_fields: lookup_fields, opts: opts}})
+
     scan_or_query = Ecto.Adapters.DynamoDB.Query.scan_or_query?(table, lookup_fields)
     recursive = Ecto.Adapters.DynamoDB.Query.parse_recursive_option(scan_or_query, opts)
 
     key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
-    ecto_dynamo_log(:debug, "key_list: #{inspect key_list}")
+
+    ecto_dynamo_log("#{inspect __MODULE__}.update_all: key_list", %{"#{inspect __MODULE__}.update_all-key_list" => inspect key_list}, [level: :debug])
 
     # The remove statement must be constructed after finding pull-indexes, but it
     # also includes possibly removing nil fields, and since we have one handler for
     # both set and remove, we call it during the batch update process
     {update_expression, update_fields_sans_set_remove, set_remove_fields} = construct_update_expression(updates, params, opts)
-    ecto_dynamo_log(:info, "update fields: #{inspect update_fields_sans_set_remove} set and remove fields: #{inspect set_remove_fields}")
+
+    ecto_dynamo_log("#{inspect __MODULE__}.update_all: update fields", %{"#{inspect __MODULE__}.update_all-update_fields" => %{update_fields_sans_set_remove: inspect(update_fields_sans_set_remove), set_remove_fields: inspect(set_remove_fields)}})
+
     attribute_names = construct_expression_attribute_names(update_fields_sans_set_remove)
     attribute_values = construct_expression_attribute_values(update_fields_sans_set_remove, opts)
 
@@ -364,7 +363,8 @@ defmodule Ecto.Adapters.DynamoDB do
 
   defp update_all_recursive(table, lookup_fields, opts, update_options, key_list, set_remove_fields, recursive, query_info, total_updated) do
     fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, opts)
-    ecto_dynamo_log(:debug, "fetch_result: #{inspect fetch_result}")
+
+    ecto_dynamo_log("#{inspect __MODULE__}.update_all_recursive: fetch_result", %{"#{inspect __MODULE__}.update_all_recursive-fetch_result" => inspect(fetch_result)}, [level: :debug])
 
     updated_query_info = case fetch_result do
       %{"Count" => last_count, "ScannedCount" => last_scanned_count} ->
@@ -483,12 +483,7 @@ defmodule Ecto.Adapters.DynamoDB do
   #                  {:ok, fields} | {:invalid, constraints} | no_return
   #  def insert(_,_,_,_,_) do
   def insert(repo, schema_meta, fields, on_conflict, returning, opts) do
-    ecto_dynamo_log(:debug, "INSERT::\n\trepo: #{inspect repo}")
-    ecto_dynamo_log(:debug, "\tschema_meta: #{inspect schema_meta}")
-    ecto_dynamo_log(:debug, "\tfields: #{inspect fields}")
-    ecto_dynamo_log(:debug, "\ton_conflict: #{inspect on_conflict}")
-    ecto_dynamo_log(:debug, "\treturning: #{inspect returning}")
-    ecto_dynamo_log(:debug, "\topts: #{inspect opts}")
+    ecto_dynamo_log("#{inspect __MODULE__}.insert", %{"#{inspect __MODULE__}.insert-params" => %{repo: repo, schema_meta: schema_meta, fields: fields, on_conflict: on_conflict, returning: returning, opts: opts}}, [level: :debug])
 
     insert_nil_field_option = Keyword.get(opts, :insert_nil_fields, true)
     do_not_insert_nil_fields = insert_nil_field_option == false || Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
@@ -498,8 +493,7 @@ defmodule Ecto.Adapters.DynamoDB do
     fields_map = Enum.into(fields, %{})
     record = if do_not_insert_nil_fields, do: fields_map, else: build_record_map(model, fields_map)
 
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.insert")
-    ecto_dynamo_log(:info, "Table: #{inspect table}; Record: #{inspect record}")
+    ecto_dynamo_log("#{inspect __MODULE__}.insert: local variables", %{"#{inspect __MODULE__}.insert-vars" => %{table: table, record: record}})
 
     {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
     hash_key = hd(key_list)
@@ -538,13 +532,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
 
   def insert_all(repo, schema_meta, field_list, fields, on_conflict, returning, opts) do
-    ecto_dynamo_log(:debug, "INSERT ALL::\n\trepo: #{inspect repo}")
-    ecto_dynamo_log(:debug, "\tschema_meta: #{inspect schema_meta}")
-    ecto_dynamo_log(:debug, "\tfield_list: #{inspect field_list}")
-    ecto_dynamo_log(:debug, "\tfields: #{inspect fields}")
-    ecto_dynamo_log(:debug, "\ton_conflict: #{inspect on_conflict}")
-    ecto_dynamo_log(:debug, "\treturning: #{inspect returning}")
-    ecto_dynamo_log(:debug, "\topts: #{inspect opts}")
+    ecto_dynamo_log("#{inspect __MODULE__}.insert_all", %{"#{inspect __MODULE__}.insert_all-params" => %{repo: repo, schema_meta: schema_meta, field_list: field_list, fields: fields, on_conflict: on_conflict, returning: returning, opts: opts}}, [level: :debug])
 
     insert_nil_field_option = Keyword.get(opts, :insert_nil_fields, true)
     do_not_insert_nil_fields = insert_nil_field_option == false || Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
@@ -561,12 +549,11 @@ defmodule Ecto.Adapters.DynamoDB do
 
     records = Enum.map(prepared_fields, fn [put_request: [item: record]] -> record end)
 
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.insert_all")
-    ecto_dynamo_log(:info, "Table: #{inspect table}; Records: #{inspect records}")
+    ecto_dynamo_log("#{inspect __MODULE__}.insert_all: local variables", %{"#{inspect __MODULE__}.insert_all-vars" => %{table: table, records: records}})
 
     batch_write_attempt = Dynamo.batch_write_item(%{table => prepared_fields}) |> ExAws.request |> handle_error!(%{table: table, records: records})
 
-    ecto_dynamo_log(:debug, "Batch-write result: #{inspect batch_write_attempt}")
+    ecto_dynamo_log("#{inspect __MODULE__}.insert_all: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write_attempt" => inspect(batch_write_attempt)}, [level: :debug])
 
     # We're not retrying unprocessed items yet, but we are providing the relevant info in the QueryInfo agent if :query_info_key is supplied
     if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], extract_query_info(batch_write_attempt))
@@ -603,10 +590,7 @@ defmodule Ecto.Adapters.DynamoDB do
   # In testing, 'filters' contained only the primary key and value
   # TODO: handle cases of more than one tuple in 'filters'?
   def delete(repo, schema_meta, filters, opts) do
-    ecto_dynamo_log(:debug, "DELETE::\n\trepo: #{inspect repo}")
-    ecto_dynamo_log(:debug, "\tschema_meta: #{inspect schema_meta}")
-    ecto_dynamo_log(:debug, "\tfilters: #{inspect filters}")
-    ecto_dynamo_log(:debug, "\toptions: #{inspect opts}")
+    ecto_dynamo_log("#{inspect __MODULE__}.delete", %{"#{inspect __MODULE__}.delete-params" => %{repo: repo, schema_meta: schema_meta, filters: filters, opts: opts}}, [level: :debug])
 
     {_, table} = schema_meta.source
 
@@ -659,12 +643,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
 
   def update(repo, schema_meta, fields, filters, returning, opts) do
-    ecto_dynamo_log(:debug, "UPDATE::\n\trepo: #{inspect repo}")
-    ecto_dynamo_log(:debug, "\tschema_meta: #{inspect schema_meta}")
-    ecto_dynamo_log(:debug, "\tfields: #{inspect fields}")
-    ecto_dynamo_log(:debug, "\tfilters: #{inspect filters}")
-    ecto_dynamo_log(:debug, "\treturning: #{inspect returning}")
-    ecto_dynamo_log(:debug, "\toptions: #{inspect opts}")
+    ecto_dynamo_log("#{inspect __MODULE__}.update", %{"#{inspect __MODULE__}.update-params" => %{repo: repo, schema_meta: schema_meta, fields: fields, filters: filters, returning: returning, opts: opts}}, [level: :debug])
 
     {_, table} = schema_meta.source
 
@@ -1098,7 +1077,7 @@ defmodule Ecto.Adapters.DynamoDB do
       {:ok, decoded_value} ->
         decoded_value
       :error ->
-        ecto_dynamo_log(:info, "failed to decode embedded value: #{inspect val}")
+        ecto_dynamo_log("#{inspect __MODULE__}.decode_embed: failed to decode embedded value: #{inspect val}")
         nil
     end
   end
@@ -1142,39 +1121,42 @@ defmodule Ecto.Adapters.DynamoDB do
   @doc """
   Logs message to console and optionally to file. Log levels, colours and file path may be set in configuration (details in README.md).
   """
-  def ecto_dynamo_log(level, message) do
-    colors = Application.get_env(:ecto_adapters_dynamodb, :log_colours)
+  def ecto_dynamo_log(message, attributes \\ %{}, opts \\ []) do
+    level = opts[:level] || :info
+    depth = opts[:depth] || 4
+    colours = Application.get_env(:ecto_adapters_dynamodb, :log_colours)
     d = DateTime.utc_now
-    formatted_message = "\n[Ecto Dynamo #{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC] #{message}"
+    formatted_message = "#{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC [Ecto dynamo #{level}] #{message}"
+    {:ok, log_message} = Poison.encode(%{message: formatted_message, attributes: chisel(attributes, depth)})
+
     log_path = Application.get_env(:ecto_adapters_dynamodb, :log_path)
-    log_levels = Application.get_env(:ecto_adapters_dynamodb, :log_levels) || [:info]
 
-    if level in log_levels do
-      if Application.get_env(:ecto_adapters_dynamodb, :log_in_colour) do
-        IO.ANSI.format([colors[level] || :normal, formatted_message], true) |> IO.puts
-      else
-        formatted_message |> IO.puts
-      end
-
-      if String.valid?(log_path) and Regex.match?(~r/\S/, log_path), do: log_pipe(log_path, formatted_message)
+    if Application.get_env(:ecto_adapters_dynamodb, :log_in_colour) do
+      IO.ANSI.format([colours[level] || :normal, log_message], true) |> IO.puts
+    else
+      log_message |> IO.puts
     end
-  end
 
-  defp log_pipe(path, str) do
-    {:ok, file} = File.open(path, [:append])
-    IO.binwrite(file, str)
-    File.close(file)
+    if String.valid?(log_path) and Regex.match?(~r/\S/, log_path), do: log_pipe(log_path, log_message)
   end
 
   defp chisel(str, _depth) when is_binary(str), do: str
   defp chisel(num, _depth) when is_number(num), do: num
   defp chisel(any, _depth) when (not is_map(any) and not is_list(any)), do: inspect any
   defp chisel(_, 0), do: "beyond_log_depth"
+  defp chisel(%{__struct__: _} = struct, _depth), do: inspect struct
   defp chisel(map, depth) when is_map(map) do
     for {k, v} <- map, into: %{}, do: {k, chisel(v, depth - 1)}
   end
   defp chisel(list, depth) when is_list(list) do
-    Stream.with_index(list) |> Enum.reduce(%{}, fn({v,k}, acc)-> Map.put(acc, k, chisel(v, depth - 1)) end)
+    for e <- list, do: chisel(e, depth - 1)
+    #Stream.with_index(list) |> Enum.reduce(%{}, fn({v,k}, acc)-> Map.put(acc, k, chisel(v, depth - 1)) end)
+  end
+
+  defp log_pipe(path, str) do
+    {:ok, file} = File.open(path, [:append])
+    IO.binwrite(file, str)
+    File.close(file)
   end
 
 end

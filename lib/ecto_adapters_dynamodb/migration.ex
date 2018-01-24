@@ -1,5 +1,5 @@
 defmodule Ecto.Adapters.DynamoDB.Migration do
-  import Ecto.Adapters.DynamoDB, only: [ecto_dynamo_log: 2]
+  import Ecto.Adapters.DynamoDB, only: [ecto_dynamo_log: 1, ecto_dynamo_log: 2, ecto_dynamo_log: 3]
 
   alias ExAws.Dynamo
 
@@ -102,10 +102,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   def execute_ddl(repo, command, options) do
-    ecto_dynamo_log(:debug, "EXECUTE_DDL:::")
-    ecto_dynamo_log(:debug, "repo: #{inspect repo}")
-    ecto_dynamo_log(:debug, "command: #{inspect command}")
-    ecto_dynamo_log(:debug, "options: #{inspect options}")
+    ecto_dynamo_log("#{inspect __MODULE__}.execute_ddl", %{"#{inspect __MODULE__}.execute_ddl-params" => %{repo: repo, command: command, options: options}}, [level: :debug])
 
     # We provide a configuration option for migration_table_capacity
     updated_command = maybe_add_schema_migration_table_capacity(repo, command)
@@ -118,21 +115,21 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     table_name = if is_atom(table.name), do: Atom.to_string(table.name), else: table.name
     %{"TableNames" => table_list} = Dynamo.list_tables |> ExAws.request!
 
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: create_if_not_exists (table)")
+    ecto_dynamo_log("#{inspect __MODULE__}.execute_ddl: :create_if_not_exists (table)")
     
     if not Enum.member?(table_list, table_name) do
-      ecto_dynamo_log(:info, "Creating table #{inspect table.name}")
+      ecto_dynamo_log("#{inspect __MODULE__}.execute_ddl: create_if_not_exist: creating table", %{table_name: table.name})
+
       create_table(table_name, field_clauses, table.options)
     else
-      ecto_dynamo_log(:info, "add_if_exists table #{inspect table.name}: table already exists. Done.")
+      ecto_dynamo_log("#{inspect __MODULE__}.execute_ddl: create_if_not_exists: table already exists.", %{table_name: table.name})
     end
 
     :ok
   end
 
   def execute_ddl({:create, %Ecto.Migration.Table{} = table, field_clauses}) do
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: create table")
-    ecto_dynamo_log(:info, "Creating table #{inspect table.name}")
+    ecto_dynamo_log("#{inspect __MODULE__}.execute_ddl: create table: creating table", %{table_name: table.name})
 
     create_table(table.name, field_clauses, table.options)
     :ok
@@ -143,8 +140,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   def execute_ddl({:drop, %Ecto.Migration.Table{} = table}) do
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: drop")
-    ecto_dynamo_log(:info, "Removing table #{inspect table.name}")
+    ecto_dynamo_log("#{inspect __MODULE__}.execute_ddl: drop: removing table", %{table_name: table.name})
 
     Dynamo.delete_table(table.name) |> ExAws.request!
     :ok
@@ -153,22 +149,21 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   def execute_ddl({:drop_if_exists, %Ecto.Migration.Table{} = table}) do
     %{"TableNames" => table_list} = Dynamo.list_tables |> ExAws.request!
 
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: drop_if_exists (table)")
+    ecto_dynamo_log("#{inspect __MODULE__}.execute_ddl: drop_if_exists (table)")
     
     if Enum.member?(table_list, table.name) do
-      ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: drop_if_exists")
-      ecto_dynamo_log(:info, "Removing table #{inspect table.name}")
+      ecto_dynamo_log("#{inspect __MODULE__}.execute_ddl: drop_if_exists: removing table", %{table_name: table.name})
 
       Dynamo.delete_table(table.name) |> ExAws.request!
     else
-      ecto_dynamo_log(:info, "drop_if_exists table #{inspect table.name}: table does not exist. Done.")
+      ecto_dynamo_log("#{inspect __MODULE__}.execute_ddl: drop_if_exists (table): table does not exist.", %{table_name: table.name})
     end
 
     :ok
   end
 
   def execute_ddl({:alter, %Ecto.Migration.Table{} = table, field_clauses}) do
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: alter table")
+    ecto_dynamo_log("#{inspect __MODULE__}.execute_ddl: :alter (table)")
 
     {delete, update, key_list} = build_delete_and_update(field_clauses)
 
@@ -219,11 +214,13 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
     case table_info do
       {:ok, %{"Table" => table}} -> 
-        ecto_dynamo_log(:info, "poll_table: table #{inspect table_name} ::: #{inspect table}")
+        ecto_dynamo_log("#{inspect __MODULE__}.poll_table: table", %{"#{inspect __MODULE__}.poll_table-table" => %{table_name: table_name, table: table}})
+
         table
 
       {:error, error_tuple} ->
-        ecto_dynamo_log(:info, "Error attempting to poll table #{inspect table_name}: #{inspect error_tuple}. Stopping...")
+        ecto_dynamo_log("#{inspect __MODULE__}.poll_table: error attempting to poll table. Stopping...", %{"#{inspect __MODULE__}.poll_table-error" => %{table_name: table_name, error_tuple: error_tuple}})
+
         raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
     end
   end
@@ -235,15 +232,17 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   defp update_table_recursive(table_name, data, wait_interval, time_waited) do
-    ecto_dynamo_log(:info, "update_table_recursive: polling table #{inspect table_name}...")
+    ecto_dynamo_log("#{inspect __MODULE__}.update_table_recursive: polling table", %{table_name: table_name})
     table_info = poll_table(table_name)
     non_active_statuses = list_non_active_statuses(table_info)
 
     if non_active_statuses != [] do
-      ecto_dynamo_log(:info, "update_table_recursive: non-active status found in table #{inspect table_name}: #{inspect non_active_statuses}")
+      ecto_dynamo_log("#{inspect __MODULE__}.update_table_recursive: non-active status found in table", %{"#{inspect __MODULE__}.update_table_recursive-non_active_status" => %{table_name: table_name, non_active_statuses: non_active_statuses}})
+
       to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
       if (time_waited + to_wait) <= @max_wait do
-        ecto_dynamo_log(:info, "Waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
+        ecto_dynamo_log("#{inspect __MODULE__}.update_table_recursive: waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
+
         :timer.sleep(to_wait)
         update_table_recursive(table_name, data, to_wait, time_waited + to_wait)
       else
@@ -253,18 +252,18 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     else
       result = Dynamo.update_table(table_name, data) |> ExAws.request
 
-      ecto_dynamo_log(:info, "update_table_recursive DynamoDB/ExAws response ::: #{inspect result}")
+      ecto_dynamo_log("#{inspect __MODULE__}.update_table_recursive: DynamoDB/ExAws response", %{"#{inspect __MODULE__}.update_table_recursive-result" => inspect result})
 
       case result do
         {:ok, _} ->
-          ecto_dynamo_log(:info, "Table #{inspect table_name} altered successfully")
+          ecto_dynamo_log("#{inspect __MODULE__}.update_table_recursive: table altered successfully.", %{table_name: table_name})
           :ok
 
         {:error, {error, _message}} when (error in ["LimitExceededException", "ProvisionedThroughputExceededException", "ThrottlingException"]) ->
           to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
 
           if (time_waited + to_wait) <= @max_wait do
-            ecto_dynamo_log(:info, "#{inspect error} ... waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
+            ecto_dynamo_log("#{inspect __MODULE__}.update_table_recursive: #{inspect error} ... waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
             :timer.sleep(to_wait)
             update_table_recursive(table_name, data, to_wait, time_waited + to_wait)
           else
@@ -272,7 +271,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
           end
 
         {:error, error_tuple} ->
-          ecto_dynamo_log(:info, "Error attempting to update table #{inspect table_name}: #{inspect error_tuple}. Stopping...\nData: #{inspect data}")
+          ecto_dynamo_log("#{inspect __MODULE__}.update_table_recursive: error attempting to update table. Stopping...", %{"#{inspect __MODULE__}.update_table_recursive-error" => %{table_name: table_name, error_tuple: error_tuple, data: inspect data}})
           raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
       end
 
@@ -291,18 +290,18 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   defp create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, wait_interval, time_waited) do
     result = Dynamo.create_table(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes) |> ExAws.request
 
-    ecto_dynamo_log(:info, "create_table_recursive: DynamoDB/ExAws response ::: #{inspect result}")
+    ecto_dynamo_log("#{inspect __MODULE__}.create_table_recursive: DynamoDB/ExAws response", %{"#{inspect __MODULE__}.create_table_recursive-result" => inspect result})
 
     case result do
       {:ok, _} ->
-        ecto_dynamo_log(:info, "Table #{inspect table_name} created successfully")
+        ecto_dynamo_log("#{inspect __MODULE__}.create_table_recursive: table created successfully.", %{table_name: table_name})
         :ok
 
       {:error, {error, _message}} when (error in ["LimitExceededException", "ProvisionedThroughputExceededException", "ThrottlingException"]) ->
         to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
 
         if (time_waited + to_wait) <= @max_wait do
-          ecto_dynamo_log(:info, "#{inspect error} ... waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
+          ecto_dynamo_log("#{inspect __MODULE__}.create_table_recursive: #{inspect error} ... waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
           :timer.sleep(to_wait)
           create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, to_wait, time_waited + to_wait)
         else
@@ -310,7 +309,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         end
 
       {:error, error_tuple} ->
-        ecto_dynamo_log(:info, "Error attempting to create table #{inspect table_name}: #{inspect error_tuple}. Stopping...")
+        ecto_dynamo_log("#{inspect __MODULE__}.create_table_recursive: error attempting to create table. Stopping...", %{"#{inspect __MODULE__}.create_table_recursive-error" => %{table_name: table_name, error_tuple: error_tuple}})
         raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
     end
   end
