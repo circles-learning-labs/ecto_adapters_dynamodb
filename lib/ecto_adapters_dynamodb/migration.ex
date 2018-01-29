@@ -211,9 +211,9 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       migration_table_capacity = Application.get_env(:ecto_adapters_dynamodb, :migration_table_capacity) || [1,1]
       updated_table_options = case table.options do
         nil  -> [provisioned_throughput: migration_table_capacity]
-		opts -> Keyword.put(opts, :provisioned_throughput, migration_table_capacity)
+        opts -> Keyword.put(opts, :provisioned_throughput, migration_table_capacity)
       end
-	  {:create_if_not_exists, Map.put(table, :options, updated_table_options), field_clauses}
+      {:create_if_not_exists, Map.put(table, :options, updated_table_options), field_clauses}
     else
       command
     end
@@ -262,29 +262,36 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       end
 
     else
-      result = Dynamo.update_table(table_name, data) |> ExAws.request
 
-      ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: DynamoDB/ExAws response", %{"#{inspect __MODULE__}.update_table_recursive-result" => inspect result})
+      # IF THE VALUE OF create IN THE ALTER FUNCTION WAS AN EMPTY LIST, data WILL BE MISSING :attribute_definitions
+      # THIS WILL OCCUR WHEN EITHER NO SECONDARY GLOBALS WERE ADDED, OR ALL THAT WERE ADDED ALREADY EXIST
+      case data[:attribute_definitions] do
+        nil -> nil
+        _ ->
+          result = Dynamo.update_table(table_name, data) |> ExAws.request
 
-      case result do
-        {:ok, _} ->
-          ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: table altered successfully.", %{table_name: table_name})
-          :ok
+          ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: DynamoDB/ExAws response", %{"#{inspect __MODULE__}.update_table_recursive-result" => inspect result})
 
-        {:error, {error, _message}} when (error in ["LimitExceededException", "ProvisionedThroughputExceededException", "ThrottlingException"]) ->
-          to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
+          case result do
+            {:ok, _} ->
+              ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: table altered successfully.", %{table_name: table_name})
+              :ok
 
-          if (time_waited + to_wait) <= @max_wait do
-            ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: #{inspect error} ... waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
-            :timer.sleep(to_wait)
-            update_table_recursive(table_name, data, to_wait, time_waited + to_wait)
-          else
-            raise "#{inspect error} ... wait exceeding configured max wait time, stopping migration at update table #{inspect table_name}...\nData: #{inspect data}"
+            {:error, {error, _message}} when (error in ["LimitExceededException", "ProvisionedThroughputExceededException", "ThrottlingException"]) ->
+              to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
+
+              if (time_waited + to_wait) <= @max_wait do
+                ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: #{inspect error} ... waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
+                :timer.sleep(to_wait)
+                update_table_recursive(table_name, data, to_wait, time_waited + to_wait)
+              else
+                raise "#{inspect error} ... wait exceeding configured max wait time, stopping migration at update table #{inspect table_name}...\nData: #{inspect data}"
+              end
+
+            {:error, error_tuple} ->
+              ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: error attempting to update table. Stopping...", %{"#{inspect __MODULE__}.update_table_recursive-error" => %{table_name: table_name, error_tuple: error_tuple, data: inspect data}})
+              raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
           end
-
-        {:error, error_tuple} ->
-          ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: error attempting to update table. Stopping...", %{"#{inspect __MODULE__}.update_table_recursive-error" => %{table_name: table_name, error_tuple: error_tuple, data: inspect data}})
-          raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
       end
 
     end
@@ -359,6 +366,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   defp build_secondary_indexes(nil), do: []
+  defp build_secondary_indexes([]), do: [] # IN THE EVENT THAT ALL GSIs BEING CREATED HAVE THE :create_if_not_exists OPTION SET AND THEY ALREADY EXIST
   defp build_secondary_indexes(global_indexes) do
     Enum.map(global_indexes, fn index ->
       [read_capacity, write_capacity] = index[:provisioned_throughput] || [1,1]
