@@ -174,7 +174,18 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     to_create = case table.options[:global_indexes] do
       nil -> nil
       global_indexes ->
-        Enum.filter(global_indexes, fn index -> index[:keys] |> Enum.all?(fn key -> Keyword.has_key?(key_list, key) end) end)
+
+        # FIRST POLL THE TABLE TO CHECK FOR EXISTING INDEX NAMES
+        existing_index_names = 
+          case poll_table(table.name)["GlobalSecondaryIndexes"] do
+            nil -> []
+            existing_indexes -> Enum.map(existing_indexes, fn(existing_index) -> existing_index["IndexName"] end)
+          end
+
+        # HERE, ADD A CONDITIONAL TO CHECK FOR THE PRESENCE OF THE :create_if_not_exists OPTION -
+        # IF IT'S PRESENT, CHECK FOR THE NAME IN THE LIST OF EXISTING NAMES - IF IT'S NOT PRESENT,
+        # RETURN TRUE SO AS TO NOT UPSET THE FLOW
+        Enum.filter(global_indexes, fn index -> index[:keys] |> Enum.all?(fn key -> Keyword.has_key?(key_list, key) and if index[:create_if_not_exists], do: !Enum.member?(existing_index_names, index[:index_name]), else: true end) end)
     end
 
     create = build_secondary_indexes(to_create) |> Enum.map(fn index -> %{create: index} end)
