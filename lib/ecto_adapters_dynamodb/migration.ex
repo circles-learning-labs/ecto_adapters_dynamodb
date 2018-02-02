@@ -263,11 +263,12 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
     else
 
-      # IF THE VALUE OF create IN THE ALTER FUNCTION WAS AN EMPTY LIST, data WILL BE MISSING :attribute_definitions
-      # THIS WILL OCCUR WHEN EITHER NO SECONDARY GLOBALS WERE ADDED, OR ALL THAT WERE ADDED ALREADY EXIST
-      case data[:attribute_definitions] do
-        nil -> nil
+      # IF THE VALUE OF create IN THE ALTER FUNCTION WAS AN EMPTY LIST, :global_secondary_index_updates WILL
+      # BE EMPTY, TOO. SKIP THE WHOLE THING, THERE'S NOTHING TO DO.
+      case data[:global_secondary_index_updates] do
+        [] -> nil
         _ ->
+
           result = Dynamo.update_table(table_name, data) |> ExAws.request
 
           ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: DynamoDB/ExAws response", %{"#{inspect __MODULE__}.update_table_recursive-result" => inspect result})
