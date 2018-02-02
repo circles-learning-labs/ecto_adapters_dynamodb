@@ -167,10 +167,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
     {delete, update, key_list} = build_delete_and_update(field_clauses)
 
-    attribute_definitions = for {field, type} <- key_list do
-      %{attribute_name: field, attribute_type: Dynamo.Encoder.atom_to_dynamo_type(convert_type(type))}
-    end
-
     to_create = case table.options[:global_indexes] do
       nil -> nil
       global_indexes ->
@@ -189,6 +185,22 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end
 
     create = build_secondary_indexes(to_create) |> Enum.map(fn index -> %{create: index} end)
+
+
+
+    # IF THERE ARE ANY FIELDS IN key_list THAT ARE NOT REFERENCED IN to_create (FROM WHICH WE'VE REMOVED EXISTING INDEXES),
+    # WE WANT TO LEAVE THOSE REFERENCES OUT OF attribute_definitions. LOG THAT THEY'RE BEING SKIPPED AND RETURN nil, THEN SCRUB THE nils.
+    attribute_definitions = for {field, type} <- key_list do
+      if Enum.any?(to_create, fn(x) -> x[:index_name] == Atom.to_string(field) end) do
+        %{attribute_name: field, attribute_type: Dynamo.Encoder.atom_to_dynamo_type(convert_type(type))}
+      else
+        ecto_dynamo_log(:info, "#{inspect __MODULE__}.alter_table: index already exists. Skipping...", %{index: field})
+        nil
+      end
+    end
+    |> Enum.reject(&is_nil/1)
+
+
 
     data = %{global_secondary_index_updates: create ++ delete ++ update}
            |> Map.merge(if create == [], do: %{}, else: %{attribute_definitions: attribute_definitions})
