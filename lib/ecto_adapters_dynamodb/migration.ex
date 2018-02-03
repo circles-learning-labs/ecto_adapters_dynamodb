@@ -165,18 +165,18 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   def execute_ddl({:alter, %Ecto.Migration.Table{} = table, field_clauses}) do
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: :alter (table)")
 
+
     {delete, update, key_list} = build_delete_and_update(field_clauses)
+
+
+
 
     to_create = case table.options[:global_indexes] do
       nil -> nil
       global_indexes ->
 
         # FIRST POLL THE TABLE TO CHECK FOR EXISTING INDEX NAMES
-        existing_index_names = 
-          case poll_table(table.name)["GlobalSecondaryIndexes"] do
-            nil -> []
-            existing_indexes -> Enum.map(existing_indexes, fn(existing_index) -> existing_index["IndexName"] end)
-          end
+        existing_index_names = get_existing_global_secondary_index_names(table)
 
         # HERE, ADD A CONDITIONAL TO CHECK FOR THE PRESENCE OF THE :create_if_not_exists OPTION -
         # IF IT'S PRESENT, CHECK FOR THE NAME IN THE LIST OF EXISTING NAMES - IF IT'S NOT PRESENT,
@@ -280,7 +280,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       case data[:global_secondary_index_updates] do
         [] -> nil
         _ ->
-
           result = Dynamo.update_table(table_name, data) |> ExAws.request
 
           ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: DynamoDB/ExAws response", %{"#{inspect __MODULE__}.update_table_recursive-result" => inspect result})
@@ -436,6 +435,14 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       :binary    -> :blob
       :binary_id -> :blob
       _          -> type
+    end
+  end
+
+  # RETURN THE NAMES OF ALL OF THE CURRENT GSIs ON A TABLE
+  defp get_existing_global_secondary_index_names(table) do
+    case poll_table(table.name)["GlobalSecondaryIndexes"] do
+      nil -> []
+      existing_indexes -> Enum.map(existing_indexes, fn(existing_index) -> existing_index["IndexName"] end)
     end
   end
 
