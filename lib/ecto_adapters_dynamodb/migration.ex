@@ -165,20 +165,32 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   def execute_ddl({:alter, %Ecto.Migration.Table{} = table, field_clauses}) do
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: :alter (table)")
 
+    
+    # FIRST POLL THE TABLE TO CHECK FOR EXISTING INDEX NAMES
+    existing_index_names = get_existing_global_secondary_index_names(table)
+
 
     {delete, update, key_list} = build_delete_and_update(field_clauses)
 
 
 
+    # SORT THROUGH THE OPTIONS AND SEPARATE THEM AS NEEDED BASED ON WHETHER OR NOT WE ARE CREATING
+    # OR DROPPING INDEXES - THE ONLY OPTION WE'LL TAKE FOR DROPPING IS :drop_if_exists, SO EVERYTHING
+    # ELSE WILL BECOME indexes_to_create
+    {indexes_to_create, indexes_to_drop} = case table.options[:global_indexes] do
+      nil -> {[], []}
+      global_indexes ->
+        {get_index_options_by_action(global_indexes, :create), get_index_options_by_action(global_indexes, :drop)}
+    end
 
-    to_create = case table.options[:global_indexes] do
-      nil -> nil
+
+
+
+    to_create = case indexes_to_create do
+      [] -> nil
       global_indexes ->
 
-        # FIRST POLL THE TABLE TO CHECK FOR EXISTING INDEX NAMES
-        existing_index_names = get_existing_global_secondary_index_names(table)
-
-        # HERE, ADD A CONDITIONAL TO CHECK FOR THE PRESENCE OF THE :create_if_not_exists OPTION -
+        # ADDED A CONDITIONAL TO CHECK FOR THE PRESENCE OF THE :create_if_not_exists OPTION -
         # IF IT'S PRESENT, CHECK FOR THE NAME IN THE LIST OF EXISTING NAMES - IF IT'S NOT PRESENT,
         # RETURN TRUE SO AS TO NOT UPSET THE FLOW
         Enum.filter(global_indexes, fn index -> index[:keys] |> Enum.all?(fn key -> Keyword.has_key?(key_list, key) and if index[:create_if_not_exists], do: !Enum.member?(existing_index_names, index[:index_name]), else: true end) end)
@@ -186,15 +198,13 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
     create = build_secondary_indexes(to_create) |> Enum.map(fn index -> %{create: index} end)
 
-
-
     # IF THERE ARE ANY FIELDS IN key_list THAT ARE NOT REFERENCED IN to_create (FROM WHICH WE'VE REMOVED EXISTING INDEXES),
     # WE WANT TO LEAVE THOSE REFERENCES OUT OF attribute_definitions. LOG THAT THEY'RE BEING SKIPPED AND RETURN nil, THEN SCRUB THE nils.
     attribute_definitions = for {field, type} <- key_list do
       if Enum.any?(to_create, fn(x) -> x[:index_name] == Atom.to_string(field) end) do
         %{attribute_name: field, attribute_type: Dynamo.Encoder.atom_to_dynamo_type(convert_type(type))}
       else
-        ecto_dynamo_log(:info, "#{inspect __MODULE__}.alter_table: index already exists. Skipping...", %{index: field})
+        ecto_dynamo_log(:info, "#{inspect __MODULE__}.alter_table: index already exists. Skipping create...", %{index: field})
         nil
       end
     end
@@ -202,11 +212,39 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
 
 
-    data = %{global_secondary_index_updates: create ++ delete ++ update}
+
+    drop = case indexes_to_drop do
+      [] -> delete # IF NO indexes_to_drop WERE FOUND, JUST RETURN EVERYTHING FROM delete
+      global_indexes ->
+        # WE'D EXPECT ANY INDEXES COMING IN HERE TO BE :drop_if_exists, SINCE THAT'S THE ONLY DROPPING OPTION...
+        # RETURN IT IF WE DO FIND IT IN THE EXISTING INDEXES, RETURN FALSE (EXCLUDING IT) IF WE DON'T
+        to_drop = Enum.filter(global_indexes, fn index -> if index[:drop_if_exists], do: Enum.member?(existing_index_names, index[:index_name]), else: false end)
+
+        for %{delete: %{index_name: field}} <- delete do
+          if Enum.any?(to_drop, fn(x) -> x[:index_name] == Atom.to_string(field) end) do
+            %{delete: %{index_name: field}}
+          else
+            ecto_dynamo_log(:info, "#{inspect __MODULE__}.alter_table: index does not exist. Skipping drop...", %{index: field})
+            nil
+          end
+        end
+    end
+    |> Enum.reject(&is_nil/1)
+
+
+
+
+
+
+    data = %{global_secondary_index_updates: create ++ drop ++ update}
            |> Map.merge(if create == [], do: %{}, else: %{attribute_definitions: attribute_definitions})
 
     update_table_recursive(table.name, data, @initial_wait, 0)
   end
+
+
+
+
 
   def execute_ddl({command, struct, _}), do:
   raise ArgumentError, message: "#{inspect __MODULE__}.execute_ddl error: '" <> to_string(command) <> " #{extract_ecto_migration_type(inspect struct.__struct__)}' is not supported"
@@ -443,6 +481,15 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     case poll_table(table.name)["GlobalSecondaryIndexes"] do
       nil -> []
       existing_indexes -> Enum.map(existing_indexes, fn(existing_index) -> existing_index["IndexName"] end)
+    end
+  end
+
+  # SORT OUT INDEX OPTIONS BASED ON WHETHER OR NOT THOSE ACTIONS ARE ASSOCIATED WITH CREATING OR DROPPING INDEXES
+  # ANYTHING THAT IS NOT EXPLICITLY :drop_if_exists CAN BE INFERRED TO BE A CREATE ACTION
+  defp get_index_options_by_action(index_options, action) do
+    case action do
+      :create -> Enum.filter(index_options, fn index -> !index[:drop_if_exists] end)
+      :drop -> Enum.filter(index_options, fn index -> index[:drop_if_exists] end)
     end
   end
 
