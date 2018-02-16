@@ -8,7 +8,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   
   The functions, `add`, `remove` and `modify` correspond to indexes on the DynamoDB table. Using `add`, the second parameter, field type (which corresponds with the DynamoDB attribute) must be specified. Use the third parameter to specify a primary key not already specified. For a HASH-only primary key, use `primary_key: true` as the third parameter. For a composite primary key (HASH and RANGE), in addition to the `primary_key` specification, set the third parameter on the range key attribute to `range_key: true`. There should be only one primary key (hash or composite) specified per table.
  
-  To specify index details, such as provisioned throughput, global and local indexes, use the `options` keyword in `create table` and `alter table`, please see the examples below for greater detail.
+  To specify index details, such as provisioned throughput, create_if_not_exists/drop_if_exists, global and local indexes, use the `options` keyword in `create table` and `alter table`, please see the examples below for greater detail.
 
   *Please note that `change` may not work as expected on rollback. We recommend specifying `up` and `down` instead.*
 
@@ -46,6 +46,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
           global_indexes: [
             [index_name: "content",
              keys: [:content],
+             create_if_not_exists: true,
              projection: [projection_type: :include, non_key_attributes: [:email]]]
           ]
         ]) do
@@ -55,7 +56,13 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end
 
     def down do
-      alter table(:post) do
+      alter table(:post,
+        options: [
+          global_indexes: [
+            [index_name: "content",
+              drop_if_exists: true]]
+        ]
+      ) do
         remove :content
       end
     end
