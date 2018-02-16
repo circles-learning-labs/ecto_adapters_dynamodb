@@ -442,7 +442,9 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   defp list_existing_global_secondary_index_names(table) do
     case poll_table(table.name)["GlobalSecondaryIndexes"] do
       nil -> []
-      existing_indexes -> Enum.map(existing_indexes, fn(existing_index) -> existing_index["IndexName"] end)
+      existing_indexes ->
+        Enum.filter(existing_indexes, fn(existing_index) -> existing_index["IndexStatus"] != "DELETING" end)
+        |> Enum.map(fn(existing_index) -> existing_index["IndexName"] end)
     end
   end
 
