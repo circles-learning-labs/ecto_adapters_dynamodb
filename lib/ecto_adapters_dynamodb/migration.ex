@@ -165,33 +165,22 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   def execute_ddl({:alter, %Ecto.Migration.Table{} = table, field_clauses}) do
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: :alter (table)")
 
-    # FIRST POLL THE TABLE TO CHECK FOR EXISTING INDEX NAMES -
-    # TO BE USED IN CASE OF :create_if_not_exists AND :drop_if_exists OPTIONS
     existing_index_names = list_existing_global_secondary_index_names(table)
 
     {delete, update, key_list} = build_delete_and_update(field_clauses)
 
-    # SORT THROUGH THE OPTIONS AND SEPARATE THEM AS NEEDED BASED ON WHETHER OR NOT WE ARE CREATING
-    # OR DROPPING INDEXES - THE ONLY OPTION WE'LL TAKE FOR DROPPING IS :drop_if_exists, SO EVERYTHING
-    # ELSE WITH RELATED TABLE OPTIONS WILL BECOME table_option_indexes_to_create
-    {table_option_indexes_to_create, table_option_indexes_to_drop} = case table.options[:global_indexes] do
-      nil -> {[], []}
-      global_indexes ->
-        {get_index_options_by_action(global_indexes, :create), get_index_options_by_action(global_indexes, :drop)}
-    end
+    {table_option_indexes_to_create, table_option_indexes_to_drop} = parse_index_options(table.options)
 
     drop = case table_option_indexes_to_drop do
-      [] -> delete # IF NO table_option_indexes_to_drop WERE FOUND, JUST RETURN EVERYTHING FROM delete, SINCE ONLY DELETES WITH :drop_if_exists WILL APPEAR AS TABLE OPTIONS
+      [] -> delete
       global_indexes_to_drop ->
-        # WE'D EXPECT ANY INDEXES COMING IN HERE TO BE :drop_if_exists, SINCE THAT'S THE ONLY DROPPING OPTION...
-        # RETURN IT IF WE DO FIND IT IN THE EXISTING INDEXES, RETURN FALSE (EXCLUDING IT) IF WE DON'T
         to_drop = Enum.filter(global_indexes_to_drop, fn index -> if index[:drop_if_exists], do: Enum.member?(existing_index_names, index[:index_name]), else: false end)
 
         for %{delete: %{index_name: field}} <- delete do
           if Enum.any?(to_drop, fn(x) -> x[:index_name] == Atom.to_string(field) end) do
             %{delete: %{index_name: field}}
           else
-            ecto_dynamo_log(:info, "#{inspect __MODULE__}.alter_table: index does not exist. Skipping drop...", %{index: field})
+            ecto_dynamo_log(:info, "#{inspect __MODULE__}.alter_table: index does not exist. Skipping drop...", %{"#{inspect __MODULE__}.execute_ddl-alter-table-drop-skip-index" => field})
             nil
           end
         end
@@ -201,21 +190,19 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     to_create = case table_option_indexes_to_create do
       [] -> nil
       global_indexes ->
-        # ADDED A CONDITIONAL TO CHECK FOR THE PRESENCE OF THE :create_if_not_exists OPTION -
-        # IF IT'S PRESENT, CHECK FOR THE NAME IN THE LIST OF EXISTING NAMES - IF IT'S NOT PRESENT,
-        # RETURN TRUE SO AS TO NOT UPSET THE FLOW
-        Enum.filter(global_indexes, fn index -> index[:keys] |> Enum.all?(fn key -> Keyword.has_key?(key_list, key) and if index[:create_if_not_exists], do: !Enum.member?(existing_index_names, index[:index_name]), else: true end) end)
+        for index <- global_indexes,
+          !index[:create_if_not_exists] or !Enum.member?(existing_index_names, index[:index_name]),
+          Enum.all?(index[:keys], &(Keyword.has_key?(key_list, &1))),
+          do: index
     end
 
     create = build_secondary_indexes(to_create) |> Enum.map(fn index -> %{create: index} end)
 
-    # IF THERE ARE ANY FIELDS IN key_list THAT ARE NOT REFERENCED IN to_create (FROM WHICH WE'VE REMOVED EXISTING INDEXES),
-    # WE WANT TO LEAVE THOSE REFERENCES OUT OF attribute_definitions. LOG THAT THEY'RE BEING SKIPPED AND RETURN nil, THEN SCRUB THE nils.
     attribute_definitions = for {field, type} <- key_list do
       if Enum.any?(to_create, fn(x) -> x[:index_name] == Atom.to_string(field) end) do
         %{attribute_name: field, attribute_type: Dynamo.Encoder.atom_to_dynamo_type(convert_type(type))}
       else
-        ecto_dynamo_log(:info, "#{inspect __MODULE__}.alter_table: index already exists. Skipping create...", %{index: field})
+        ecto_dynamo_log(:info, "#{inspect __MODULE__}.alter_table: index already exists. Skipping create...", %{"#{inspect __MODULE__}.execute_ddl-alter-table-create-skip-index" => field})
         nil
       end
     end
@@ -293,7 +280,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       end
     else
       case data[:global_secondary_index_updates] do
-        [] -> nil # IF THE VALUE OF create IN THE ALTER FUNCTION WAS AN EMPTY LIST, :global_secondary_index_updates WILL BE EMPTY, TOO. SKIP THE WHOLE THING, THERE'S NOTHING TO DO.
+        [] -> nil
         _ ->
           result = Dynamo.update_table(table_name, data) |> ExAws.request
 
@@ -393,7 +380,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   defp build_secondary_indexes(nil), do: []
-  defp build_secondary_indexes([]), do: [] # IN THE EVENT THAT ALL GSIs BEING CREATED HAVE THE :create_if_not_exists OPTION SET AND THEY ALREADY EXIST
   defp build_secondary_indexes(global_indexes) do
     Enum.map(global_indexes, fn index ->
       [read_capacity, write_capacity] = index[:provisioned_throughput] || [1,1]
@@ -453,7 +439,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end
   end
 
-  # RETURN THE NAMES OF ALL OF THE CURRENT GSIs ON A TABLE
   defp list_existing_global_secondary_index_names(table) do
     case poll_table(table.name)["GlobalSecondaryIndexes"] do
       nil -> []
@@ -461,8 +446,11 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end
   end
 
-  # SORT OUT INDEX OPTIONS BASED ON WHETHER OR NOT THOSE ACTIONS ARE ASSOCIATED WITH CREATING OR DROPPING INDEXES
-  # ANYTHING THAT IS NOT EXPLICITLY :drop_if_exists CAN BE INFERRED TO BE A CREATE ACTION
+  defp parse_index_options(table_options) do
+    global_indexes = Keyword.get(table_options, :global_indexes, [])
+    {get_index_options_by_action(global_indexes, :create), get_index_options_by_action(global_indexes, :drop)}
+  end
+
   defp get_index_options_by_action(index_options, action) do
     case action do
       :create -> Enum.filter(index_options, fn index -> !index[:drop_if_exists] end)
