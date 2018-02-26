@@ -174,22 +174,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
     {delete, update, key_list} = build_delete_and_update(field_clauses)
 
-    # drop = case table_option_indexes_to_drop do
-    #   [] -> delete
-    #   indexes_to_drop -> indexes_to_drop
-    #     # to_drop = Enum.filter(global_indexes_to_drop, fn index -> if index[:drop_if_exists], do: Enum.member?(existing_index_names, index[:index_name]), else: false end)
-
-    #     # for %{delete: %{index_name: field}} <- delete do
-    #     #   if Enum.any?(to_drop, fn(x) -> x[:index_name] == Atom.to_string(field) end) do
-    #     #     %{delete: %{index_name: field}}
-    #     #   else
-    #     #     ecto_dynamo_log(:info, "#{inspect __MODULE__}.alter_table: index does not exist. Skipping drop...", %{"#{inspect __MODULE__}.execute_ddl-alter-table-drop-skip-index" => field})
-    #     #     nil
-    #     #   end
-    #     # end
-    # end
-    # # |> Enum.reject(&is_nil/1)
-
     attribute_definitions = for {field, type} <- key_list do
       %{attribute_name: field, attribute_type: Dynamo.Encoder.atom_to_dynamo_type(convert_type(type))}
     end
@@ -201,16 +185,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end
 
     create = build_secondary_indexes(to_create) |> Enum.map(fn index -> %{create: index} end)
-
-    # attribute_definitions = for {field, type} <- key_list do
-    #   if Enum.any?(to_create, fn(x) -> x[:index_name] == Atom.to_string(field) end) do
-    #     %{attribute_name: field, attribute_type: Dynamo.Encoder.atom_to_dynamo_type(convert_type(type))}
-    #   else
-    #     ecto_dynamo_log(:info, "#{inspect __MODULE__}.alter_table: index already exists. Skipping create...", %{"#{inspect __MODULE__}.execute_ddl-alter-table-create-skip-index" => field})
-    #     nil
-    #   end
-    # end
-    # |> Enum.reject(&is_nil/1)
 
     data = %{global_secondary_index_updates: create ++ delete ++ update}
            |> Map.merge(if create == [], do: %{}, else: %{attribute_definitions: attribute_definitions})
@@ -312,7 +286,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
               ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: error attempting to update table. Stopping...", %{"#{inspect __MODULE__}.update_table_recursive-error" => %{table_name: table.name, error_tuple: error_tuple, data: inspect data}})
               raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
           end
-
       end
     end
   end
@@ -445,17 +418,14 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end
   end
 
-  defp list_existing_global_secondary_index_names(table_name) do
-    case poll_table(table_name)["GlobalSecondaryIndexes"] do
-      nil -> []
-      existing_indexes -> Enum.map(existing_indexes, fn(existing_index) -> existing_index["IndexName"] end)
-    end
-  end
-
   defp assess_existence_options(data, table) do
     existing_index_names = list_existing_global_secondary_index_names(table.name)
 
-    {create_if_not_exist_indexes, drop_if_exists_indexes} = get_existence_options(table.options)
+    {create_if_not_exist_indexes, drop_if_exists_indexes} =
+      case table.options do
+        nil -> {[], []}
+        _ -> get_existence_options(table.options)
+      end
 
     filtered_global_secondary_index_updates = Enum.filter(data[:global_secondary_index_updates], fn(global_secondary_index_update) ->
       [{key, value}] = Map.to_list(global_secondary_index_update)
@@ -487,10 +457,28 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
           end
         :update -> true
       end
-
     end)
 
-    modified_index_updates = Map.replace!(data, :global_secondary_index_updates, filtered_global_secondary_index_updates)
+    filtered_attribute_definitions =
+      case data[:attribute_definitions] do
+        nil -> nil
+        _ -> Enum.filter(data[:attribute_definitions], fn(attribute_definition) ->
+            attribute_name = Atom.to_string(attribute_definition.attribute_name)
+            if attribute_name not in create_if_not_exist_indexes, do: true, else: attribute_name not in existing_index_names
+          end)
+      end
+
+    case filtered_attribute_definitions do
+      nil -> %{global_secondary_index_updates: filtered_global_secondary_index_updates}
+      _ -> %{attribute_definitions: filtered_attribute_definitions, global_secondary_index_updates: filtered_global_secondary_index_updates}
+    end
+  end
+
+  defp list_existing_global_secondary_index_names(table_name) do
+    case poll_table(table_name)["GlobalSecondaryIndexes"] do
+      nil -> []
+      existing_indexes -> Enum.map(existing_indexes, fn(existing_index) -> existing_index["IndexName"] end)
+    end
   end
 
   defp get_existence_options(table_options) do
