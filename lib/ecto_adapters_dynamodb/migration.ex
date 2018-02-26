@@ -283,13 +283,12 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         raise "Wait exceeding configured max wait time, stopping migration at update table #{inspect table.name}...\nData: #{inspect data}"
       end
     else
-      filtered_data = assess_existence_options(data, table)
+      existence_option_filtered_data = assess_existence_options(data, table)
 
-      case filtered_data[:global_secondary_index_updates] do
+      case existence_option_filtered_data[:global_secondary_index_updates] do
         [] -> nil
         _ ->
-
-          result = Dynamo.update_table(table.name, filtered_data) |> ExAws.request
+          result = Dynamo.update_table(table.name, existence_option_filtered_data) |> ExAws.request
 
           ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: DynamoDB/ExAws response", %{"#{inspect __MODULE__}.update_table_recursive-result" => inspect result})
 
@@ -314,46 +313,8 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
               raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
           end
 
-
-        end
-
-
-
-
-
-
-
-
-    end
-  end
-
-  defp assess_existence_options(data, table) do
-    existing_index_names = list_existing_global_secondary_index_names(table.name)
-
-    {create_if_not_exist_indexes, drop_if_exists_indexes} = get_existence_options(table.options)
-
-    filtered_global_secondary_index_updates = Enum.filter(data[:global_secondary_index_updates], fn(global_secondary_index_update) ->
-      [{key, value}] = Map.to_list(global_secondary_index_update)
-
-      case key do
-        :create ->
-          if value.index_name not in create_if_not_exist_indexes, do: true, else: value.index_name not in existing_index_names
-        :delete ->
-          index_name = Atom.to_string(value.index_name)
-          if index_name not in drop_if_exists_indexes, do: true, else: index_name in existing_index_names
-        :update -> true
       end
-
-    end)
-
-    modified_index_updates = Map.replace!(data, :global_secondary_index_updates, filtered_global_secondary_index_updates)
-  end
-
-  defp get_existence_options(table_options) do
-    global_index_options = Keyword.get(table_options, :global_indexes, [])
-    create_if_not_exist_indexes = Enum.map(global_index_options, fn(global_index_option) -> if Keyword.has_key?(global_index_option, :create_if_not_exists), do: global_index_option[:index_name] end) |> Enum.reject(&is_nil/1)
-    drop_if_exists_indexes = Enum.map(global_index_options, fn(global_index_option) -> if Keyword.has_key?(global_index_option, :drop_if_exists), do: global_index_option[:index_name] end) |> Enum.reject(&is_nil/1)
-    {create_if_not_exist_indexes, drop_if_exists_indexes}
+    end
   end
 
   defp create_table(table_name, field_clauses, options) do
@@ -491,17 +452,53 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end
   end
 
-  # defp parse_index_options(table_options) do
-  #   global_indexes = Keyword.get(table_options, :global_indexes, [])
-  #   {get_index_options_by_action(global_indexes, :create), get_index_options_by_action(global_indexes, :drop)}
-  # end
+  defp assess_existence_options(data, table) do
+    existing_index_names = list_existing_global_secondary_index_names(table.name)
 
-  # defp get_index_options_by_action(index_options, action) do
-  #   case action do
-  #     :create -> Enum.filter(index_options, fn index -> !index[:drop_if_exists] end)
-  #     :drop -> Enum.filter(index_options, fn index -> index[:drop_if_exists] end)
-  #   end
-  # end
+    {create_if_not_exist_indexes, drop_if_exists_indexes} = get_existence_options(table.options)
+
+    filtered_global_secondary_index_updates = Enum.filter(data[:global_secondary_index_updates], fn(global_secondary_index_update) ->
+      [{key, value}] = Map.to_list(global_secondary_index_update)
+
+      index_name = if Kernel.is_atom(value.index_name), do: Atom.to_string(value.index_name), else: value.index_name
+
+      case key do
+        :create ->
+          if index_name not in create_if_not_exist_indexes do
+            true
+          else
+            if index_name not in existing_index_names do
+              true
+            else
+              ecto_dynamo_log(:info, "#{inspect __MODULE__}.assess_existence_options: index already exists. Skipping create...", %{"#{inspect __MODULE__}.update_table_recursive_assess_existence_options_skip-create-index" => index_name})
+              false
+            end
+          end
+        :delete ->
+          if index_name not in drop_if_exists_indexes do
+            true
+          else
+            if index_name in existing_index_names do
+              true
+            else
+              ecto_dynamo_log(:info, "#{inspect __MODULE__}.assess_existence_options: index does not exist. Skipping drop......", %{"#{inspect __MODULE__}.update_table_recursive_assess_existence_options_skip-drop-index" => index_name})
+              false
+            end
+          end
+        :update -> true
+      end
+
+    end)
+
+    modified_index_updates = Map.replace!(data, :global_secondary_index_updates, filtered_global_secondary_index_updates)
+  end
+
+  defp get_existence_options(table_options) do
+    global_index_options = Keyword.get(table_options, :global_indexes, [])
+    create_if_not_exist_indexes = Enum.map(global_index_options, fn(global_index_option) -> if Keyword.has_key?(global_index_option, :create_if_not_exists), do: global_index_option[:index_name] end) |> Enum.reject(&is_nil/1)
+    drop_if_exists_indexes = Enum.map(global_index_options, fn(global_index_option) -> if Keyword.has_key?(global_index_option, :drop_if_exists), do: global_index_option[:index_name] end) |> Enum.reject(&is_nil/1)
+    {create_if_not_exist_indexes, drop_if_exists_indexes}
+  end
 
   defp proper_list(l), do: proper_list(l, [])
   defp proper_list([], res), do: Enum.reverse(res)
