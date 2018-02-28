@@ -468,10 +468,8 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
           end)
       end
 
-    case filtered_attribute_definitions do
-      nil -> %{global_secondary_index_updates: filtered_global_secondary_index_updates}
-      _ -> %{attribute_definitions: filtered_attribute_definitions, global_secondary_index_updates: filtered_global_secondary_index_updates}
-    end
+    %{global_secondary_index_updates: filtered_global_secondary_index_updates}
+    |> Map.merge(if is_nil(filtered_attribute_definitions), do: %{}, else: %{attribute_definitions: filtered_attribute_definitions})
   end
 
   defp list_existing_global_secondary_index_names(table_name) do
