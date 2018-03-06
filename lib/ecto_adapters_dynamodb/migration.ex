@@ -461,7 +461,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     if index_name not in existing_index_names do
       true
     else
-      ecto_dynamo_log(:info, "#{inspect __MODULE__}.assess_existence_options: index already exists. Skipping create...", %{"#{inspect __MODULE__}.update_table_recursive_assess_existence_options_skip-create-index" => index_name})
+      ecto_dynamo_log(:info, "#{inspect __MODULE__}.assess_index_operation: index already exists. Skipping create...", %{"#{inspect __MODULE__}.assess_index_operation_skip-create-index" => index_name})
       false
     end
   end
@@ -469,7 +469,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     if index_name in existing_index_names do
       true
     else
-      ecto_dynamo_log(:info, "#{inspect __MODULE__}.assess_existence_options: index already exists. Skipping create...", %{"#{inspect __MODULE__}.update_table_recursive_assess_existence_options_skip-create-index" => index_name})
+      ecto_dynamo_log(:info, "#{inspect __MODULE__}.assess_index_operation: index does not exist. Skipping drop...", %{"#{inspect __MODULE__}.assess_index_operation_skip-drop-index" => index_name})
       false
     end
   end
