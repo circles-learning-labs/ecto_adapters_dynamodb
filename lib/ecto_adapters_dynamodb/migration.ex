@@ -257,6 +257,8 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         raise "Wait exceeding configured max wait time, stopping migration at update table #{inspect table.name}...\nData: #{inspect data}"
       end
     else
+      # Before passing the alter data to Dynamo, perform filtering based on
+      # the presence of :create_if_not_exists of :drop_if_exists options
       existence_option_filtered_data = assess_existence_options(data, table)
 
       case existence_option_filtered_data[:global_secondary_index_updates] do
@@ -418,18 +420,20 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end
   end
 
+  # Compare the list of existing global secondary indexes with the indexes flagged with
+  # :create_if_not_exists and/or :drop_if_exists options
   defp assess_existence_options(data, table) do
     existing_index_names = list_existing_global_secondary_index_names(table.name)
 
     {create_if_not_exist_indexes, drop_if_exists_indexes} = get_existence_options(table.options)
 
-    filter_fun = &(filter_conditional_index_operations(&1, existing_index_names, create_if_not_exist_indexes, drop_if_exists_indexes))
+    filter_fun = &(assess_conditional_index_operations(&1, existing_index_names, create_if_not_exist_indexes, drop_if_exists_indexes))
     filtered_global_secondary_index_updates = Enum.filter(data[:global_secondary_index_updates], filter_fun)
 
     # In the case of creating an index, the data will have an :attribute_definitions key,
     # which has additional info about the index being created. If that index has been removed
-    # in this filtering process, we'll remove its :attribute_definitions as well. It's worth
-    # noting that this is not technically necessary and does not affect the behavior of the adapter.
+    # in this filtering process, remove its :attribute_definitions as well.
+    # Note that this is not technically necessary and does not affect the behavior of the adapter.
     # If the index is missing from filtered_global_secondary_index_updates, unmatched data[:attribute_definitions]
     # will be overlooked in the call to Dynamo.update_table(). However, to avoid passing around unused data,
     # we have opted to filter the attribute_definitions to match the global_secondary_index_updates.
@@ -446,7 +450,8 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     |> Map.merge(if is_nil(filtered_attribute_definitions), do: %{}, else: %{attribute_definitions: filtered_attribute_definitions})
   end
 
-  defp filter_conditional_index_operations(global_secondary_index_update, existing_index_names, create_if_not_exist_indexes, drop_if_exists_indexes) do
+  # Check for the presence/absence of the option and assess its relationship to the list of existing indexes
+  defp assess_conditional_index_operations(global_secondary_index_update, existing_index_names, create_if_not_exist_indexes, drop_if_exists_indexes) do
       [{operation, index_info}] = Map.to_list(global_secondary_index_update)
       index_name = if Kernel.is_atom(index_info.index_name), do: Atom.to_string(index_info.index_name), else: index_info.index_name
 
@@ -457,6 +462,9 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
                              existing_index_names)
   end
 
+  # If an existence option has not been provided, or if the action is an update, return 'true' so
+  # the index is included in the results of Enum.filter(). Otherwise, compare :create_if_not_exists
+  # and :drop_if_exists with the list of existing indexes and decide how to proceed.
   defp assess_index_operation(:create, index_name, in_create_if_not_exist_indexes, _in_drop_if_exists_indexes, existing_index_names) when in_create_if_not_exist_indexes do
     if index_name not in existing_index_names do
       true
@@ -482,18 +490,20 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end
   end
 
+  # Return a tuple with all of the indexes flagged with :create_if_not_exists or :drop_if_exists options
   defp get_existence_options(table_options) do
     case table_options do
       nil -> {[], []}
       _ ->
         global_index_options = Keyword.get(table_options, :global_indexes, [])
 
-        {check_for_existence_options(global_index_options, :create_if_not_exists),
-         check_for_existence_options(global_index_options, :drop_if_exists)}
+        {parse_existence_options(global_index_options, :create_if_not_exists),
+         parse_existence_options(global_index_options, :drop_if_exists)}
     end
   end
 
-  defp check_for_existence_options(global_index_options, option) do
+  # Sort the existence options based on the option provided
+  defp parse_existence_options(global_index_options, option) do
     for global_index_option <- global_index_options, Keyword.has_key?(global_index_option, option), do: global_index_option[:index_name]
   end
 
