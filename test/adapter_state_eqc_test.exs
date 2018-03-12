@@ -1,6 +1,10 @@
 # Skip EQC testing if we don't have it installed:
 if Code.ensure_compiled?(:eqc) do
 defmodule AdapterStateEqcTest do
+  # This test runs a series of database operations through the adapter
+  # and checks that everything appears to stay consistent and follow
+  # all the rules the way we expect it to.
+
   use ExUnit.Case
   use EQC.ExUnit
   use EQC.StateM
