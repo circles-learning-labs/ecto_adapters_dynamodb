@@ -96,6 +96,25 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert result == {1, nil}
   end
 
+  # Batch insert 55 records
+  # DynamoDB has a constraint on the call to BatchWriteItem, where attempts to insert more than
+  # 25 records will be rejected. We allow the user to call insert_all() for more than 25 records
+  # by breaking up the requests into blocks of 25.
+  # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
+  test "simple insert_all: exceed BatchWriteItem limit by 20 records" do
+    total_inserts = 55
+    people = for i <- 0..total_inserts, i > 0 do
+               id_string = :crypto.strong_rand_bytes(16) |> Base.url_encode64 |> binary_part(0, 16)
+               id = "person:" <> id_string
+
+               %{id: id, circles: nil, first_name: "Batch",
+                 last_name: "Insert", age: i, email: "batch_insert#{i}@test.com", password: "password"}
+             end
+
+    result = TestRepo.insert_all(Person, people)
+    assert result == {total_inserts, nil}
+  end
+
   # A record is created, retrieved, updated, and retrieved again.
   test "simple update" do
     TestRepo.insert %Person {id: "person-update", circles: nil, first_name: "Update", last_name: "Test", age: 12, email: "update@test.com", password: "password"}
