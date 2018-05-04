@@ -547,23 +547,56 @@ defmodule Ecto.Adapters.DynamoDB do
       [put_request: [item: record]]
     end)
 
-    records = Enum.map(prepared_fields, fn [put_request: [item: record]] -> record end)
+    ecto_dynamo_log(:info, "#{inspect __MODULE__}.insert_all: local variables", %{"#{inspect __MODULE__}.insert_all-vars" => %{table: table, records: get_records_from_fields(prepared_fields)}})
 
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.insert_all: local variables", %{"#{inspect __MODULE__}.insert_all-vars" => %{table: table, records: records}})
+    batch_write(table, prepared_fields, opts)
+  end
 
-    batch_write_attempt = Dynamo.batch_write_item(%{table => prepared_fields}) |> ExAws.request |> handle_error!(%{table: table, records: records})
 
-    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.insert_all: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write_attempt" => inspect(batch_write_attempt)})
+  # DynamoDB will reject an entire batch of insert_all() records if there are more than 25 requests.
+  # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
+  # batch_write/3 will break the list into chunks of 25 items and insert each separately.
+  defp batch_write(table, prepared_fields, opts) do
+    batch_write_limit = 25
+    unprocessed_item_key = "UnprocessedItems"
+
+    {length, results} = Enum.chunk_every(prepared_fields, batch_write_limit)
+                       |> Enum.reduce({0, %{unprocessed_item_key => %{}}}, fn(field_group, {total_records, batch_write_result}) ->
+                         {length, batch_write_attempt} = handle_batch_write(field_group, table, unprocessed_item_key)
+                         {total_records + length, merge_batch_write_data(batch_write_result, batch_write_attempt, unprocessed_item_key)}
+                       end)
+
+    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect(results)})
 
     # We're not retrying unprocessed items yet, but we are providing the relevant info in the QueryInfo agent if :query_info_key is supplied
-    if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], extract_query_info(batch_write_attempt))
+    if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], extract_query_info(results))
 
-    if batch_write_attempt["UnprocessedItems"] == %{} do
-      {length(records), nil}
+    {length, nil}
+  end
+
+  defp handle_batch_write(field_group, table, unprocessed_item_key) do
+    records = get_records_from_fields(field_group)
+
+    batch_write_attempt = Dynamo.batch_write_item(%{table => field_group})
+                          |> ExAws.request
+                          |> handle_error!(%{table: table, records: records})
+
+    # Although we think of insert_all as one batch operation, we may need to perform multiple inserts when the
+    # total number of records exceeds 25. Here, on a successful insert of up to 25 records, we'll log the successful
+    # records so in the event of an error, the user will have record of all of the records that were inserted.
+    ecto_dynamo_log(:info, "#{inspect __MODULE__}.handle_batch_write: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write-handle_batch_write" => %{table: table, records: records}})
+
+    if batch_write_attempt[unprocessed_item_key] == %{} do
+      {length(records), %{}}
     else
-      {length(records) - length(batch_write_attempt["UnprocessedItems"][table]), nil}
+      {length(records) - length(batch_write_attempt[unprocessed_item_key][table]), batch_write_attempt[unprocessed_item_key]}
     end
   end
+
+  defp get_records_from_fields(fields), do: Enum.map(fields, fn [put_request: [item: record]] -> record end)
+
+  defp merge_batch_write_data(batch_write_result, batch_write_attempt, key), do: Map.update!(batch_write_result, key, &(Map.merge(&1, batch_write_attempt)))
+
 
   defp build_record_map(model, fields_to_insert) do
     # Ecto does not convert empty strings to nil before passing them
