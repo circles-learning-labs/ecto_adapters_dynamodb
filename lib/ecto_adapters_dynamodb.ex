@@ -562,8 +562,8 @@ defmodule Ecto.Adapters.DynamoDB do
 
     {length, results} = Enum.chunk_every(prepared_fields, batch_write_limit)
                        |> Enum.reduce({0, %{unprocessed_item_key => %{}}}, fn(field_group, {total_records, batch_write_result}) ->
-                         {length, batch_write_attempt} = handle_batch_write(field_group, table, unprocessed_item_key)
-                         {total_records + length, merge_batch_write_data(batch_write_result, batch_write_attempt, unprocessed_item_key)}
+                          {length, batch_write_attempt} = handle_batch_write(field_group, table, unprocessed_item_key)
+                          {total_records + length, accumulate_batch_write_data(batch_write_result, batch_write_attempt, unprocessed_item_key, table)}
                        end)
 
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect(results)})
@@ -589,13 +589,25 @@ defmodule Ecto.Adapters.DynamoDB do
     if batch_write_attempt[unprocessed_item_key] == %{} do
       {length(records), %{}}
     else
-      {length(records) - length(batch_write_attempt[unprocessed_item_key][table]), batch_write_attempt[unprocessed_item_key]}
+      {length(records) - length(batch_write_attempt[unprocessed_item_key][table]), batch_write_attempt}
     end
   end
 
   defp get_records_from_fields(fields), do: Enum.map(fields, fn [put_request: [item: record]] -> record end)
 
-  defp merge_batch_write_data(batch_write_result, batch_write_attempt, key), do: Map.update!(batch_write_result, key, &(Map.merge(&1, batch_write_attempt)))
+  defp accumulate_batch_write_data(batch_write_result, batch_write_attempt, key, table) do
+    cond do
+      Map.has_key?(batch_write_result[key], table) ->
+        # If batch_write_result["UnprocessedItems"] has a key for the table name, append the relevant results to that list.
+        cumulative_unprocessed_data = batch_write_result[key][table] ++ batch_write_attempt[key][table]
+        Kernel.put_in(batch_write_result, [key, table], cumulative_unprocessed_data)
+      Map.has_key?(batch_write_attempt, key) ->
+        # If batch_write_result is still %{"UnprocessedItems" => %{}}, then just return batch_write_attempt,
+        # making it %{"UnprocessedItems" => %{"table" => [%{"PutRequest" => %{etc...}]}}
+        Map.put(batch_write_result, key, batch_write_attempt[key])
+      true -> batch_write_result
+    end
+  end
 
 
   defp build_record_map(model, fields_to_insert) do
