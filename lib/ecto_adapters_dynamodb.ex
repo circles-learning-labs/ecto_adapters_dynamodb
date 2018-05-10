@@ -597,15 +597,17 @@ defmodule Ecto.Adapters.DynamoDB do
 
   defp accumulate_batch_write_data(batch_write_result, batch_write_attempt, key, table) do
     cond do
-      Map.has_key?(batch_write_result[key], table) ->
+      Map.has_key?(batch_write_result[key], table) and batch_write_attempt[key] != %{} ->
         # If batch_write_result["UnprocessedItems"] has a key for the table name, append the relevant results to that list.
         cumulative_unprocessed_data = batch_write_result[key][table] ++ batch_write_attempt[key][table]
         Kernel.put_in(batch_write_result, [key, table], cumulative_unprocessed_data)
-      Map.has_key?(batch_write_attempt, key) ->
-        # If batch_write_result is still %{"UnprocessedItems" => %{}}, then just return batch_write_attempt,
-        # making it %{"UnprocessedItems" => %{"table" => [%{"PutRequest" => %{etc...}]}}
+      Map.has_key?(batch_write_attempt, key) and batch_write_attempt[key] != %{} ->
+        # If batch_write_attempt has "UnprocessedItems" but there is no entry for the table in
+        # batch_write_result["UnprocessedItems"], put the value of this attempt under that key in the results
         Map.put(batch_write_result, key, batch_write_attempt[key])
-      true -> batch_write_result
+      true ->
+        # Otherwise (as in, batch_write_attempt[key] == %{}), just return the result unchanged.
+        batch_write_result
     end
   end
 
