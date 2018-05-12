@@ -563,10 +563,12 @@ defmodule Ecto.Adapters.DynamoDB do
     {length, results} = Enum.chunk_every(prepared_fields, batch_write_limit)
                        |> Enum.reduce({0, %{unprocessed_item_key => %{}}}, fn(field_group, {total_records, batch_write_result}) ->
                           {length, batch_write_attempt} = handle_batch_write(field_group, table, unprocessed_item_key)
-                          {total_records + length, accumulate_batch_write_data(batch_write_result, batch_write_attempt, unprocessed_item_key, table)}
+                          accumulated_batch_write_data = accumulate_batch_write_data(batch_write_result, batch_write_attempt, unprocessed_item_key, table)
+
+                          {total_records + length, accumulated_batch_write_data}
                        end)
 
-    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect(results)})
+    ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect(results)})
 
     # We're not retrying unprocessed items yet, but we are providing the relevant info in the QueryInfo agent if :query_info_key is supplied
     if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], extract_query_info(results))
