@@ -14,7 +14,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     TestHelper.setup_all()
   end
 
-  # A BASIC INSERT
+  # A basic insert
   test "simple insert" do
     result = TestRepo.insert %Person {id: "person-hello", circles: nil, first_name: "Hello",
                                       last_name: "World", age: 34, email: "hello@world.com", password: "password"}
@@ -23,7 +23,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                       __meta__: %Ecto.Schema.Metadata{context: nil, source: {nil, @test_table}, state: :loaded}}}
   end
 
-  # CREATE A RECORD AND THEN RETRIEVE IT - I.E. CREATE A NEW USER AND BE REDIRECTED TO THEIR PROFILE PAGE
+  # Create a record and then retrieve it
   test "insert and get" do
     TestRepo.insert %Person {id: "person-john", circles: nil, first_name: "John", last_name: "Lennon", age: 40, email: "john@beatles.com", password: "password", role: "musician"}
     result = TestRepo.get(Person, "person-john")
@@ -75,7 +75,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert [] == TestRepo.all(query)
   end
 
-  # BATCH INSERT 2 RECORDS
+  # Batch insert two records
   test "simple insert_all: multi-record" do
     person1 = %{id: "person-buster", circles: nil, first_name: "Buster", last_name: "Diavolo",
                 age: 4, email: "buster@test.com", password: "password"}
@@ -87,7 +87,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert result == {2, nil}
   end
 
-  # BATCH INSERT 1 RECORD
+  # Batch insert one record
   test "simple insert_all: single-record" do
     person = %{id: "person-fred", circles: nil, first_name: "Fred", last_name: "Fly",
               age: 1, email: "fred@test.com", password: "password"}
@@ -96,7 +96,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert result == {1, nil}
   end
 
-  # A RECORD IS CREATED, RETRIEVED, UPDATED, AND RETRIEVED AGAIN
+  # A record is created, retrieved, updated, and retrieved again.
   test "simple update" do
     TestRepo.insert %Person {id: "person-update", circles: nil, first_name: "Update", last_name: "Test", age: 12, email: "update@test.com", password: "password"}
     record_to_update = TestRepo.get(Person, "person-update")
@@ -190,4 +190,39 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     result = Map.delete(result, :__meta__)
     assert result == inserted
   end
+
+  test "batch_get multiple records - hard-coded list" do
+    person1 = %{id: "person-jimi", circles: nil, first_name: "Jimi", last_name: "Hendrix",
+                age: 27, email: "jimi@hendrix.com", password: "password"}
+    person2 = %{id: "person-noel", circles: nil, first_name: "Noel", last_name: "Redding",
+                age: 72, email: "noel@redding.com", password: "password"}
+    person3 = %{id: "person-mitch", circles: nil, first_name: "Mitch", last_name: "Mitchell",
+                age: 74, email: "mitch@mitchell.com", password: "password"}
+
+    TestRepo.insert_all(Person, [person1, person2, person3])
+
+    result = TestRepo.all(from p in Person, where: p.id in ["person-jimi", "person-noel", "person-mitch"])
+             |> Enum.map(&(&1.id))
+
+    assert Enum.sort(result) == Enum.sort(["person-jimi", "person-noel", "person-mitch"])
+  end
+
+  # batch_get operations with interpolated lists are handled slightly differently than those with hard-coded lists
+  test "batch_get multiple records - interpolated list" do
+    person1 = %{id: "person-moe", circles: nil, first_name: "Moe", last_name: "Howard",
+                age: 75, email: "moe@stooges.com", password: "password"}
+    person2 = %{id: "person-larry", circles: nil, first_name: "Larry", last_name: "Fine",
+                age: 72, email: "larry@stooges.com", password: "password"}
+    person3 = %{id: "person-curly", circles: nil, first_name: "Curly", last_name: "Howard",
+                age: 74, email: "curly@stooges.com", password: "password"}
+
+    TestRepo.insert_all(Person, [person1, person2, person3])
+
+    person_ids = [person1.id, person2.id, person3.id]
+    result = TestRepo.all(from p in Person, where: p.id in ^person_ids)
+             |> Enum.map(&(&1.id))
+
+    assert Enum.sort(result) == Enum.sort(person_ids)
+  end
+
 end
