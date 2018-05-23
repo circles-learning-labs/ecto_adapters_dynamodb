@@ -560,6 +560,8 @@ defmodule Ecto.Adapters.DynamoDB do
     batch_write_limit = 25
     unprocessed_item_key = "UnprocessedItems"
 
+    # Break the prepared_fields into chunks of at most 25 elements to be batch inserted, accumulating
+    # the total count of records and appropriate results as it loops through the reduce.
     {length, results} = Enum.chunk_every(prepared_fields, batch_write_limit)
                        |> Enum.reduce({0, %{unprocessed_item_key => %{}}}, fn(field_group, {total_records, batch_write_result}) ->
                           {length, batch_write_attempt} = handle_batch_write(field_group, table, unprocessed_item_key)
@@ -607,9 +609,7 @@ defmodule Ecto.Adapters.DynamoDB do
         # If batch_write_attempt has "UnprocessedItems" but there is no entry for the table in
         # batch_write_result["UnprocessedItems"], put the value of this attempt under that key in the results
         Map.put(batch_write_result, key, batch_write_attempt[key])
-      true ->
-        # Otherwise (as in, batch_write_attempt[key] == %{}), just return the result unchanged.
-        batch_write_result
+      true -> batch_write_result # Otherwise (as in, batch_write_attempt[key] == %{}), just return the result unchanged.
     end
   end
 

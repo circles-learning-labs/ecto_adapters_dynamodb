@@ -27,16 +27,16 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   # Regular queries
   def get_item(table, search, opts) do
-
     results = case get_best_index!(table, search) do
       # primary key based lookup uses the efficient 'get_item' operation
       {:primary, indexes} = index->
         #https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
         query = construct_search(index, search, opts)
         {hash_values, op} = deep_find_key(search, hd indexes)
+
         if op == :in,
-        do: ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_values, search, construct_opts(:get_item, opts))) |> ExAws.request!,
-        else: ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
+          do: ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_values, search, construct_opts(:get_item, opts))) |> ExAws.request!,
+          else: ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
 
       # secondary index based lookups need the query functionality. 
       index when is_tuple(index) ->
