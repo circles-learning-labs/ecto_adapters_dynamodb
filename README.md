@@ -82,7 +82,7 @@ All of these caveats can be especially pernicious if you're performing eventuall
 
 #### DynamoDB BatchGetItem
 
-We currently support DynamoDB's **BatchGetItem** via an **:in** clause in `Repo.all`. For example, `Repo.all(from m in Model, where: m.id in ["id_1", "id_2"])`. For tables with a composite primary key, range keys must be supplied in another **:in** clause in matching order.
+We currently support DynamoDB's **BatchGetItem** via an **:in** clause in `Repo.all` for both hard-coded and interpolated lists. For example, `Repo.all(from m in Model, where: m.id in ["id_1", "id_2"])` or `Repo.all(from m in Model, where: m.id in ^model_ids)`. For tables with a composite primary key, range keys must be supplied in another **:in** clause in matching order.
 
 #### DynamoDB LIMIT & Paging
 By default, we configure the adapter to fetch all pages recursively for a DynamoDB `query` operation, and to *not* fetch all pages recursively in the case of a DynamoDB `scan` operation. This default can be overridden with the inline **:recursive** and **:page_limit** options (see below). We do not respond to the Ecto `limit` option; rather, we support a **:scan_limit** option, which corresponds with DynamoDB's [limit option](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html#Query.Limit), limiting "the number of items that it returns in the result."
