@@ -1000,7 +1000,10 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp get_value({:^, _, [idx]}, params), do: Enum.at(params, idx)
-  # HANDLE .all(query) QUERIES
+  # Handle queries with interpolated values
+  # ex. Repo.all from i in Item, where: i.id in ^item_ids
+  defp get_value({:^, _, _}, params), do: params
+  # Handle .all(query) QUERIES
   defp get_value(other_clause, _params), do: other_clause
 
   defp error(msg) do
