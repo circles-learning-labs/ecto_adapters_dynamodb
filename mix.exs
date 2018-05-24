@@ -10,7 +10,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
      deps: deps(),
      dialyzer: [plt_add_apps: [:ecto]],
      docs: [main: "readme", extras: ["README.md"]],
-     description: "A DynamoDB adapter for Ecto supporting basic queries. see https://github.com/circles-learning-labs/ecto_adapters_dynamodb for detailed instructions.",
+     description: "A DynamoDB adapter for Ecto supporting basic queries. See https://github.com/circles-learning-labs/ecto_adapters_dynamodb for detailed instructions.",
      package: package(),
      source_url: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb"
     ]
@@ -56,7 +56,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
       {:hackney, "~> 1.6"},
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
       {:eqc_ex, "~> 1.4.2", only: [:dev, :test], runtime: false},
-	    {:ex_doc, "~> 0.16.1"}
+      {:ex_doc, "~> 0.16.1"}
     ]
   end
 
