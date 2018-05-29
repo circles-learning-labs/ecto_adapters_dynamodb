@@ -570,7 +570,7 @@ defmodule Ecto.Adapters.DynamoDB do
                           # Although we think of insert_all as one batch operation, we may need to perform multiple inserts when the
                           # total number of records exceeds 25. Here, provide an info log of the running accumulated batch_write results,
                           # which will report to the user a cumulative list of any "UnprocessedItems"
-                          ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write" => %{table: table, results: accumulated_batch_write_results}})
+                          ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write" => %{table: table, results: accumulated_batch_write_results}}, [depth: 6])
 
                           # We're not retrying unprocessed items yet, but we are providing the relevant info in the QueryInfo agent if :query_info_key is supplied
                           if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.put(opts[:query_info_key], extract_query_info(accumulated_batch_write_results))
@@ -1173,7 +1173,7 @@ defmodule Ecto.Adapters.DynamoDB do
   Logs message to console and optionally to file. Log levels, colours and file path may be set in configuration (details in README.md).
   """
   def ecto_dynamo_log(level, message, attributes \\ %{}, opts \\ []) do
-    depth = opts[:depth] || 6
+    depth = opts[:depth] || 4
     colours = Application.get_env(:ecto_adapters_dynamodb, :log_colours)
     d = DateTime.utc_now
     formatted_message = "#{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC [Ecto dynamo #{level}] #{message}"
