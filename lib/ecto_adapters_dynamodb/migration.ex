@@ -1,5 +1,5 @@
 defmodule Ecto.Adapters.DynamoDB.Migration do
-  import Ecto.Adapters.DynamoDB, only: [ecto_dynamo_log: 2, ecto_dynamo_log: 3, ecto_dynamo_log: 4]
+  import Ecto.Adapters.DynamoDB, only: [ecto_dynamo_log: 2, ecto_dynamo_log: 3]
 
   alias ExAws.Dynamo
 
@@ -91,7 +91,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         add :content, :string
       end
     end
- ```
+  ```
   """
 
 
