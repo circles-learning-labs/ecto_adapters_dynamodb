@@ -18,7 +18,7 @@ defmodule Ecto.Adapters.DynamoDB.QueryInfo do
   @doc """
   Updates the value of a given key in the Agent map by appending values to an accumulating list.
   """
-  def put_in_list(key, val) do
+  def append_to_list(key, val) do
     current_val = get(key)
 
     if current_val do
