@@ -559,6 +559,13 @@ defmodule Ecto.Adapters.DynamoDB do
   defp batch_write(table, prepared_fields, opts) do
     batch_write_limit = 25
     unprocessed_items_key = "UnprocessedItems"
+    # A helper function for Agent - updates the value of a given key in the Agent map by appending values to an accumulating list.
+    update_agent_fun = fn(map, key, val) ->
+      case Map.fetch(map, key) do
+        {:ok, current_val} -> current_val ++ [val]
+        _ -> [val]
+      end
+    end
 
     # Break the prepared_fields into chunks of at most 25 elements to be batch inserted, accumulating
     # the total count of records and appropriate results as it loops through the reduce.
@@ -573,7 +580,7 @@ defmodule Ecto.Adapters.DynamoDB do
                          ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write" => %{table: table, field_group: field_group, results: accumulated_batch_write_results}}, [depth: 6])
 
                          # We're not retrying unprocessed items yet, but we are providing the relevant info in the QueryInfo agent if :query_info_key is supplied
-                         if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.append_to_list(opts[:query_info_key], extract_query_info(batch_write_attempt))
+                         if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.update(opts[:query_info_key], extract_query_info(batch_write_attempt), update_agent_fun)
 
                          {total_records + length, accumulated_batch_write_results}
                        end)
