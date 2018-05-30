@@ -10,7 +10,23 @@ defmodule Ecto.Adapters.DynamoDB.QueryInfo do
   """
   def get_key, do: :crypto.strong_rand_bytes(32) |> Base.url_encode64
 
+  @doc """
+  Updates the value of a given key in the Agent map.
+  """
   def put(key, val), do: Agent.update(__MODULE__, fn map -> Map.put(map, key, val) end)
+
+  @doc """
+  Updates the value of a given key in the Agent map by appending values to an accumulating list.
+  """
+  def put_in_list(key, val) do
+    current_val = get(key)
+
+    if current_val do
+      Agent.update(__MODULE__, fn map -> Map.put(map, key, current_val ++ [val]) end)
+    else
+      put(key, [val])
+    end
+  end
 
   @doc """
   Returns the value (query info) in the QueryInfo agent associated with the provided key.
