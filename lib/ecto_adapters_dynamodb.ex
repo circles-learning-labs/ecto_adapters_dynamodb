@@ -560,30 +560,28 @@ defmodule Ecto.Adapters.DynamoDB do
     batch_write_limit = 25
     unprocessed_items_key = "UnprocessedItems"
     # A helper function for Agent - updates the value of a given key in the Agent map by appending values to an accumulating list.
-    update_agent_fun = fn(map, key, val) ->
-      case Map.fetch(map, key) do
-        {:ok, current_val} -> current_val ++ [val]
-        _ -> [val]
-      end
-    end
+    update_agent_fun = fn(current_val, val) -> current_val ++ [val] end
 
     # Break the prepared_fields into chunks of at most 25 elements to be batch inserted, accumulating
     # the total count of records and appropriate results as it loops through the reduce.
     {length, results} = Enum.chunk_every(prepared_fields, batch_write_limit)
-                       |> Enum.reduce({0, %{unprocessed_items_key => %{}}}, fn(field_group, {total_records, batch_write_result}) ->
-                         {length, batch_write_attempt} = handle_batch_write(field_group, table, unprocessed_items_key)
-                         accumulated_batch_write_results = accumulate_batch_write_data(batch_write_result, batch_write_attempt, unprocessed_items_key, table)
+                        |> Enum.reduce({0, %{unprocessed_items_key => %{}}}, fn(field_group, {total_records, batch_write_result}) ->
+                          {length, batch_write_attempt} = handle_batch_write(field_group, table, unprocessed_items_key)
+                          accumulated_batch_write_results = accumulate_batch_write_data(batch_write_result, batch_write_attempt, unprocessed_items_key, table)
 
-                         # Although we think of insert_all as one batch operation, we may need to perform multiple inserts when the
-                         # total number of records exceeds 25. Here, provide an info log of the running accumulated batch_write results,
-                         # which will report to the user a cumulative list of any "UnprocessedItems"
-                         ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write" => %{table: table, field_group: field_group, results: accumulated_batch_write_results}}, [depth: 6])
+                          # Although we think of insert_all as one batch operation, we may need to perform multiple inserts when the
+                          # total number of records exceeds 25. Here, provide an info log of the running accumulated batch_write results,
+                          # which will report to the user a cumulative list of any "UnprocessedItems"
+                          ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write" => %{table: table, field_group: field_group, results: accumulated_batch_write_results}}, [depth: 6])
 
-                         # We're not retrying unprocessed items yet, but we are providing the relevant info in the QueryInfo agent if :query_info_key is supplied
-                         if opts[:query_info_key], do: Ecto.Adapters.DynamoDB.QueryInfo.update(opts[:query_info_key], extract_query_info(batch_write_attempt), update_agent_fun)
+                          # We're not retrying unprocessed items yet, but we are providing the relevant info in the QueryInfo agent if :query_info_key is supplied
+                          if opts[:query_info_key] do
+                            query_info = extract_query_info(batch_write_attempt)
+                            Ecto.Adapters.DynamoDB.QueryInfo.update(opts[:query_info_key], query_info, [query_info], update_agent_fun)
+                          end
 
-                         {total_records + length, accumulated_batch_write_results}
-                       end)
+                          {total_records + length, accumulated_batch_write_results}
+                        end)
 
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect(results)})
 
