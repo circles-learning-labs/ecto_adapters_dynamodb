@@ -16,9 +16,9 @@ defmodule Ecto.Adapters.DynamoDB.QueryInfo do
   def put(key, val), do: Agent.update(__MODULE__, fn map -> Map.put(map, key, val) end)
 
   @doc """
-  Updates the value of a given key in the Agent map according to a specific function with an arity of 2.
+  Updates the value of a given key in the Agent map according to a specific function.
   """
-  def update(key, val, initial, fun), do: Agent.update(__MODULE__, fn map -> Map.update(map, key, initial, &(fun.(&1, val))) end)
+  def update(key, initial, fun), do: Agent.update(__MODULE__, fn map -> Map.update(map, key, initial, fun) end)
 
   @doc """
   Returns the value (query info) in the QueryInfo agent associated with the provided key.
