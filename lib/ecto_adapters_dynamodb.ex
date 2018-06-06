@@ -593,7 +593,7 @@ defmodule Ecto.Adapters.DynamoDB do
               |> handle_error!(%{table: table, records: records})
 
     if results[unprocessed_items_key] == %{} do
-      {length(records), %{}}
+      {length(records), results}
     else
       {length(records) - length(results[unprocessed_items_key][table]), results}
     end
@@ -603,15 +603,17 @@ defmodule Ecto.Adapters.DynamoDB do
 
   defp accumulate_batch_write_data(batch_write_result, batch_write_attempt, key, table) do
     cond do
-      Map.has_key?(batch_write_result[key], table) and batch_write_attempt[key] != %{} ->
-        # If batch_write_result["UnprocessedItems"] has a key for the table name, append the relevant results to that list.
-        cumulative_unprocessed_data = batch_write_result[key][table] ++ batch_write_attempt[key][table]
-        Kernel.put_in(batch_write_result, [key, table], cumulative_unprocessed_data)
-      Map.has_key?(batch_write_attempt, key) and batch_write_attempt[key] != %{} ->
-        # If batch_write_attempt has "UnprocessedItems" but there is no entry for the table in
-        # batch_write_result["UnprocessedItems"], put the value of this attempt under that key in the results
-        Map.put(batch_write_result, key, batch_write_attempt[key])
-      true -> batch_write_result # Otherwise (as in, batch_write_attempt[key] == %{}), just return the result unchanged.
+      is_nil(batch_write_result[key][table]) and !is_nil(batch_write_attempt[key][table]) ->
+        # If batch_write_result[key] does not have an entry for the [table] and the batch_write_attempt does,
+        # put the entire value of this attempt under that key in the results.
+        # We would expect this condition to match on at least the first iteration of the batch_write/3 reducer.
+        Kernel.put_in(batch_write_result, [key, table], batch_write_attempt[key][table])
+      !is_nil(batch_write_result[key][table]) and !is_nil(batch_write_attempt[key][table]) ->
+        # If batch_write_result[key] exists and has a key for table and the batch_write_attempt has a matching
+        # structure, append batch_write_attempt[key][table] to batch_write_result[key][table] and update the parent map.
+        accumulated_result_data = batch_write_result[key][table] ++ batch_write_attempt[key][table]
+        Kernel.put_in(batch_write_result, [key, table], accumulated_result_data)
+      true -> batch_write_result # Otherwise, return batch_write_result unchanged.
     end
   end
 
