@@ -563,14 +563,11 @@ defmodule Ecto.Adapters.DynamoDB do
     # Break the prepared_fields into chunks of at most 25 elements to be batch inserted, accumulating
     # the total count of records and appropriate results as it loops through the reduce.
     {length, results} = Enum.chunk_every(prepared_fields, batch_write_limit)
-                        |> Enum.reduce({0, %{unprocessed_items_key => %{}}}, fn(field_group, {total_records, batch_write_result}) ->
+                        |> Enum.reduce({0, []}, fn(field_group, {total_records, batch_write_results}) ->
                           {length, batch_write_attempt} = handle_batch_write(field_group, table, unprocessed_items_key)
-                          accumulated_batch_write_results = accumulate_batch_write_data(batch_write_result, batch_write_attempt, unprocessed_items_key, table)
+                          accumulated_batch_write_results = batch_write_results ++ [batch_write_attempt]
 
-                          # Although we think of insert_all as one batch operation, we may need to perform multiple inserts when the
-                          # total number of records exceeds 25. Here, provide an info log of the running accumulated batch_write results,
-                          # which will report to the user a cumulative list of any "UnprocessedItems"
-                          ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write" => %{table: table, field_group: field_group, results: accumulated_batch_write_results}}, [depth: 6])
+                          ecto_dynamo_log(:debug, "#{inspect __MODULE__}.batch_write: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write" => %{table: table, field_group: field_group, results: accumulated_batch_write_results}}, [depth: 6])
 
                           # We're not retrying unprocessed items yet, but we are providing the relevant info in the QueryInfo agent if :query_info_key is supplied
                           if opts[:query_info_key] do
@@ -581,7 +578,7 @@ defmodule Ecto.Adapters.DynamoDB do
                           {total_records + length, accumulated_batch_write_results}
                         end)
 
-    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect(results)})
+    ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => prettify_batch_write_data(results, unprocessed_items_key, table) |> inspect()})
 
     {length, nil}
   end
@@ -601,20 +598,18 @@ defmodule Ecto.Adapters.DynamoDB do
 
   defp get_records_from_fields(fields), do: Enum.map(fields, fn [put_request: [item: record]] -> record end)
 
-  defp accumulate_batch_write_data(batch_write_result, batch_write_attempt, key, table) do
-    cond do
-      is_nil(batch_write_result[key][table]) and !is_nil(batch_write_attempt[key][table]) ->
-        # If batch_write_result[key] does not have an entry for the [table] and the batch_write_attempt does,
-        # put the entire value of this attempt under that key in the results.
-        # We would expect this condition to match on at least the first iteration of the batch_write/3 reducer.
-        Kernel.put_in(batch_write_result, [key, table], batch_write_attempt[key][table])
-      !is_nil(batch_write_result[key][table]) and !is_nil(batch_write_attempt[key][table]) ->
-        # If batch_write_result[key] exists and has a key for table and the batch_write_attempt has a matching
-        # structure, append batch_write_attempt[key][table] to batch_write_result[key][table] and update the parent map.
-        accumulated_result_data = batch_write_result[key][table] ++ batch_write_attempt[key][table]
-        Kernel.put_in(batch_write_result, [key, table], accumulated_result_data)
-      true -> batch_write_result # Otherwise, return batch_write_result unchanged.
-    end
+  # Make the results from the chunked batch operation more readable.
+  defp prettify_batch_write_data(results, query_key, table) do
+    Enum.reduce(results, %{query_key => %{}}, fn(batch_result, acc) ->
+      cond do
+        is_nil(acc[query_key][table]) and !is_nil(batch_result[query_key][table]) ->
+          Kernel.put_in(acc, [query_key, table], batch_result[query_key][table])
+        !is_nil(acc[query_key][table]) and !is_nil(batch_result[query_key][table]) ->
+          accumulated_result_data = acc[query_key][table] ++ batch_result[query_key][table]
+          Kernel.put_in(acc, [query_key, table], accumulated_result_data)
+        true -> acc
+      end
+    end)
   end
 
 
