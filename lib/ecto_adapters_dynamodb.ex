@@ -567,7 +567,8 @@ defmodule Ecto.Adapters.DynamoDB do
                           {length, batch_write_attempt} = handle_batch_write(field_group, table, unprocessed_items_key)
                           accumulated_batch_write_results = batch_write_results ++ [batch_write_attempt]
 
-                          ecto_dynamo_log(:debug, "#{inspect __MODULE__}.batch_write: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write" => %{table: table, field_group: field_group, results: accumulated_batch_write_results}}, [depth: 6])
+                          # Log depth of 11 will capture the full data structure returned in any UnprocessedItems - https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
+                          ecto_dynamo_log(:debug, "#{inspect __MODULE__}.batch_write: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write" => %{table: table, field_group: field_group, results: accumulated_batch_write_results}}, [depth: 11])
 
                           # We're not retrying unprocessed items yet, but we are providing the relevant info in the QueryInfo agent if :query_info_key is supplied
                           if opts[:query_info_key] do
@@ -578,7 +579,7 @@ defmodule Ecto.Adapters.DynamoDB do
                           {total_records + length, accumulated_batch_write_results}
                         end)
 
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => prettify_batch_write_data(results, unprocessed_items_key, table) |> inspect()})
+    ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect prettify_batch_write_data(results, unprocessed_items_key, table)})
 
     {length, nil}
   end
@@ -598,7 +599,10 @@ defmodule Ecto.Adapters.DynamoDB do
 
   defp get_records_from_fields(fields), do: Enum.map(fields, fn [put_request: [item: record]] -> record end)
 
-  # Make the results from the chunked batch operation more readable.
+  # Make the results from the chunked batch operation more readable. This will transform something like
+  # [{"UnprocessedItems":{"table":[{"PutRequest":"hi"}]}},{"UnprocessedItems":{"table":[{"PutRequest":"bye"}]}}]
+  # into
+  # {"UnprocessedItems":{"table":[{"PutRequest":"hi"},{"PutRequest":"bye"}]}}
   defp prettify_batch_write_data(results, query_key, table) do
     Enum.reduce(results, %{query_key => %{}}, fn(batch_result, acc) ->
       cond do
