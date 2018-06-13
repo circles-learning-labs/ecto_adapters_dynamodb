@@ -559,16 +559,18 @@ defmodule Ecto.Adapters.DynamoDB do
   defp batch_write(table, prepared_fields, opts) do
     batch_write_limit = 25
     unprocessed_items_key = "UnprocessedItems"
+    total_batches = Float.ceil(length(prepared_fields) / batch_write_limit) |> Kernel.trunc
 
     # Break the prepared_fields into chunks of at most 25 elements to be batch inserted, accumulating
     # the total count of records and appropriate results as it loops through the reduce.
     {length, results} = Enum.chunk_every(prepared_fields, batch_write_limit)
-                        |> Enum.reduce({0, []}, fn(field_group, {total_records, batch_write_results}) ->
+                        |> Stream.with_index
+                        |> Enum.reduce({0, []}, fn({field_group, i}, {total_records, batch_write_results}) ->
                           {length, batch_write_attempt} = handle_batch_write(field_group, table, unprocessed_items_key)
                           accumulated_batch_write_results = batch_write_results ++ [batch_write_attempt]
 
                           # Log depth of 11 will capture the full data structure returned in any UnprocessedItems - https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
-                          ecto_dynamo_log(:debug, "#{inspect __MODULE__}.batch_write: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write" => %{table: table, field_group: field_group, results: accumulated_batch_write_results}}, [depth: 11])
+                          ecto_dynamo_log(:debug, "#{inspect __MODULE__}.batch_write #{i + 1} of #{total_batches}: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write" => %{table: table, field_group: field_group, results: accumulated_batch_write_results}}, [depth: 11])
 
                           # We're not retrying unprocessed items yet, but we are providing the relevant info in the QueryInfo agent if :query_info_key is supplied
                           if opts[:query_info_key] do
