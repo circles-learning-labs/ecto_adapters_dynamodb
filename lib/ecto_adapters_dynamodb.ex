@@ -580,9 +580,9 @@ defmodule Ecto.Adapters.DynamoDB do
                                    {running_total_processed + total_batch_processed, batch_write_results ++ [batch_write_attempt]}
                                  end)
 
-    result_body = %{table => Enum.flat_map(results, fn(res) -> res[response_element][table] || [] end)}
+    result_body_for_log = %{table => Enum.flat_map(results, fn(res) -> res[response_element][table] || [] end)}
     
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect %{response_element => (if result_body[table] == [], do: %{}, else: result_body)}})
+    ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect %{response_element => (if result_body_for_log[table] == [], do: %{}, else: result_body_for_log)}})
 
     {total_processed, nil}
   end
