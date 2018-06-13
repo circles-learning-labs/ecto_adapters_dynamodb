@@ -552,50 +552,48 @@ defmodule Ecto.Adapters.DynamoDB do
     batch_write(table, prepared_fields, opts)
   end
 
-
   # DynamoDB will reject an entire batch of insert_all() records if there are more than 25 requests.
   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
   # batch_write/3 will break the list into chunks of 25 items and insert each separately.
   defp batch_write(table, prepared_fields, opts) do
     batch_write_limit = 25
-    unprocessed_items_key = "UnprocessedItems"
+    unpr_items_resp_elem = "UnprocessedItems"
     total_batches = Float.ceil(length(prepared_fields) / batch_write_limit) |> Kernel.trunc
 
     # Break the prepared_fields into chunks of at most 25 elements to be batch inserted, accumulating
     # the total count of records and appropriate results as it loops through the reduce.
-    {length, results} = Enum.chunk_every(prepared_fields, batch_write_limit)
-                        |> Stream.with_index
-                        |> Enum.reduce({0, []}, fn({field_group, i}, {total_records, batch_write_results}) ->
-                          {length, batch_write_attempt} = handle_batch_write(field_group, table, unprocessed_items_key)
-                          accumulated_batch_write_results = batch_write_results ++ [batch_write_attempt]
+    {total_processed, results} = Enum.chunk_every(prepared_fields, batch_write_limit)
+                                 |> Stream.with_index
+                                 |> Enum.reduce({0, []}, fn({field_group, i}, {accum_processed, batch_write_results}) ->
+                                   {batch_processed, batch_write_attempt} = handle_batch_write(field_group, table, unpr_items_resp_elem)
+                                   accumulated_batch_write_results = batch_write_results ++ [batch_write_attempt]
 
-                          # Log depth of 11 will capture the full data structure returned in any UnprocessedItems - https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
-                          ecto_dynamo_log(:debug, "#{inspect __MODULE__}.batch_write #{i + 1} of #{total_batches}: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write" => %{table: table, field_group: field_group, results: accumulated_batch_write_results}}, [depth: 11])
+                                   # Log depth of 11 will capture the full data structure returned in any UnprocessedItems - https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
+                                   ecto_dynamo_log(:debug, "#{inspect __MODULE__}.batch_write #{i + 1} of #{total_batches}: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write" => %{table: table, field_group: field_group, results: accumulated_batch_write_results}}, [depth: 11])
 
-                          # We're not retrying unprocessed items yet, but we are providing the relevant info in the QueryInfo agent if :query_info_key is supplied
-                          if opts[:query_info_key] do
-                            query_info = extract_query_info(batch_write_attempt)
-                            Ecto.Adapters.DynamoDB.QueryInfo.update(opts[:query_info_key], [query_info], fn(list) -> list ++ [query_info] end)
-                          end
+                                   # We're not retrying unprocessed items yet, but we are providing the relevant info in the QueryInfo agent if :query_info_key is supplied
+                                   if opts[:query_info_key] do
+                                     query_info = extract_query_info(batch_write_attempt)
+                                     Ecto.Adapters.DynamoDB.QueryInfo.update(opts[:query_info_key], [query_info], fn(list) -> list ++ [query_info] end)
+                                   end
 
-                          {total_records + length, accumulated_batch_write_results}
-                        end)
+                                   {accum_processed + batch_processed, accumulated_batch_write_results}
+                                 end)
 
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect prettify_batch_write_data(results, unprocessed_items_key, table)})
+    ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect prettify_batch_write_data(results, unpr_items_resp_elem, table)})
 
-    {length, nil}
+    {total_processed, nil}
   end
 
-  defp handle_batch_write(field_group, table, unprocessed_items_key) do
-    records = get_records_from_fields(field_group)
+  defp handle_batch_write(field_group, table, unpr_items_resp_elem) do
     results = Dynamo.batch_write_item(%{table => field_group})
               |> ExAws.request
-              |> handle_error!(%{table: table, records: records})
+              |> handle_error!(%{table: table, records: get_records_from_fields(field_group)})
 
-    if results[unprocessed_items_key] == %{} do
-      {length(records), results}
+    if results[unpr_items_resp_elem] == %{} do
+      {length(field_group), results}
     else
-      {length(records) - length(results[unprocessed_items_key][table]), results}
+      {length(field_group) - length(results[unpr_items_resp_elem][table]), results}
     end
   end
 
@@ -605,14 +603,14 @@ defmodule Ecto.Adapters.DynamoDB do
   # [{"UnprocessedItems":{"table":[{"PutRequest":"hi"}]}},{"UnprocessedItems":{"table":[{"PutRequest":"bye"}]}}]
   # into
   # {"UnprocessedItems":{"table":[{"PutRequest":"hi"},{"PutRequest":"bye"}]}}
-  defp prettify_batch_write_data(results, query_key, table) do
-    Enum.reduce(results, %{query_key => %{}}, fn(batch_result, acc) ->
+  defp prettify_batch_write_data(results, response_element, table) do
+    Enum.reduce(results, %{response_element => %{}}, fn(batch_result, acc) ->
       cond do
-        is_nil(acc[query_key][table]) and !is_nil(batch_result[query_key][table]) ->
-          Kernel.put_in(acc, [query_key, table], batch_result[query_key][table])
-        !is_nil(acc[query_key][table]) and !is_nil(batch_result[query_key][table]) ->
-          accumulated_result_data = acc[query_key][table] ++ batch_result[query_key][table]
-          Kernel.put_in(acc, [query_key, table], accumulated_result_data)
+        is_nil(acc[response_element][table]) and !is_nil(batch_result[response_element][table]) ->
+          Kernel.put_in(acc, [response_element, table], batch_result[response_element][table])
+        !is_nil(acc[response_element][table]) and !is_nil(batch_result[response_element][table]) ->
+          accumulated_result_data = acc[response_element][table] ++ batch_result[response_element][table]
+          Kernel.put_in(acc, [response_element, table], accumulated_result_data)
         true -> acc
       end
     end)
