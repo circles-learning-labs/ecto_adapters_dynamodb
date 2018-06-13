@@ -65,7 +65,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
     TestRepo.insert(test_person)
     [result] = TestRepo.all(query)
-    assert result = test_person
+    assert result == test_person
 
     TestRepo.update_all(query, set: [circles: ["circle-fakecirc"]])
     [result] = TestRepo.all(query)
