@@ -22,6 +22,21 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                         first_name: "Hello", id: "person-hello", last_name: "World", password: "password",
                         __meta__: %Ecto.Schema.Metadata{context: nil, source: {nil, @test_table}, state: :loaded}}}
     end
+
+    test "insert embedded records" do
+      key = "person:address_test"
+      addr_list = [%Address{street_number: 245, street_name: "W 17th St"},
+                   %Address{street_number: 1385, street_name: "Broadway"}]
+      rec = %Person{id: key, email: "addr@test.com", addresses: addr_list}
+      {:ok, inserted} = TestRepo.insert(rec)
+
+      result = TestRepo.get(Person, key)
+
+      # Remove the metadata to allow for a direct comparison:
+      inserted = Map.delete(inserted, :__meta__)
+      result = Map.delete(result, :__meta__)
+      assert result == inserted
+    end
   end
 
   describe "Repo.get/2" do
@@ -102,7 +117,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   end
 
   describe "Repo.all" do
-     test "primary key get/update/delete using query" do
+    test "primary key get/update/delete using query" do
       test_id = "person-pkey_query"
       test_person = %Person{id: test_id, circles: nil, first_name: "Albert", last_name: "Einstein", age: 76, email: "albert@einstein.com", password: "password"}
       query = from p in Person, where: p.id == ^test_id
@@ -202,9 +217,14 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
     test "update field to nil" do
       person = %Person{id: "person:niltest", first_name: "LosingMy", last_name: "Account", email: "CloseThisAccount@test.com", age: 36}
+
       TestRepo.insert(person)
+      res1 = TestRepo.get(Person, "person:niltest")
+      assert res1.age == 36
+
       changeset = Person.changeset(res1, %{age: nil})
       TestRepo.update!(changeset)
+
       res2 = TestRepo.get(Person, "person:niltest")
       assert res2.age == nil
     end
@@ -215,7 +235,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert result == nil
   end
 
-  test "use delete_all to delete multiple records" do
+  test "Repo.delete_all/2 - delete multiple records" do
     TestRepo.insert %Person{id: "person:delete_all_1", email: "delete_all@test.com"}
     TestRepo.insert %Person{id: "person:delete_all_2", email: "delete_all@test.com"}
 
@@ -227,21 +247,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
     assert nil == TestRepo.get(Person, "person:delete_all_1")
     assert nil == TestRepo.get(Person, "person:delete_all_2")
-  end
-
-  test "embedded records" do
-    key = "person:address_test"
-    addr_list = [%Address{street_number: 245, street_name: "W 17th St"},
-                 %Address{street_number: 1385, street_name: "Broadway"}]
-    rec = %Person{id: key, email: "addr@test.com", addresses: addr_list}
-    {:ok, inserted} = TestRepo.insert(rec)
-
-    result = TestRepo.get(Person, key)
-
-    # Remove the metadata to allow for a direct comparison:
-    inserted = Map.delete(inserted, :__meta__)
-    result = Map.delete(result, :__meta__)
-    assert result == inserted
   end
 
 end
