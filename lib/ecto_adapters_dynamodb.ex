@@ -142,7 +142,7 @@ defmodule Ecto.Adapters.DynamoDB do
   def prepare(:all, query) do
     # 'preparing' is more a SQL concept - Do we really need to do anything here or just pass the params through?
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.prepare: :all", %{"#{inspect __MODULE__}.prepare-params" => %{query: inspect(query, structs: false)}})
- 
+
     {:nocache, {:all, query}}
   end
 
@@ -581,7 +581,7 @@ defmodule Ecto.Adapters.DynamoDB do
                                  end)
 
     result_body_for_log = %{table => Enum.flat_map(results, fn(res) -> res[response_element][table] || [] end)}
-    
+
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect %{response_element => (if result_body_for_log[table] == [], do: %{}, else: result_body_for_log)}})
 
     {total_processed, nil}
@@ -705,8 +705,7 @@ defmodule Ecto.Adapters.DynamoDB do
           if (length items) > 1, do: raise "__MODULE__.update error: more than one result found for record: #{inspect filters}"
 
           for {field, key_map} <- Map.to_list(hd items) do
-            [{_field_type, val}] = Map.to_list(key_map)
-            {field, val}
+            {field, ExAws.Dynamo.Decoder.decode(key_map)}
           end
          else
           filters
@@ -723,7 +722,12 @@ defmodule Ecto.Adapters.DynamoDB do
 
     base_options = [expression_attribute_names: attribute_names,
                     update_expression: update_expression]
-    condition_expression = construct_condition_expression(filters)
+
+    condition_expression =
+      filters
+      |> Enum.map(fn(tuple) -> construct_condition_expression(tuple) end)
+      |> Enum.join(" AND ")
+
     options = maybe_add_attribute_values(base_options, attribute_values)
            ++ [condition_expression: condition_expression]
 
@@ -742,7 +746,7 @@ defmodule Ecto.Adapters.DynamoDB do
   defp maybe_string_to_atom(s),
   do: if is_binary(s), do: String.to_atom(s), else: s
 
-  defp construct_condition_expression([{field, _val}] = _filters),
+  defp construct_condition_expression({field, _val} = _filters),
   do: "attribute_exists(##{to_string(field)})"
 
   defp extract_query_info(result), do: result |> Map.take(["Count", "ScannedCount", "LastEvaluatedKey", "UnprocessedItems", "UnprocessedKeys"])
