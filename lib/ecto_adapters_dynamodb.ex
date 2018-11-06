@@ -1084,6 +1084,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     %{"Item" => item}
     |> Dynamo.decode_item(as: model)
+    |> Ecto.put_meta(state: :loaded)
     |> custom_decode(model, select)
   end
 

@@ -84,6 +84,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert result.first_name == "John"
       assert result.last_name == "Lennon"
+      assert Ecto.get_meta(result, :state) == :loaded
     end
 
     test "insert a record and get with a hash/range pkey" do
@@ -106,8 +107,8 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                                                text: "ghi",
                                              })
 
-      {:ok, _} = TestRepo.insert(cs1)
-      {:ok, _} = TestRepo.insert(cs2)
+      {:ok, page1} = TestRepo.insert(cs1)
+      {:ok, page2} = TestRepo.insert(cs2)
       {:error, _} = TestRepo.insert(duplicate_page_cs)
 
       query = from p in BookPage, where: p.id == ^name
