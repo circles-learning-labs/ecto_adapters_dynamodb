@@ -229,6 +229,23 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert Enum.sort(result) == Enum.sort(person_ids)
     end
 
+    # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than
+    # 100 records will be rejected. We allow the user to call all() for more than 100 records
+    # by breaking up the requests into blocks of 100.
+    # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
+    test "batch-get multiple records, exceeding BatchGetItem limit by 10 records" do
+      total_records = 110
+      people_to_insert = make_list_of_people_for_batch_insert(total_records) # create a list of people records
+      person_ids = for person <- people_to_insert, do: person.id # hang on to the ids separately
+
+      handle_batch_insert(people_to_insert) # insert the records
+
+      result = TestRepo.all(from p in Person, where: p.id in ^person_ids)
+               |> Enum.map(&(&1.id))
+
+      assert length(result) == total_records
+    end
+
     test "batch-insert and query all on a single-condition global secondary index" do
       person1 = %{
                   id: "person-tomtest",
@@ -336,9 +353,12 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   end
 
 
-  defp handle_batch_insert(total_records) do
-    people = make_list_of_people_for_batch_insert(total_records)
-    TestRepo.insert_all(Person, people)
+  defp handle_batch_insert(people_to_insert) when is_list people_to_insert do
+    TestRepo.insert_all(Person, people_to_insert)
+  end
+  defp handle_batch_insert(total_records) when is_integer total_records do
+    make_list_of_people_for_batch_insert(total_records)
+    |> handle_batch_insert()
   end
 
   defp make_list_of_people_for_batch_insert(total_records) do
