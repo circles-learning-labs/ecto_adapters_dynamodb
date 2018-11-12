@@ -556,9 +556,9 @@ defmodule Ecto.Adapters.DynamoDB do
   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
   # batch_write/3 will break the list into chunks of 25 items and insert each separately.
   defp batch_write(table, prepared_fields, opts) do
-    batch_write_limit = 25
     response_element = "UnprocessedItems"
-    grouped_records = Enum.chunk_every(prepared_fields, batch_write_limit)
+    batch_write_item_limit = 25
+    grouped_records = Enum.chunk_every(prepared_fields, batch_write_item_limit)
     num_batches = length grouped_records
 
     # Break the prepared_fields into chunks of at most 25 elements to be batch inserted, accumulating

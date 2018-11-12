@@ -26,17 +26,29 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   def get_item(table, search, opts) when search == [], do: maybe_scan(table, search, opts)
 
   # Regular queries
+  # DynamoDB will reject an entire batch get query if the query is for more than 100 records.
+  # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
   def get_item(table, search, opts) do
     results = case get_best_index!(table, search) do
       # primary key based lookup uses the efficient 'get_item' operation
-      {:primary, indexes} = index->
+      {:primary, indexes} = index ->
         #https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
         query = construct_search(index, search, opts)
         {hash_values, op} = deep_find_key(search, hd indexes)
 
-        if op == :in,
-          do: ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_values, search, construct_opts(:get_item, opts))) |> ExAws.request!,
-          else: ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
+        if op == :in do
+          batch_get_item_limit = 100
+          response_map = %{"Responses" => %{table => []}, "UnprocessedKeys" => %{}}
+
+          Enum.chunk_every(hash_values, batch_get_item_limit)
+          |> Enum.reduce(response_map, fn(hash_batch, acc) ->
+            %{"Responses" => %{^table => results}, "UnprocessedKeys" => %{}} = ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_batch, search, construct_opts(:get_item, opts))) |> ExAws.request!
+            Kernel.put_in(acc, ["Responses", table], acc["Responses"][table] ++ results)
+          end)
+          # ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_values, search, construct_opts(:get_item, opts))) |> ExAws.request!
+        else
+          ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
+        end
 
       # secondary index based lookups need the query functionality. 
       index when is_tuple(index) ->
@@ -44,7 +56,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         query = construct_search(index, search, opts)
         fetch_recursive(&ExAws.Dynamo.query/2, table, query, parse_recursive_option(:query, opts), %{})
 
-      :scan -> maybe_scan(table, search, opts)
+      :scan ->
+        maybe_scan(table, search, opts)
     end
 
     filter(results, search)  # index may have had more fields than the index did, thus results need to be trimmed.
@@ -59,7 +72,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
 
-  # we've a list of fields from an index that matches the (some of) the search fields,
+  # we've a list of fields from an index that matches (some of) the search fields,
   # so construct a dynamo db search criteria map with only the given fields and their
   # search objects!
   @spec construct_search({:primary | :primary_partial | nil | String.t, [String.t]}, search, keyword) :: keyword
