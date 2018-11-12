@@ -153,6 +153,11 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   end
 
   describe "Repo.all" do
+    test "batch-get multiple records when querying for an empty list" do
+      result = TestRepo.all(from p in Person, where: p.id in [])
+      assert result == []
+    end
+
     test "batch-get multiple records when querying for a hard-coded list" do
       person1 = %{
                   id: "person-jimi",

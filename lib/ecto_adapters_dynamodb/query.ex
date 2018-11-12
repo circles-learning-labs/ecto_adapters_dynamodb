@@ -30,7 +30,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     results = case get_best_index!(table, search) do
       # primary key based lookup uses the efficient 'get_item' operation
       {:primary, indexes} = index ->
-        #https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
+        # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
         query = construct_search(index, search, opts)
         {hash_values, op} = deep_find_key(search, hd indexes)
 
@@ -40,7 +40,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
           batch_get_item_limit = 100
           response_element = "Responses"
           unprocessed_key_element = "UnprocessedKeys"
-          response_map = %{response_element => %{table => []}, unprocessed_key_element => %{}}
+          response_map = %{response_element => %{table => []}, unprocessed_key_element => %{}} # The default format of the response from Dynamo.
 
           Enum.chunk_every(hash_values, batch_get_item_limit)
           |> Enum.reduce(response_map, fn(hash_batch, acc) ->
@@ -66,7 +66,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         maybe_scan(table, search, opts)
     end
 
-    filter(results, search)  # index may have had more fields than the index did, thus results need to be trimmed.
+    filter(results, search) # index may have had more fields than the index did, thus results need to be trimmed.
   end
 
   # If a batch_get_item request returns unprocessed keys, update the accumulator with those values.
