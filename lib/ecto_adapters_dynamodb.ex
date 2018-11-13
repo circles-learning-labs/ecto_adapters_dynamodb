@@ -556,9 +556,9 @@ defmodule Ecto.Adapters.DynamoDB do
   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
   # batch_write/3 will break the list into chunks of 25 items and insert each separately.
   defp batch_write(table, prepared_fields, opts) do
-    batch_write_limit = 25
-    response_element = "UnprocessedItems"
-    grouped_records = Enum.chunk_every(prepared_fields, batch_write_limit)
+    unprocessed_items_element = "UnprocessedItems"
+    batch_write_item_limit = 25
+    grouped_records = Enum.chunk_every(prepared_fields, batch_write_item_limit)
     num_batches = length grouped_records
 
     # Break the prepared_fields into chunks of at most 25 elements to be batch inserted, accumulating
@@ -566,7 +566,7 @@ defmodule Ecto.Adapters.DynamoDB do
     {total_processed, results} = grouped_records
                                  |> Stream.with_index
                                  |> Enum.reduce({0, []}, fn({field_group, i}, {running_total_processed, batch_write_results}) ->
-                                   {total_batch_processed, batch_write_attempt} = handle_batch_write(field_group, table, response_element)
+                                   {total_batch_processed, batch_write_attempt} = handle_batch_write(field_group, table, unprocessed_items_element)
 
                                    # Log depth of 11 will capture the full data structure returned in any UnprocessedItems - https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
                                    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.batch_write #{i + 1} of #{num_batches}: local variables", %{"#{inspect __MODULE__}.insert_all-batch_write" => %{table: table, field_group: field_group, results: batch_write_attempt}}, [depth: 11])
@@ -580,22 +580,22 @@ defmodule Ecto.Adapters.DynamoDB do
                                    {running_total_processed + total_batch_processed, batch_write_results ++ [batch_write_attempt]}
                                  end)
 
-    result_body_for_log = %{table => Enum.flat_map(results, fn(res) -> res[response_element][table] || [] end)}
+    result_body_for_log = %{table => Enum.flat_map(results, fn(res) -> res[unprocessed_items_element][table] || [] end)}
     
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect %{response_element => (if result_body_for_log[table] == [], do: %{}, else: result_body_for_log)}})
+    ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect %{unprocessed_items_element => (if result_body_for_log[table] == [], do: %{}, else: result_body_for_log)}})
 
     {total_processed, nil}
   end
 
-  defp handle_batch_write(field_group, table, response_element) do
+  defp handle_batch_write(field_group, table, unprocessed_items_element) do
     results = Dynamo.batch_write_item(%{table => field_group})
               |> ExAws.request
               |> handle_error!(%{table: table, records: get_records_from_fields(field_group)})
 
-    if results[response_element] == %{} do
+    if results[unprocessed_items_element] == %{} do
       {length(field_group), results}
     else
-      {length(field_group) - length(results[response_element][table]), results}
+      {length(field_group) - length(results[unprocessed_items_element][table]), results}
     end
   end
 

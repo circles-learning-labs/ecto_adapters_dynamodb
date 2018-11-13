@@ -29,14 +29,32 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   def get_item(table, search, opts) do
     results = case get_best_index!(table, search) do
       # primary key based lookup uses the efficient 'get_item' operation
-      {:primary, indexes} = index->
-        #https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
+      {:primary, indexes} = index ->
+        # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
         query = construct_search(index, search, opts)
         {hash_values, op} = deep_find_key(search, hd indexes)
 
-        if op == :in,
-          do: ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_values, search, construct_opts(:get_item, opts))) |> ExAws.request!,
-          else: ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
+        if op == :in do
+          # DynamoDB will reject an entire batch get query if the query is for more than 100 records, so these need to be batched.
+          # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
+          batch_get_item_limit = 100
+          responses_element = "Responses"
+          unprocessed_keys_element = "UnprocessedKeys"
+          response_map = %{responses_element => %{table => []}, unprocessed_keys_element => %{}} # The default format of the response from Dynamo.
+
+          Enum.chunk_every(hash_values, batch_get_item_limit)
+          |> Enum.reduce(response_map, fn(hash_batch, acc) ->
+            batched_search = make_batched_search(search, hash_batch) # Modify the 'search' arg so that it only contains values from the current hash_batch.
+
+            %{^responses_element => %{^table => results}, ^unprocessed_keys_element => unprocessed_key_map} =
+              ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_batch, batched_search, construct_opts(:get_item, opts))) |> ExAws.request!
+
+            Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ results)
+            |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
+          end)
+        else
+          ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
+        end
 
       # secondary index based lookups need the query functionality. 
       index when is_tuple(index) ->
@@ -44,12 +62,28 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         query = construct_search(index, search, opts)
         fetch_recursive(&ExAws.Dynamo.query/2, table, query, parse_recursive_option(:query, opts), %{})
 
-      :scan -> maybe_scan(table, search, opts)
+      :scan ->
+        maybe_scan(table, search, opts)
     end
 
-    filter(results, search)  # index may have had more fields than the index did, thus results need to be trimmed.
+    filter(results, search) # index may have had more fields than the index did, thus results need to be trimmed.
   end
 
+  # If a batch_get_item request returns unprocessed keys, update the accumulator with those values.
+  defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, _table, _unprocessed_keys_element) when unprocessed_key_map == %{}, do: acc
+  defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, table, unprocessed_keys_element) do
+    if Map.has_key?(acc[unprocessed_keys_element], table) do
+      keys_element = "Keys"
+      Kernel.put_in(acc, [unprocessed_keys_element, table, keys_element], acc[unprocessed_keys_element][table][keys_element] ++ unprocessed_key_map[table][keys_element])
+    else
+      Map.put(acc, unprocessed_keys_element, unprocessed_key_map)
+    end
+  end
+
+  # The initial 'search' arg will have a list of all of the values being queried for;
+  # when passing this data to construct_batch_get_item_query/5 during a batched operation,
+  # use a modified form of the 'search' arg that contains only the values from the current batch.
+  defp make_batched_search([{index, {_vals, op}}], hash_batch), do: [{index, {hash_batch, op}}]
 
   @doc """
   Returns an atom, :scan or :query, specifying whether the current search will be a DynamoDB scan or a query.
@@ -59,7 +93,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
 
-  # we've a list of fields from an index that matches the (some of) the search fields,
+  # we've a list of fields from an index that matches (some of) the search fields,
   # so construct a dynamo db search criteria map with only the given fields and their
   # search objects!
   @spec construct_search({:primary | :primary_partial | nil | String.t, [String.t]}, search, keyword) :: keyword
