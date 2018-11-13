@@ -38,19 +38,19 @@ defmodule Ecto.Adapters.DynamoDB.Query do
           # DynamoDB will reject an entire batch get query if the query is for more than 100 records, so these need to be batched.
           # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
           batch_get_item_limit = 100
-          response_element = "Responses"
-          unprocessed_key_element = "UnprocessedKeys"
-          response_map = %{response_element => %{table => []}, unprocessed_key_element => %{}} # The default format of the response from Dynamo.
+          responses_element = "Responses"
+          unprocessed_keys_element = "UnprocessedKeys"
+          response_map = %{responses_element => %{table => []}, unprocessed_keys_element => %{}} # The default format of the response from Dynamo.
 
           Enum.chunk_every(hash_values, batch_get_item_limit)
           |> Enum.reduce(response_map, fn(hash_batch, acc) ->
             batched_search = make_batched_search(search, hash_batch) # Modify the 'search' arg so that it only contains values from the current hash_batch.
 
-            %{^response_element => %{^table => results}, ^unprocessed_key_element => unprocessed_key_map} =
+            %{^responses_element => %{^table => results}, ^unprocessed_keys_element => unprocessed_key_map} =
               ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_batch, batched_search, construct_opts(:get_item, opts))) |> ExAws.request!
 
-            Kernel.put_in(acc, [response_element, table], acc[response_element][table] ++ results)
-            |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_key_element)
+            Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ results)
+            |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
           end)
         else
           ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
@@ -70,13 +70,13 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
   # If a batch_get_item request returns unprocessed keys, update the accumulator with those values.
-  defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, _table, _unprocessed_key_element) when unprocessed_key_map == %{}, do: acc
-  defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, table, unprocessed_key_element) do
-    if Map.has_key?(acc[unprocessed_key_element], table) do
-      key_element = "Keys"
-      Kernel.put_in(acc, [unprocessed_key_element, table, key_element], acc[unprocessed_key_element][table][key_element] ++ unprocessed_key_map[table][key_element])
+  defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, _table, _unprocessed_keys_element) when unprocessed_key_map == %{}, do: acc
+  defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, table, unprocessed_keys_element) do
+    if Map.has_key?(acc[unprocessed_keys_element], table) do
+      keys_element = "Keys"
+      Kernel.put_in(acc, [unprocessed_keys_element, table, keys_element], acc[unprocessed_keys_element][table][keys_element] ++ unprocessed_key_map[table][keys_element])
     else
-      Map.put(acc, unprocessed_key_element, unprocessed_key_map)
+      Map.put(acc, unprocessed_keys_element, unprocessed_key_map)
     end
   end
 
