@@ -1,5 +1,5 @@
 # Ecto.Adapters.DynamoDB
-> https://hex.pm/packages/ecto\_adapters\_dynamodb
+> https://hex.pm/packages/ecto_adapters_dynamodb
 
 This is a partial implementation of an Elixir Ecto adapter for Amazon's DynamoDB. It's very much a work in progress, and has plenty of rough edges. It's complete enough that we're actually using it in other projects, so we're opening it up to the community in hopes that others will find it useful as well :-)
 
