@@ -58,8 +58,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
       # secondary index based lookups need the query functionality. 
       index when is_tuple(index) ->
-        {_idxs, idxs_list} = index
-        {hash_values, op} = deep_find_key(search, hd idxs_list)
+        index_fields = get_hash_range_key_list(index)
+        {hash_values, op} = deep_find_key(search, hd index_fields)
         # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#query/2
         query = construct_search(index, search, opts)
 
@@ -83,6 +83,11 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
     filter(results, search) # index may have had more fields than the index did, thus results need to be trimmed.
   end
+
+  # In the case of a partial query on a composite key secondary index, the value of index in get_item/2 will be a three-element tuple, ex. {:secondary_partial, "person_id_entity", ["person_id"]}.
+  # Otherwise, we can expect it to be a two-element tuple.
+  defp get_hash_range_key_list({_index_type, index_name, index_fields}), do: get_hash_range_key_list({index_name, index_fields})
+  defp get_hash_range_key_list({_index_name, index_fields}), do: index_fields
 
   # If a batch_get_item request returns unprocessed keys, update the accumulator with those values.
   defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, _table, _unprocessed_keys_element) when unprocessed_key_map == %{}, do: acc
