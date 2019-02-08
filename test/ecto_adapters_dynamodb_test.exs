@@ -159,7 +159,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert result == []
     end
 
-    test "batch-get multiple records when querying for a hard-coded list" do
+    test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded list" do
       person1 = %{
                   id: "person-jimi",
                   circles: nil,
@@ -197,7 +197,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert Enum.sort(result) == Enum.sort(["person-jimi", "person-noel", "person-mitch"])
     end
 
-    test "batch-get multiple records when querying for an interpolated list" do
+    test "batch-get multiple records with an 'all... in...' query when querying for an interpolated list" do
       person1 = %{
                   id: "person-moe",
                   circles: nil,
@@ -233,6 +233,32 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                |> Enum.map(&(&1.id))
 
       assert Enum.sort(result) == Enum.sort(person_ids)
+    end
+
+    test "batch-get multiple records with an 'all... in...' query on a single-condition global secondary index when querying for a hard-coded list" do
+      person1 = %{
+        id: "person-jerrytest",
+        circles: nil,
+        first_name: "Jerry",
+        last_name: "Garcia",
+        age: 55,
+        email: "jerry@test.com",
+        password: "password",
+      } 
+      person2 = %{
+        id: "person-bobtest",
+        circles: nil,
+        first_name: "Bob",
+        last_name: "Weir",
+        age: 70,
+        email: "bob@test.com",
+        password: "password"
+      }
+
+      TestRepo.insert_all(Person, [ person1, person2 ])
+      result = TestRepo.all(from p in Person, where: p.email in [ "jerry@test.com", "bob@test.com" ])
+
+      assert length(result) == 2
     end
 
     # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than
