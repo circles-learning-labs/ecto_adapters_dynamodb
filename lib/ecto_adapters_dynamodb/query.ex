@@ -64,12 +64,16 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         query = construct_search(index, search, opts)
 
         if op == :in do
+          responses_element = "Responses"
+          response_map = %{responses_element => %{table => []}}
           hash_values = Keyword.get(query, :expression_attribute_values)
                         |> Keyword.get(:hash_key)
 
-          Enum.map(hash_values, fn hash_value ->
+          Enum.reduce(hash_values, response_map, fn(hash_value, acc) ->
             mod_query = Kernel.put_in(query, [:expression_attribute_values, :hash_key], hash_value)
-            fetch_recursive(&ExAws.Dynamo.query/2, table, mod_query, parse_recursive_option(:query, opts), %{})
+            %{"Items" => items} = fetch_recursive(&ExAws.Dynamo.query/2, table, mod_query, parse_recursive_option(:query, opts), %{})
+
+            Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ items)
           end)
         else
           fetch_recursive(&ExAws.Dynamo.query/2, table, query, parse_recursive_option(:query, opts), %{})

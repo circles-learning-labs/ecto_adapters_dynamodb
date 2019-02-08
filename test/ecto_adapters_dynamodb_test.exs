@@ -259,9 +259,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       result = TestRepo.all(from p in Person, where: p.email in [ "jerry@test.com", "bob@test.com" ])
 
       assert length(result) == 2
-
-      # result = TestRepo.all(from p in Person, where: p.email == "jerry@test.com")
-      # assert length(result) == 1
     end
 
     # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than
