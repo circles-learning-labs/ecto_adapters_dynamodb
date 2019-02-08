@@ -261,6 +261,34 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert length(result) == 2
     end
 
+    test "batch-get multiple records with an 'all... in...' query on a single-condition global secondary index when querying for an interpolated list" do
+      person1 = %{
+        id: "person-philtest",
+        circles: nil,
+        first_name: "Phil",
+        last_name: "Lesh",
+        age: 80,
+        email: "phil@test.com",
+        password: "password",
+      } 
+      person2 = %{
+        id: "person-keithtest",
+        circles: nil,
+        first_name: "Keith",
+        last_name: "Godchaux",
+        age: 29,
+        email: "keith@test.com",
+        password: "password"
+      }
+
+      TestRepo.insert_all(Person, [ person1, person2 ])
+      person_ids = [ person1.id, person2.id ]
+      result = TestRepo.all(from p in Person, where: p.id in ^person_ids)
+               |> Enum.map(&(&1.id))
+
+      assert Enum.sort(result) == Enum.sort(person_ids)
+    end
+
     # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than
     # 100 records will be rejected. We allow the user to call all() for more than 100 records
     # by breaking up the requests into blocks of 100.

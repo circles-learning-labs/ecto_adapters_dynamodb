@@ -30,8 +30,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     results = case get_best_index!(table, search) do
       # primary key based lookup uses the efficient 'get_item' operation
       {:primary, indexes} = index ->
-        # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
-        query = construct_search(index, search, opts)
         {hash_values, op} = deep_find_key(search, hd indexes)
 
         if op == :in do
@@ -53,23 +51,24 @@ defmodule Ecto.Adapters.DynamoDB.Query do
             |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
           end)
         else
+          # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
+          query = construct_search(index, search, opts)
           ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
         end
 
       # secondary index based lookups need the query functionality. 
       index when is_tuple(index) ->
         {_idxs, idxs_list} = index
-        {_hash_values, op} = deep_find_key(search, hd idxs_list)
+        {hash_values, op} = deep_find_key(search, hd idxs_list)
         # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#query/2
         query = construct_search(index, search, opts)
 
         if op == :in do
           responses_element = "Responses"
           response_map = %{responses_element => %{table => []}}
-          hash_values = Keyword.get(query, :expression_attribute_values)
-                        |> Keyword.get(:hash_key)
 
           Enum.reduce(hash_values, response_map, fn(hash_value, acc) ->
+            # When receiving a list of values to query on, construct a custom query for each of those values.
             mod_query = Kernel.put_in(query, [:expression_attribute_values, :hash_key], hash_value)
             %{"Items" => items} = fetch_recursive(&ExAws.Dynamo.query/2, table, mod_query, parse_recursive_option(:query, opts), %{})
 
