@@ -235,7 +235,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert Enum.sort(result) == Enum.sort(person_ids)
     end
 
-    test "batch-get multiple records with an 'all... in...' query on a single-condition global secondary index when querying for a hard-coded list" do
+    test "batch-get multiple records with an 'all... in...' query on a hash key global secondary index when querying for a hard-coded list" do
       person1 = %{
         id: "person-jerrytest",
         circles: nil,
@@ -255,13 +255,13 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         password: "password"
       }
 
-      TestRepo.insert_all(Person, [ person1, person2 ])
-      result = TestRepo.all(from p in Person, where: p.email in [ "jerry@test.com", "bob@test.com" ])
+      TestRepo.insert_all(Person, [person1, person2])
+      result = TestRepo.all(from p in Person, where: p.email in ["jerry@test.com", "bob@test.com"])
 
       assert length(result) == 2
     end
 
-    test "batch-get multiple records with an 'all... in...' query on a single-condition global secondary index when querying for an interpolated list" do
+    test "batch-get multiple records with an 'all... in...' query on a hash key global secondary index when querying for an interpolated list" do
       person1 = %{
         id: "person-philtest",
         circles: nil,
@@ -281,7 +281,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         password: "password"
       }
 
-      TestRepo.insert_all(Person, [ person1, person2 ])
+      TestRepo.insert_all(Person, [person1, person2])
       person_ids = [ person1.id, person2.id ]
       result = TestRepo.all(from p in Person, where: p.id in ^person_ids)
                |> Enum.map(&(&1.id))
@@ -336,7 +336,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                 }
 
       TestRepo.insert_all(Person, [person1, person2, person3])
-
       result = TestRepo.all(from p in Person, where: p.email == "jones@test.com")
 
       assert length(result) == 3

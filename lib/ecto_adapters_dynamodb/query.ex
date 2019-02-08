@@ -63,19 +63,23 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#query/2
         query = construct_search(index, search, opts)
 
+        do_fetch_recursive = fn(qry) ->
+          fetch_recursive(&ExAws.Dynamo.query/2, table, qry, parse_recursive_option(:query, opts), %{})
+        end
+
         if op == :in do
           responses_element = "Responses"
           response_map = %{responses_element => %{table => []}}
 
           Enum.reduce(hash_values, response_map, fn(hash_value, acc) ->
-            # When receiving a list of values to query on, construct a custom query for each of those values.
-            mod_query = Kernel.put_in(query, [:expression_attribute_values, :hash_key], hash_value)
-            %{"Items" => items} = fetch_recursive(&ExAws.Dynamo.query/2, table, mod_query, parse_recursive_option(:query, opts), %{})
+            # When receiving a list of values to query on, construct a custom query for each of those values to pass into do_fetch_recursive/1.
+            %{"Items" => items} = Kernel.put_in(query, [:expression_attribute_values, :hash_key], hash_value)
+                                  |> (do_fetch_recursive).()
 
             Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ items)
           end)
         else
-          fetch_recursive(&ExAws.Dynamo.query/2, table, query, parse_recursive_option(:query, opts), %{})
+          do_fetch_recursive.(query)
         end
       :scan ->
         maybe_scan(table, search, opts)
