@@ -58,10 +58,22 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
       # secondary index based lookups need the query functionality. 
       index when is_tuple(index) ->
+        {_idxs, idxs_list} = index
+        {_hash_values, op} = deep_find_key(search, hd idxs_list)
         # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#query/2
         query = construct_search(index, search, opts)
-        fetch_recursive(&ExAws.Dynamo.query/2, table, query, parse_recursive_option(:query, opts), %{})
 
+        if op == :in do
+          hash_values = Keyword.get(query, :expression_attribute_values)
+                        |> Keyword.get(:hash_key)
+
+          Enum.map(hash_values, fn hash_value ->
+            mod_query = Kernel.put_in(query, [:expression_attribute_values, :hash_key], hash_value)
+            fetch_recursive(&ExAws.Dynamo.query/2, table, mod_query, parse_recursive_option(:query, opts), %{})
+          end)
+        else
+          fetch_recursive(&ExAws.Dynamo.query/2, table, query, parse_recursive_option(:query, opts), %{})
+        end
       :scan ->
         maybe_scan(table, search, opts)
     end

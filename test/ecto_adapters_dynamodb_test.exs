@@ -226,9 +226,9 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                   password: "password",
                 }
 
-      TestRepo.insert_all(Person, [person1, person2, person3])
+      TestRepo.insert_all(Person, [ person1, person2, person3 ])
 
-      person_ids = [person1.id, person2.id, person3.id]
+      person_ids = [ person1.id, person2.id, person3.id ]
       result = TestRepo.all(from p in Person, where: p.id in ^person_ids)
                |> Enum.map(&(&1.id))
 
@@ -259,6 +259,9 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       result = TestRepo.all(from p in Person, where: p.email in [ "jerry@test.com", "bob@test.com" ])
 
       assert length(result) == 2
+
+      # result = TestRepo.all(from p in Person, where: p.email == "jerry@test.com")
+      # assert length(result) == 1
     end
 
     # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than
