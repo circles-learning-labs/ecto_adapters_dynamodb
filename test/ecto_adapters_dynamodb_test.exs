@@ -18,7 +18,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     test "insert a single record" do
       {:ok, result} = TestRepo.insert(%Person{
                                  id: "person-hello",
-                                 circles: nil,
                                  first_name: "Hello",
                                  last_name: "World",
                                  age: 34,
@@ -28,7 +27,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert result == %Ecto.Adapters.DynamoDB.TestSchema.Person{
                          age: 34,
-                         circles: nil,
                          email: "hello@world.com",
                          first_name: "Hello",
                          id: "person-hello",
@@ -74,7 +72,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     test "insert a record and retrieve it by its primary key" do
       TestRepo.insert(%Person{
         id: "person-john",
-        circles: nil,
         first_name: "John",
         last_name: "Lennon",
         age: 40,
@@ -164,7 +161,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and an interpolated list" do
       person1 = %{
                   id: "person-moe",
-                  circles: nil,
                   first_name: "Moe",
                   last_name: "Howard",
                   age: 75,
@@ -173,7 +169,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                 }
       person2 = %{
                   id: "person-larry",
-                  circles: nil,
                   first_name: "Larry",
                   last_name: "Fine",
                   age: 72,
@@ -182,7 +177,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                 }
       person3 = %{
                   id: "person-curly",
-                  circles: nil,
                   first_name: "Curly",
                   last_name: "Howard",
                   age: 74,
@@ -208,7 +202,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     test "batch-get multiple records with an 'all... in...' query on a hash key global secondary index when querying for a hard-coded and interpolated list" do
       person1 = %{
         id: "person-jerrytest",
-        circles: nil,
         first_name: "Jerry",
         last_name: "Garcia",
         age: 55,
@@ -217,7 +210,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       } 
       person2 = %{
         id: "person-bobtest",
-        circles: nil,
         first_name: "Bob",
         last_name: "Weir",
         age: 70,
@@ -262,7 +254,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       sorted_ids = Enum.sort([person1.id, person2.id])
       int_result = TestRepo.all(from p in Person, where: p.first_name in ^first_names and p.age < 50)
                    |> Enum.map(&(&1.id))
-                   |> Enum.sort()
       hc_result = TestRepo.all(from p in Person, where: p.first_name in ["Frank", "Dean"] and p.age > 40)
                   |> Enum.map(&(&1.id))
                   |> Enum.sort()
@@ -270,6 +261,38 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert int_result == ["person:frank"]
       assert hc_result == sorted_ids
     end
+
+    # COMMENTING OUT FOR NOW - THIS TEST FAILS ABOUT 1 OUT OF 5 TIMES, ONLY RETURNS ONE OF THE RECORDS INSTEAD OF BOTH
+    # test "batch-get multiple records with an 'all... in...' query on a partial composite global secondary index (hash keys only) when querying for a hard-coded and interpolated list" do
+    #   person1 = %{
+    #     id: "person:wayne_shorter",
+    #     first_name: "Wayne",
+    #     last_name: "Shorter",
+    #     age: 76,
+    #     email: "wayne_shorter@test.com",
+    #   } 
+    #   person2 = %{
+    #     id: "person:max_roach",
+    #     first_name: "Max",
+    #     last_name: "Roach",
+    #     age: 90,
+    #     email: "max_roach@test.com",
+    #   }
+
+    #   TestRepo.insert_all(Person, [person1, person2])
+
+    #   first_names = [person1.first_name, person2.first_name]
+    #   sorted_ids = Enum.sort([person1.id, person2.id])
+    #   int_result = TestRepo.all((from p in Person, where: p.first_name in ^first_names), scan: true)
+    #                |> Enum.map(&(&1.id))
+    #                |> Enum.sort()
+    #   hc_result = TestRepo.all((from p in Person, where: p.first_name in ["Wayne", "Max"]), scan: true)
+    #               |> Enum.map(&(&1.id))
+    #               |> Enum.sort()
+
+    #   assert int_result == sorted_ids
+    #   assert hc_result == sorted_ids
+    # end
 
     # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than
     # 100 records will be rejected. We allow the user to call all() for more than 100 records
@@ -291,7 +314,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     test "batch-insert and query all on a single-condition global secondary index" do
       person1 = %{
                   id: "person-tomtest",
-                  circles: nil,
                   first_name: "Tom",
                   last_name: "Jones",
                   age: 70,
@@ -300,7 +322,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                 }
       person2 = %{
                   id: "person-caseytest",
-                  circles: nil,
                   first_name: "Casey",
                   last_name: "Jones",
                   age: 114,
@@ -309,7 +330,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                 }
       person3 = %{
                   id: "person-jamestest",
-                  circles: nil,
                   first_name: "James",
                   last_name: "Jones",
                   age: 71,
@@ -342,7 +362,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     test "update two fields on a record" do
       TestRepo.insert(%Person{
                         id: "person-update",
-                        circles: nil,
                         first_name: "Update",
                         last_name: "Test",
                         age: 12,
@@ -417,7 +436,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       %{
         id: id,
-        circles: nil,
         first_name: "Batch",
         last_name: "Insert",
         age: i,

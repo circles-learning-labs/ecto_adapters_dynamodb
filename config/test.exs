@@ -15,7 +15,6 @@ config :ecto_adapters_dynamodb, Ecto.Adapters.DynamoDB.TestRepo,
   ]
 
 config :ecto_adapters_dynamodb,
-  cached_tables: ["role"],
   log_levels: []
 
 config :logger,
