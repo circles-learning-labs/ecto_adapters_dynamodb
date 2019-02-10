@@ -129,14 +129,14 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   describe "Repo.insert_all/2" do
     test "batch-insert multiple records" do
       total_records = 5
-      result = handle_batch_insert(total_records)
+      result = handle_batch_insert_person(total_records)
 
       assert result == {total_records, nil}
     end
 
     test "batch-insert a single record" do
       total_records = 1
-      result = handle_batch_insert(total_records)
+      result = handle_batch_insert_person(total_records)
 
       assert result == {total_records, nil}
     end
@@ -147,7 +147,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
     test "batch-insert multiple records, exceeding BatchWriteItem limit by 30 records" do
       total_records = 55
-      result = handle_batch_insert(total_records)
+      result = handle_batch_insert_person(total_records)
 
       assert result == {total_records, nil}
     end
@@ -159,45 +159,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert result == []
     end
 
-    test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded list" do
-      person1 = %{
-                  id: "person-jimi",
-                  circles: nil,
-                  first_name: "Jimi",
-                  last_name: "Hendrix",
-                  age: 27,
-                  email: "jimi@hendrix.com",
-                  password: "password",
-                }
-      person2 = %{
-                  id: "person-noel",
-                  circles: nil,
-                  first_name: "Noel",
-                  last_name: "Redding",
-                  age: 72,
-                  email:
-                  "noel@redding.com",
-                  password: "password",
-                }
-      person3 = %{
-                  id: "person-mitch",
-                  circles: nil,
-                  first_name: "Mitch",
-                  last_name: "Mitchell",
-                  age: 74,
-                  email: "mitch@mitchell.com",
-                  password: "password",
-                }
-
-      TestRepo.insert_all(Person, [person1, person2, person3])
-
-      result = TestRepo.all(from p in Person, where: p.id in ["person-jimi", "person-noel", "person-mitch"])
-               |> Enum.map(&(&1.id))
-
-      assert Enum.sort(result) == Enum.sort(["person-jimi", "person-noel", "person-mitch"])
-    end
-
-    test "batch-get multiple records with an 'all... in...' query when querying for an interpolated list" do
+    test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and an interpolated list" do
       person1 = %{
                   id: "person-moe",
                   circles: nil,
@@ -226,16 +188,22 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                   password: "password",
                 }
 
-      TestRepo.insert_all(Person, [ person1, person2, person3 ])
+      TestRepo.insert_all(Person, [person1, person2, person3])
 
-      person_ids = [ person1.id, person2.id, person3.id ]
-      result = TestRepo.all(from p in Person, where: p.id in ^person_ids)
-               |> Enum.map(&(&1.id))
+      ids = [person1.id, person2.id, person3.id]
+      sorted_ids = Enum.sort(ids)
+      int_result = TestRepo.all(from p in Person, where: p.id in ^ids)
+                   |> Enum.map(&(&1.id))
+                   |> Enum.sort()
+      hc_result = TestRepo.all(from p in Person, where: p.id in ["person-moe", "person-larry", "person-curly"])
+                  |> Enum.map(&(&1.id))
+                  |> Enum.sort()
 
-      assert Enum.sort(result) == Enum.sort(person_ids)
+      assert int_result == sorted_ids
+      assert hc_result == sorted_ids
     end
 
-    test "batch-get multiple records with an 'all... in...' query on a hash key global secondary index when querying for a hard-coded list" do
+    test "batch-get multiple records with an 'all... in...' query on a hash key global secondary index when querying for a hard-coded and interpolated list" do
       person1 = %{
         id: "person-jerrytest",
         circles: nil,
@@ -256,37 +224,18 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       }
 
       TestRepo.insert_all(Person, [person1, person2])
-      result = TestRepo.all(from p in Person, where: p.email in ["jerry@test.com", "bob@test.com"])
 
-      assert length(result) == 2
-    end
+      emails = [person1.email, person2.email]
+      sorted_ids = Enum.sort([person1.id, person2.id])
+      int_result = TestRepo.all(from p in Person, where: p.email in ^emails)
+                   |> Enum.map(&(&1.id))
+                   |> Enum.sort()
+      hc_result = TestRepo.all(from p in Person, where: p.email in ["jerry@test.com", "bob@test.com"])
+                  |> Enum.map(&(&1.id))
+                  |> Enum.sort()
 
-    test "batch-get multiple records with an 'all... in...' query on a hash key global secondary index when querying for an interpolated list" do
-      person1 = %{
-        id: "person-philtest",
-        circles: nil,
-        first_name: "Phil",
-        last_name: "Lesh",
-        age: 80,
-        email: "phil@test.com",
-        password: "password",
-      } 
-      person2 = %{
-        id: "person-keithtest",
-        circles: nil,
-        first_name: "Keith",
-        last_name: "Godchaux",
-        age: 29,
-        email: "keith@test.com",
-        password: "password"
-      }
-
-      TestRepo.insert_all(Person, [person1, person2])
-      person_ids = [ person1.id, person2.id ]
-      result = TestRepo.all(from p in Person, where: p.id in ^person_ids)
-               |> Enum.map(&(&1.id))
-
-      assert Enum.sort(result) == Enum.sort(person_ids)
+      assert int_result == sorted_ids
+      assert hc_result == sorted_ids
     end
 
     # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than
@@ -298,7 +247,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       people_to_insert = make_list_of_people_for_batch_insert(total_records) # create a list of people records
       person_ids = for person <- people_to_insert, do: person.id # hang on to the ids separately
 
-      handle_batch_insert(people_to_insert) # insert the records
+      handle_batch_insert_person(people_to_insert) # insert the records
 
       result = TestRepo.all(from p in Person, where: p.id in ^person_ids)
                |> Enum.map(&(&1.id))
@@ -412,12 +361,13 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   end
 
 
-  defp handle_batch_insert(people_to_insert) when is_list people_to_insert do
+  # Batch insert a list of records into the Person model.
+  defp handle_batch_insert_person(people_to_insert) when is_list people_to_insert do
     TestRepo.insert_all(Person, people_to_insert)
   end
-  defp handle_batch_insert(total_records) when is_integer total_records do
+  defp handle_batch_insert_person(total_records) when is_integer total_records do
     make_list_of_people_for_batch_insert(total_records)
-    |> handle_batch_insert()
+    |> handle_batch_insert_person()
   end
 
   defp make_list_of_people_for_batch_insert(total_records) do
