@@ -262,7 +262,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert hc_result == sorted_ids
     end
 
-    # COMMENTING OUT FOR NOW - THIS TEST FAILS ABOUT 1 OUT OF 5 TIMES, ONLY RETURNS ONE OF THE RECORDS INSTEAD OF BOTH
+    # # COMMENTING OUT FOR NOW
     # test "batch-get multiple records with an 'all... in...' query on a partial composite global secondary index (hash keys only) when querying for a hard-coded and interpolated list" do
     #   person1 = %{
     #     id: "person:wayne_shorter",
@@ -283,10 +283,10 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
     #   first_names = [person1.first_name, person2.first_name]
     #   sorted_ids = Enum.sort([person1.id, person2.id])
-    #   int_result = TestRepo.all((from p in Person, where: p.first_name in ^first_names), scan: true)
+    #   int_result = TestRepo.all(from p in Person, where: p.first_name in ^first_names)
     #                |> Enum.map(&(&1.id))
     #                |> Enum.sort()
-    #   hc_result = TestRepo.all((from p in Person, where: p.first_name in ["Wayne", "Max"]), scan: true)
+    #   hc_result = TestRepo.all(from p in Person, where: p.first_name in ["Wayne", "Max"])
     #               |> Enum.map(&(&1.id))
     #               |> Enum.sort()
 

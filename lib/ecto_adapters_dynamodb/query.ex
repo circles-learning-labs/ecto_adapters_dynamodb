@@ -31,7 +31,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       # primary key based lookup uses the efficient 'get_item' operation
       {:primary, indexes} = index ->
         {hash_values, op} = deep_find_key(search, hd indexes)
-
         if op == :in do
           # DynamoDB will reject an entire batch get query if the query is for more than 100 records, so these need to be batched.
           # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
