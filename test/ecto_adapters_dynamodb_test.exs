@@ -55,7 +55,9 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                      ]
       {:ok, result} = TestRepo.insert(%Person{
                                         id: "person:address_test",
+                                        first_name: "Person",
                                         email: "addr@test.com",
+                                        age: 2,
                                         addresses: address_list
                                       })
 
@@ -238,6 +240,37 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert hc_result == sorted_ids
     end
 
+    test "batch-get multiple records with an 'all... in...' query on a composite global secondary index (hash and range keys) when querying for a hard-coded and interpolated list" do
+      person1 = %{
+        id: "person:frank",
+        first_name: "Frank",
+        last_name: "Sinatra",
+        age: 45,
+        email: "frank_sinatra@test.com",
+      } 
+      person2 = %{
+        id: "person:dean",
+        first_name: "Dean",
+        last_name: "Martin",
+        age: 70,
+        email: "dean_martin@test.com",
+      }
+
+      TestRepo.insert_all(Person, [person1, person2])
+
+      first_names = [person1.first_name, person2.first_name]
+      sorted_ids = Enum.sort([person1.id, person2.id])
+      int_result = TestRepo.all(from p in Person, where: p.first_name in ^first_names and p.age < 50)
+                   |> Enum.map(&(&1.id))
+                   |> Enum.sort()
+      hc_result = TestRepo.all(from p in Person, where: p.first_name in ["Frank", "Dean"] and p.age > 40)
+                  |> Enum.map(&(&1.id))
+                  |> Enum.sort()
+
+      assert int_result == ["person:frank"]
+      assert hc_result == sorted_ids
+    end
+
     # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than
     # 100 records will be rejected. We allow the user to call all() for more than 100 records
     # by breaking up the requests into blocks of 100.
@@ -295,6 +328,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                         id: "person:jamesholden",
                         first_name: "James",
                         last_name: "Holden",
+                        age: 18,
                         email: "jholden@expanse.com",
                       })
       result = TestRepo.all(from p in Person, where: p.id == "person:jamesholden" and p.email == "jholden@expanse.com")
@@ -326,15 +360,17 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
   describe "Repo.delete/1" do
     test "delete a single record" do
-      person_id = "person:delete"
+      id = "person:delete"
       {:ok, _} = TestRepo.insert(%Person{
-                   id: person_id,
+                   id: id,
+                   first_name: "Delete",
+                   age: 37,
                    email: "delete_all@test.com",
                  })
                  |> elem(1)
                  |> TestRepo.delete()
 
-      assert TestRepo.get(Person, person_id) == nil
+      assert TestRepo.get(Person, id) == nil
     end
   end
 
@@ -342,10 +378,14 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     test "delete multiple records" do
       TestRepo.insert(%Person{
                         id: "person:delete_all_1",
+                        first_name: "Delete",
+                        age: 26,
                         email: "delete_all@test.com",
                       })
       TestRepo.insert(%Person{
                         id: "person:delete_all_2",
+                        first_name: "Delete",
+                        age: 97,
                         email: "delete_all@test.com",
                       })
 
