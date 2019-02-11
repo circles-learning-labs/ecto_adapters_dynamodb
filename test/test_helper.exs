@@ -61,6 +61,12 @@ defmodule TestHelper do
 
     :ok
   end
+
+  def on_exit() do
+    IO.puts "deleting test tables"
+    Dynamo.delete_table("test_person") |> ExAws.request
+    Dynamo.delete_table("test_book_page") |> ExAws.request
+  end
 end
 
 # Skip EQC testing if we don't have it installed:

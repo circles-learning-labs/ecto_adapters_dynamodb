@@ -12,6 +12,10 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
   setup_all do
     TestHelper.setup_all()
+
+    on_exit fn ->
+      TestHelper.on_exit()
+    end
   end
 
   describe "Repo.insert/1" do
@@ -262,37 +266,30 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert hc_result == sorted_ids
     end
 
-    # # COMMENTING OUT FOR NOW
-    # test "batch-get multiple records with an 'all... in...' query on a partial composite global secondary index (hash keys only) when querying for a hard-coded and interpolated list" do
-    #   person1 = %{
-    #     id: "person:wayne_shorter",
-    #     first_name: "Wayne",
-    #     last_name: "Shorter",
-    #     age: 76,
-    #     email: "wayne_shorter@test.com",
-    #   } 
-    #   person2 = %{
-    #     id: "person:max_roach",
-    #     first_name: "Max",
-    #     last_name: "Roach",
-    #     age: 90,
-    #     email: "max_roach@test.com",
-    #   }
+    test "batch-get multiple records on a partial  secondary index composite key (hash only)" do
+      person1 = %{
+        id: "person:wayne_shorter",
+        first_name: "Wayne",
+        last_name: "Shorter",
+        age: 75,
+        email: "wayne_shorter@test.com",
+      }
+      person2 = %{
+        id: "person:wayne_campbell",
+        first_name: "Wayne",
+        last_name: "Campbell",
+        age: 36,
+        email: "wayne_campbell@test.com"
+      }
 
-    #   TestRepo.insert_all(Person, [person1, person2])
+      TestRepo.insert_all(Person, [person1, person2])
 
-    #   first_names = [person1.first_name, person2.first_name]
-    #   sorted_ids = Enum.sort([person1.id, person2.id])
-    #   int_result = TestRepo.all(from p in Person, where: p.first_name in ^first_names)
-    #                |> Enum.map(&(&1.id))
-    #                |> Enum.sort()
-    #   hc_result = TestRepo.all(from p in Person, where: p.first_name in ["Wayne", "Max"])
-    #               |> Enum.map(&(&1.id))
-    #               |> Enum.sort()
+      sorted_ids = Enum.sort([person1.id, person2.id])
+      result = TestRepo.all(from p in Person, where: p.first_name == "Wayne")
+               |> Enum.map(&(&1.id))
 
-    #   assert int_result == sorted_ids
-    #   assert hc_result == sorted_ids
-    # end
+      assert result == sorted_ids
+    end
 
     # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than
     # 100 records will be rejected. We allow the user to call all() for more than 100 records
