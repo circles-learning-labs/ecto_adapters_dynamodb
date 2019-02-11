@@ -126,7 +126,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert [page1] == TestRepo.all(query1)
       assert [page2] == TestRepo.all(query2)
-    end    
+    end
   end
 
   describe "Repo.insert_all/2" do
@@ -162,7 +162,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert result == []
     end
 
-    test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and an interpolated list" do
+    test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and an interpolated list of primary hash keys" do
       person1 = %{
                   id: "person-moe",
                   first_name: "Moe",
@@ -203,7 +203,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert hc_result == sorted_ids
     end
 
-    test "batch-get multiple records with an 'all... in...' query on a hash key global secondary index when querying for a hard-coded and interpolated list" do
+    test "batch-get multiple records with an 'all... in...' query on a hash key-only global secondary index when querying for a hard-coded and interpolated list" do
       person1 = %{
         id: "person-jerrytest",
         first_name: "Jerry",
@@ -266,7 +266,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert hc_result == sorted_ids
     end
 
-    test "batch-get multiple records on a partial  secondary index composite key (hash only)" do
+    test "batch-get multiple records on a partial secondary index composite key (hash only)" do
       person1 = %{
         id: "person:wayne_shorter",
         first_name: "Wayne",
@@ -308,7 +308,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert length(result) == total_records
     end
 
-    test "batch-insert and query all on a single-condition global secondary index" do
+    test "batch-insert and query all on a hash key global secondary index" do
       person1 = %{
                   id: "person-tomtest",
                   first_name: "Tom",
