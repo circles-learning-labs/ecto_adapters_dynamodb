@@ -135,7 +135,7 @@ Install the [Hex](https://hex.pm/packages/ecto_adapters_dynamodb) package by add
 
 ```elixir
 def deps do
-  [{:ecto_adapters_dynamodb, "~> 0.4.6"}]
+  [{:ecto_adapters_dynamodb, "~> 0.5.0"}]
 end
 ```
 
