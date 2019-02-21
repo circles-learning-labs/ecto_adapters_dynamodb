@@ -1038,11 +1038,9 @@ defmodule Ecto.Adapters.DynamoDB do
   defp get_value({:^, _, [idx]}, params), do: Enum.at(params, idx)
   # Handle queries with variable values
   # ex. Repo.all from i in Item, where: i.id in ^item_ids
-  defp get_value({:^, _, [values, _terms]}, params), do: params |> trim_params(values)
+  defp get_value({:^, _, [num_update_terms, _num_query_terms]}, params), do: Enum.drop(params, num_update_terms)
   # Handle .all(query) QUERIES
   defp get_value(other_clause, _params), do: other_clause
-
-  defp trim_params(params, values), do: Enum.drop(params, values)
 
   defp error(msg) do
     raise ArgumentError, message: msg
