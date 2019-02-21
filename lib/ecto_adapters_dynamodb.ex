@@ -211,7 +211,7 @@ defmodule Ecto.Adapters.DynamoDB do
       :delete_all ->
         delete_all(table, lookup_fields, updated_opts)
 
-      :update_all  ->
+      :update_all ->
         update_all(table, lookup_fields, updated_opts, prepared.updates, params)
 
       :all ->
@@ -316,7 +316,6 @@ defmodule Ecto.Adapters.DynamoDB do
 
     batch_write_attempt["UnprocessedItems"]
   end
-
 
   defp update_all(table, lookup_fields, opts, updates, params) do
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_all", %{"#{inspect __MODULE__}.update_all-params" => %{table: table, lookup_fields: lookup_fields, opts: opts}})
@@ -1037,11 +1036,13 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp get_value({:^, _, [idx]}, params), do: Enum.at(params, idx)
-  # Handle queries with interpolated values
+  # Handle queries with variable values
   # ex. Repo.all from i in Item, where: i.id in ^item_ids
-  defp get_value({:^, _, _}, params), do: params
+  defp get_value({:^, _, [values, _terms]}, params), do: params |> trim_params(values)
   # Handle .all(query) QUERIES
   defp get_value(other_clause, _params), do: other_clause
+
+  defp trim_params(params, values), do: Enum.drop(params, values)
 
   defp error(msg) do
     raise ArgumentError, message: msg
