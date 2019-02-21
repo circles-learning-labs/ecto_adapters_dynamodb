@@ -1036,10 +1036,18 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp get_value({:^, _, [idx]}, params), do: Enum.at(params, idx)
-  # Handle queries with variable values
-  # ex. Repo.all from i in Item, where: i.id in ^item_ids
+  # Handle queries with variable values, ex. Repo.all from i in Item, where: i.id in ^item_ids
+  # The last element of the tuple (first arg) will be a list with two numbers;
+  # the first number will be the number of attributes to be updated (in the event of an update_all query with a variable list)
+  # and the second will be a count of the number of elements in the variable list being queried. For example:
+  #
+  # query = from p in Person, where: p.id in ^ids
+  # TestRepo.update_all(query, set: [password: "cheese", last_name: "Smith"])
+  #
+  # assuming that ids contains 4 values, the last element would be [2, 4].
+  # Use this data to modify the params, which would otherwise include the values to be updated as well.
   defp get_value({:^, _, [num_update_terms, _num_query_terms]}, params), do: Enum.drop(params, num_update_terms)
-  # Handle .all(query) QUERIES
+  # Handle .all(query) queries
   defp get_value(other_clause, _params), do: other_clause
 
   defp error(msg) do
