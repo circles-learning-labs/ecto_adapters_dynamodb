@@ -374,6 +374,52 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
   end
 
+  describe "Repo.update_all/3" do
+    test "update fields on multiple records" do
+      person1 = %{
+                  id: "person-george",
+                  first_name: "George",
+                  last_name: "Washington",
+                  age: 70,
+                  email: "george@washington.com",
+                  password: "password",
+                }
+      person2 = %{
+                  id: "person-thomas",
+                  first_name: "Thomas",
+                  last_name: "Jefferson",
+                  age: 27,
+                  email: "thomas@jefferson.com",
+                  password: "password",
+                }
+      person3 = %{
+                  id: "person-warren",
+                  first_name: "Warren",
+                  last_name: "Harding",
+                  age: 71,
+                  email: "warren@harding.com",
+                  password: "password",
+                }
+
+      ids = [person1.id, person2.id, person3.id]
+      TestRepo.insert_all(Person, [person1, person2, person3])
+
+      # Note that we test queries with both interpolated and hard-coded lists, as these are handled differently.
+      hc_query = from p in Person, where: p.id in ["person-george", "person-thomas", "person-warren"]
+      int_query = from p in Person, where: p.id in ^ids
+
+      nil_hc_query_update = TestRepo.update_all(hc_query, set: [last_name: nil])
+      nil_int_query_update = TestRepo.update_all(int_query, set: [password: nil])
+
+      # NEED TO ASSERT...
+
+      multi_hc_query_update = TestRepo.update_all(hc_query, set: [first_name: "Joey", age: 12])
+      multi_int_query_update = TestRepo.update_all(int_query, set: [email: nil, last_name: "Smith"])
+
+      # NEED TO ASSERT...
+    end
+  end
+
   describe "Repo.delete/1" do
     test "delete a single record" do
       id = "person:delete"
