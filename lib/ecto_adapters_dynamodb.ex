@@ -1045,7 +1045,7 @@ defmodule Ecto.Adapters.DynamoDB do
   # TestRepo.update_all(query, set: [password: "cheese", last_name: "Smith"])
   #
   # assuming that ids contains 4 values, the last element would be [2, 4].
-  # Use this data to modify the params, which would otherwise include the values to be updated as well.
+  # Use this data to modify the params, which would otherwise include the values to be updated as well, which we don't want to query on.
   defp get_value({:^, _, [num_update_terms, _num_query_terms]}, params), do: Enum.drop(params, num_update_terms)
   # Handle .all(query) queries
   defp get_value(other_clause, _params), do: other_clause
