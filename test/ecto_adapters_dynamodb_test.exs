@@ -162,7 +162,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert result == []
     end
 
-    test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and an interpolated list of primary hash keys" do
+    test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and a variable list of primary hash keys" do
       person1 = %{
                   id: "person-moe",
                   first_name: "Moe",
@@ -192,18 +192,18 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       ids = [person1.id, person2.id, person3.id]
       sorted_ids = Enum.sort(ids)
-      int_result = TestRepo.all(from p in Person, where: p.id in ^ids)
+      var_result = TestRepo.all(from p in Person, where: p.id in ^ids)
                    |> Enum.map(&(&1.id))
                    |> Enum.sort()
       hc_result = TestRepo.all(from p in Person, where: p.id in ["person-moe", "person-larry", "person-curly"])
                   |> Enum.map(&(&1.id))
                   |> Enum.sort()
 
-      assert int_result == sorted_ids
+      assert var_result == sorted_ids
       assert hc_result == sorted_ids
     end
 
-    test "batch-get multiple records with an 'all... in...' query on a hash key-only global secondary index when querying for a hard-coded and interpolated list" do
+    test "batch-get multiple records with an 'all... in...' query on a hash key-only global secondary index when querying for a hard-coded and variable list" do
       person1 = %{
         id: "person-jerrytest",
         first_name: "Jerry",
@@ -225,18 +225,18 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       emails = [person1.email, person2.email]
       sorted_ids = Enum.sort([person1.id, person2.id])
-      int_result = TestRepo.all(from p in Person, where: p.email in ^emails)
+      var_result = TestRepo.all(from p in Person, where: p.email in ^emails)
                    |> Enum.map(&(&1.id))
                    |> Enum.sort()
       hc_result = TestRepo.all(from p in Person, where: p.email in ["jerry@test.com", "bob@test.com"])
                   |> Enum.map(&(&1.id))
                   |> Enum.sort()
 
-      assert int_result == sorted_ids
+      assert var_result == sorted_ids
       assert hc_result == sorted_ids
     end
 
-    test "batch-get multiple records with an 'all... in...' query on a composite global secondary index (hash and range keys) when querying for a hard-coded and interpolated list" do
+    test "batch-get multiple records with an 'all... in...' query on a composite global secondary index (hash and range keys) when querying for a hard-coded and variable list" do
       person1 = %{
         id: "person:frank",
         first_name: "Frank",
@@ -256,13 +256,13 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       first_names = [person1.first_name, person2.first_name]
       sorted_ids = Enum.sort([person1.id, person2.id])
-      int_result = TestRepo.all(from p in Person, where: p.first_name in ^first_names and p.age < 50)
+      var_result = TestRepo.all(from p in Person, where: p.first_name in ^first_names and p.age < 50)
                    |> Enum.map(&(&1.id))
       hc_result = TestRepo.all(from p in Person, where: p.first_name in ["Frank", "Dean"] and p.age > 40)
                   |> Enum.map(&(&1.id))
                   |> Enum.sort()
 
-      assert int_result == ["person:frank"]
+      assert var_result == ["person:frank"]
       assert hc_result == sorted_ids
     end
 
@@ -374,51 +374,51 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
   end
 
-  describe "Repo.update_all/3" do
-    test "update fields on multiple records" do
-      person1 = %{
-                  id: "person-george",
-                  first_name: "George",
-                  last_name: "Washington",
-                  age: 70,
-                  email: "george@washington.com",
-                  password: "password",
-                }
-      person2 = %{
-                  id: "person-thomas",
-                  first_name: "Thomas",
-                  last_name: "Jefferson",
-                  age: 27,
-                  email: "thomas@jefferson.com",
-                  password: "password",
-                }
-      person3 = %{
-                  id: "person-warren",
-                  first_name: "Warren",
-                  last_name: "Harding",
-                  age: 71,
-                  email: "warren@harding.com",
-                  password: "password",
-                }
+  # describe "Repo.update_all/3" do
+  #   test "update fields on multiple records" do
+  #     person1 = %{
+  #                 id: "person-george",
+  #                 first_name: "George",
+  #                 last_name: "Washington",
+  #                 age: 70,
+  #                 email: "george@washington.com",
+  #                 password: "password",
+  #               }
+  #     person2 = %{
+  #                 id: "person-thomas",
+  #                 first_name: "Thomas",
+  #                 last_name: "Jefferson",
+  #                 age: 27,
+  #                 email: "thomas@jefferson.com",
+  #                 password: "password",
+  #               }
+  #     person3 = %{
+  #                 id: "person-warren",
+  #                 first_name: "Warren",
+  #                 last_name: "Harding",
+  #                 age: 71,
+  #                 email: "warren@harding.com",
+  #                 password: "password",
+  #               }
 
-      ids = [person1.id, person2.id, person3.id]
-      TestRepo.insert_all(Person, [person1, person2, person3])
+  #     ids = [person1.id, person2.id, person3.id]
+  #     TestRepo.insert_all(Person, [person1, person2, person3])
 
-      # Note that we test queries with both interpolated and hard-coded lists, as these are handled differently.
-      hc_query = from p in Person, where: p.id in ["person-george", "person-thomas", "person-warren"]
-      int_query = from p in Person, where: p.id in ^ids
+  #     # Note that we test queries with both hard-coded and variable lists, as these are handled differently.
+  #     hc_query = from p in Person, where: p.id in ["person-george", "person-thomas", "person-warren"]
+  #     var_query = from p in Person, where: p.id in ^ids
 
-      nil_hc_query_update = TestRepo.update_all(hc_query, set: [last_name: nil])
-      nil_int_query_update = TestRepo.update_all(int_query, set: [password: nil])
+  #     nil_hc_query_update = TestRepo.update_all(hc_query, set: [last_name: nil])
+  #     nil_var_query_update = TestRepo.update_all(var_query, set: [password: nil])
 
-      # NEED TO ASSERT...
+  #     # NEED TO ASSERT...
 
-      multi_hc_query_update = TestRepo.update_all(hc_query, set: [first_name: "Joey", age: 12])
-      multi_int_query_update = TestRepo.update_all(int_query, set: [email: nil, last_name: "Smith"])
+  #     multi_hc_query_update = TestRepo.update_all(hc_query, set: [first_name: "Joey", age: 12])
+  #     multi_var_query_update = TestRepo.update_all(var_query, set: [email: nil, last_name: "Smith"])
 
-      # NEED TO ASSERT...
-    end
-  end
+  #     # NEED TO ASSERT...
+  #   end
+  # end
 
   describe "Repo.delete/1" do
     test "delete a single record" do
