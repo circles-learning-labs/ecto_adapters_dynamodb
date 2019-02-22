@@ -414,16 +414,16 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       hc_query = from p in Person, where: p.id in ["person-george", "person-thomas", "person-warren"]
       var_query = from p in Person, where: p.id in ^ids
 
-      nil_hc_query_update = TestRepo.update_all(hc_query, set: [last_name: nil])
-      nil_var_query_update = TestRepo.update_all(var_query, set: [password: nil])
+      TestRepo.update_all(hc_query, set: [last_name: nil])
+      TestRepo.update_all(var_query, set: [password: nil])
 
       result = TestRepo.all(from p in Person, where: p.id in ^ids)
                |> Enum.map(fn(item) -> [item.last_name, item.password] end)
 
       assert result == [[nil, nil], [nil, nil], [nil, nil]]
 
-      multi_hc_query_update = TestRepo.update_all(hc_query, set: [first_name: "Joey", age: 12])
-      multi_var_query_update = TestRepo.update_all(var_query, set: [password: "cheese", last_name: "Smith"])
+      TestRepo.update_all(hc_query, set: [first_name: "Joey", age: 12])
+      TestRepo.update_all(var_query, set: [password: "cheese", last_name: "Smith"])
 
       result = TestRepo.all(from p in Person, where: p.id in ^ids)
                |> Enum.map(fn(item) -> [item.first_name, item.last_name, item.age, item.password] end)
