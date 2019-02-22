@@ -107,6 +107,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   # The initial 'search' arg will have a list of all of the values being queried for;
   # when passing this data to construct_batch_get_item_query/5 during a batched operation,
   # use a modified form of the 'search' arg that contains only the values from the current batch.
+  defp make_batched_search([and: [range_query, {hash_key, {_vals, op}}]], hash_batch), do: [{hash_key, {hash_batch, op}}, range_query]
   defp make_batched_search([{index, {_vals, op}}], hash_batch), do: [{index, {hash_batch, op}}]
 
   @doc """

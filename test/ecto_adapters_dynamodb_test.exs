@@ -203,6 +203,35 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert hc_result == sorted_ids
     end
 
+    test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and a variable lists of composite primary keys" do
+      page1 = %{
+                id: "page:test-1",
+                page_num: 1,
+                text: "abc",
+              }
+      page2 = %{
+                id: "page:test-2",
+                page_num: 2,
+                text: "def",
+              }
+
+      TestRepo.insert_all(BookPage, [page1, page2])
+      ids = [page1.id, page2.id]
+      pages = [1, 2]
+
+      var_result = TestRepo.all(from bp in BookPage, where: bp.id in ^ids and bp.page_num in ^pages)
+                   |> Enum.map(&(&1.id))
+                   |> Enum.sort()
+      hc_result = TestRepo.all(from bp in BookPage, where: bp.id in ["page:test-1", "page:test-2"] and bp.page_num in [1, 2])
+                  |> Enum.map(&(&1.id))
+                  |> Enum.sort()
+
+      sorted_ids = Enum.sort(ids)
+
+      assert var_result == sorted_ids
+      assert hc_result == sorted_ids
+    end
+
     test "batch-get multiple records with an 'all... in...' query on a hash key-only global secondary index when querying for a hard-coded and variable list" do
       person1 = %{
         id: "person-jerrytest",
