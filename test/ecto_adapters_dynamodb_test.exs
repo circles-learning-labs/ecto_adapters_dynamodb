@@ -234,6 +234,12 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert var_result == sorted_ids
       assert hc_result == sorted_ids
+
+      [var_multi_cond_result] = TestRepo.all(from p in Person, where: p.email in ^emails and p.age > 69)
+      [hc_multi_cond_result] = TestRepo.all(from p in Person, where: p.email in ["jerry@test.com", "bob@test.com"] and p.age < 69)
+
+      assert var_multi_cond_result.id == "person-bobtest"
+      assert hc_multi_cond_result.id == "person-jerrytest"
     end
 
     test "batch-get multiple records with an 'all... in...' query on a composite global secondary index (hash and range keys) when querying for a hard-coded and variable list" do
