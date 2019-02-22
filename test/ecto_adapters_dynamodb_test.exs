@@ -410,7 +410,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   end
 
   describe "Repo.update_all/3" do
-    test "update fields on multiple records" do
+    test "update fields on multiple records based on a primary hash key query" do
       person1 = %{
                   id: "person-george",
                   first_name: "George",
@@ -458,6 +458,40 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                |> Enum.map(fn(item) -> [item.first_name, item.last_name, item.age, item.password] end)
 
       assert result == [["Joey", "Smith", 12, "cheese"], ["Joey", "Smith", 12, "cheese"], ["Joey", "Smith", 12, "cheese"]]
+    end
+
+    test "update fields on multiple records based on a primary composite key query" do
+      page1 = %{
+                id: "page:test-3",
+                page_num: 1,
+                text: "abc",
+              }
+      page2 = %{
+                id: "page:test-4",
+                page_num: 2,
+                text: "def",
+              }
+
+      TestRepo.insert_all(BookPage, [page1, page2])
+      ids = [page1.id, page2.id]
+      pages = [1, 2]
+
+      hc_query = from bp in BookPage, where: bp.id in ["page:test-3", "page:test-4"] and bp.page_num in [1, 2]
+      var_query = from bp in BookPage, where: bp.id in ^ids and bp.page_num in ^pages
+
+      TestRepo.update_all(hc_query, set: [text: "Call me Ishmael..."])
+
+      hc_result = TestRepo.all(hc_query)
+                  |> Enum.map(fn(item) -> item.text end)
+
+      assert hc_result == ["Call me Ishmael...", "Call me Ishmael..."]
+
+      TestRepo.update_all(var_query, set: [text: "... or just Joe would be fine."])
+
+      var_result = TestRepo.all(var_query)
+                   |> Enum.map(fn(item) -> item.text end)
+
+      assert var_result == ["... or just Joe would be fine.", "... or just Joe would be fine."]
     end
   end
 
@@ -526,7 +560,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         email: "batch_insert#{i}@test.com",
         password: "password",
       }
-    end   
+    end
   end
 
 end
