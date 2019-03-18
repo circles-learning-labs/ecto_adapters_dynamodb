@@ -13,9 +13,9 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   setup_all do
     TestHelper.setup_all()
 
-    on_exit fn ->
-      TestHelper.on_exit()
-    end
+    # on_exit fn ->
+    #   TestHelper.on_exit()
+    # end
   end
 
   describe "Repo.insert/1" do
