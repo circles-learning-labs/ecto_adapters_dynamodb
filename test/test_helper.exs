@@ -81,6 +81,8 @@ defmodule TestHelper do
   end
   def on_exit(:migration) do
     IO.puts "deleting test tables"
+    Dynamo.delete_table("dog") |> ExAws.request
+    Dynamo.delete_table("cat") |> ExAws.request
     Dynamo.delete_table("test_schema_migrations") |> ExAws.request
   end
 

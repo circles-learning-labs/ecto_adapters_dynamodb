@@ -1,7 +1,14 @@
 defmodule Ecto.Adapters.DynamoDB.Migration.Test do
+  @moduledoc """
+  Unit tests for migrations.
+
+  Test migrations will be tracked in the test_schema_migrations table (see config/test.exs)
+  """
   use ExUnit.Case
 
   alias Ecto.Adapters.DynamoDB.TestRepo
+
+  @migration_path Path.expand("test/priv/repo/migrations")
 
   setup_all do
     TestHelper.setup_all(:migration)
@@ -11,11 +18,16 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
     end
   end
 
-  test "run migration" do
-    path = Path.expand("test/priv/repo/migrations")
+  describe "execute_ddl" do
+    test "create_if_not_exists: table" do
+      result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
+      assert length(result) == 1
+    end
 
-    Ecto.Migrator.run(TestRepo, path, :up, all: true)
-    Ecto.Migrator.run(TestRepo, path, :down, all: true)
+    test "create: table" do
+      result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
+      assert length(result) == 1
+    end
   end
 
 end

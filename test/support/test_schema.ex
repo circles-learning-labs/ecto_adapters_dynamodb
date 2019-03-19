@@ -129,7 +129,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Dog do
   use Ecto.Schema
   @primary_key {:id, :binary_id, autogenerate: true}
 
-  schema "test_dog" do
+  schema "dog" do
     field :name, :string
   end
 
@@ -143,4 +143,27 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Dog do
   def get_fields() do
     @changeset_fields
   end
+
+end
+
+# Schema used during migration testing
+defmodule Ecto.Adapters.DynamoDB.TestSchema.Cat do
+  use Ecto.Schema
+  @primary_key {:id, :binary_id, autogenerate: true}
+
+  schema "cat" do
+    field :name, :string
+  end
+
+  def changeset(cat, params \\ %{}) do
+    cat
+    |> Ecto.Changeset.cast(params, [:name])
+    |> Ecto.Changeset.validate_required([:name])
+    |> Ecto.Changeset.unique_constraint(:id)
+  end
+
+  def get_fields() do
+    @changeset_fields
+  end
+
 end
