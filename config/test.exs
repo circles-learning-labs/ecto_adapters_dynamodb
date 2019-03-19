@@ -16,7 +16,8 @@ config :ecto_adapters_dynamodb, Ecto.Adapters.DynamoDB.TestRepo,
   ]
 
 config :ecto_adapters_dynamodb,
-  log_levels: []
+  log_levels: [],
+  scan_tables: ["test_schema_migrations"]
 
 config :logger,
   backends: [:console],

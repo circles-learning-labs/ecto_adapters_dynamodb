@@ -18,9 +18,6 @@ defmodule TestHelper do
     Dynamo.delete_table("test_person") |> ExAws.request
     Dynamo.delete_table("test_book_page") |> ExAws.request
 
-    IO.puts "creating test schema migrations table"
-    Dynamo.create_table("test_schema_migrations", [version: :hash], %{version: :number}, 1, 1, [], []) |> ExAws.request!
-
     IO.puts "creating test person table"
     # Only need to define types for indexed fields:
     key_definitions = %{id: :string, email: :string, first_name: :string, age: :number}

@@ -563,4 +563,8 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
   end
 
+  test "run migration blah" do
+    Ecto.Migrator.run(TestRepo, [{0, Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddJookyTable}], :up, all: true)
+  end
+
 end

@@ -102,7 +102,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   @wait_exponent Application.get_env(:ecto_adapters_dynamodb, :migration_wait_exponent) || 1.05
   @max_wait Application.get_env(:ecto_adapters_dynamodb, :migration_max_wait) || 10 * 60 * 1000 # 10 minutes
 
-
   # Adapted from line 620, https://github.com/michalmuskala/mongodb_ecto/blob/master/lib/mongo_ecto.ex
   def execute_ddl(_repo, string, _opts) when is_binary(string) do
     raise ArgumentError, message: "Ecto.Adapters.Dynamodb does not support SQL statements in `execute`"

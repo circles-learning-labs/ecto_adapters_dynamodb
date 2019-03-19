@@ -1,4 +1,4 @@
-defmodule Ecto.Adapters.DynamoDB.Test.Migrations.AddJookyTable do
+defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddJookyTable do
   use Ecto.Migration
 
   def up do
