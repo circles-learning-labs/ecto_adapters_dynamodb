@@ -11,12 +11,10 @@ defmodule TestHelper do
   alias Ecto.Adapters.DynamoDB.TestRepo
 
   def setup_all() do
+    IO.puts "========== main test suite =========="
+
     IO.puts "starting test repo"
     TestRepo.start_link()
-
-    # In order to run migrations programatically, we'll need to start Ecto's migration supervisor
-    IO.puts "starting migration supervisor"
-    Ecto.Migration.Supervisor.start_link()
 
     IO.puts "deleting any leftover test tables that may exist"
     Dynamo.delete_table("test_person") |> ExAws.request
@@ -65,13 +63,27 @@ defmodule TestHelper do
 
     :ok
   end
+  def setup_all(:migration) do
+    IO.puts "========== migration test suite =========="
+
+    IO.puts "starting test repo"
+    TestRepo.start_link()
+
+    # In order to run migrations programatically, we'll need to start Ecto's migration supervisor
+    IO.puts "starting migration supervisor"
+    Ecto.Migration.Supervisor.start_link()
+  end
 
   def on_exit() do
     IO.puts "deleting test tables"
     Dynamo.delete_table("test_person") |> ExAws.request
     Dynamo.delete_table("test_book_page") |> ExAws.request
+  end
+  def on_exit(:migration) do
+    IO.puts "deleting test tables"
     Dynamo.delete_table("test_schema_migrations") |> ExAws.request
   end
+
 end
 
 # Skip EQC testing if we don't have it installed:
