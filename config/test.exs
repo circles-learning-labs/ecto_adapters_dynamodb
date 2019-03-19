@@ -2,10 +2,11 @@ use Mix.Config
 
 config :ecto_adapters_dynamodb, Ecto.Adapters.DynamoDB.TestRepo,
   adapter: Ecto.Adapters.DynamoDB,
-  migration_source: "test_schema_migrations",
+  migration_source: "test_schema_migrations", # When running migrations during testing, use this table to track migration history
   # ExAws configuration
   debug_requests: true,
-  access_key_id: "abcd",    # Unlike for prod config, we hardcode fake values for local version of dynamo DB
+  # Unlike for prod config, we hardcode fake values for local version of DynamoDB
+  access_key_id: "abcd",
   secret_access_key: "1234",
   region: "us-east-1",
   dynamodb: [

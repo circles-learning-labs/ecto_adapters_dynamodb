@@ -1,8 +1,11 @@
-defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddJookyTable do
+defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddDogTable do
+  @moduledoc """
+  Used when testing migrations.
+  """
   use Ecto.Migration
 
   def up do
-    create_if_not_exists table(:jooky,
+    create_if_not_exists table(:dog,
       primary_key: false,
       options: [
         provisioned_throughput: [1,1]
@@ -15,7 +18,7 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddJookyTable do
   end
 
   def down do
-    drop_if_exists table(:jooky)
+    drop_if_exists table(:dog)
   end
 
 end

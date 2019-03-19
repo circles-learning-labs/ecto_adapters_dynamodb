@@ -14,6 +14,10 @@ defmodule TestHelper do
     IO.puts "starting test repo"
     TestRepo.start_link()
 
+    # In order to run migrations programatically, we'll need to start Ecto's migration supervisor
+    IO.puts "starting migration supervisor"
+    Ecto.Migration.Supervisor.start_link()
+
     IO.puts "deleting any leftover test tables that may exist"
     Dynamo.delete_table("test_person") |> ExAws.request
     Dynamo.delete_table("test_book_page") |> ExAws.request

@@ -9,8 +9,11 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
     end
   end
 
-  test "run migration" do
-    # Ecto.Migrator.run(TestRepo, [{0, EctoAdapters.DynamoDB.Test.Migrations.AddJookyTable}], :up, all: true)
-  end
+  # test "run migration" do
+  #   path = Path.expand("test/priv/repo/migrations")
+
+  #   Ecto.Migrator.run(TestRepo, path, :up, all: true)
+  #   Ecto.Migrator.run(TestRepo, path, :down, all: true)
+  # end
 
 end
