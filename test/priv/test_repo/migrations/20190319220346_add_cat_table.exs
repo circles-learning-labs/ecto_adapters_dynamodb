@@ -1,6 +1,8 @@
 defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddCatTable do
   @moduledoc """
   Used when testing migrations.
+
+  Create a cat table, set to provisioned billing mode.
   """
   use Ecto.Migration
 

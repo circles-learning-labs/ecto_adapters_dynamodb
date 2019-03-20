@@ -8,7 +8,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
   alias Ecto.Adapters.DynamoDB.TestRepo
 
-  @migration_path Path.expand("test/priv/repo/migrations")
+  @migration_path Path.expand("test/priv/test_repo/migrations")
 
   setup_all do
     TestHelper.setup_all(:migration)
@@ -19,16 +19,15 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
   end
 
   describe "execute_ddl" do
-    # This migration will create the dog table
-    test "create_if_not_exists: table" do
-      result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
-      assert length(result) == 1
-    end
+    test "create tables" do
+      result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 2)
 
-    # This migration will create the cat table
-    test "create: table" do
-      result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
-      assert length(result) == 1
+      dog_info = Ecto.Adapters.DynamoDB.Info.table_info("dog")
+      cat_info = Ecto.Adapters.DynamoDB.Info.table_info("cat")
+
+      assert length(result) == 2
+      assert dog_info["BillingModeSummary"]["BillingMode"] == "PAY_PER_REQUEST"
+      assert cat_info["BillingModeSummary"]["BillingMode"] == "PROVISIONED"
     end
   end
 
