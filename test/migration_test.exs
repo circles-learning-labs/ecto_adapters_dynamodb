@@ -19,15 +19,31 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
   end
 
   describe "execute_ddl" do
-    test "create tables" do
-      result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 2)
+    test "create_if_not_exists: table" do
+      result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
+      table_info = Ecto.Adapters.DynamoDB.Info.table_info("dog")
 
-      dog_info = Ecto.Adapters.DynamoDB.Info.table_info("dog")
-      cat_info = Ecto.Adapters.DynamoDB.Info.table_info("cat")
+      assert length(result) == 1
+      assert table_info["BillingModeSummary"]["BillingMode"] == "PAY_PER_REQUEST"
+    end
 
-      assert length(result) == 2
-      assert dog_info["BillingModeSummary"]["BillingMode"] == "PAY_PER_REQUEST"
-      assert cat_info["BillingModeSummary"]["BillingMode"] == "PROVISIONED"
+    test "create: table" do
+      result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
+      table_info = Ecto.Adapters.DynamoDB.Info.table_info("cat")
+
+
+      assert length(result) == 1
+      assert table_info["BillingModeSummary"]["BillingMode"] == "PROVISIONED"
+    end
+
+    test "update table: add index" do
+      result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
+      {:ok, table_info} = ExAws.Dynamo.describe_table("dog") |> ExAws.request
+
+      [index] = table_info["Table"]["GlobalSecondaryIndexes"]
+
+      assert length(result) == 1
+      assert index["IndexName"] == "name"
     end
   end
 

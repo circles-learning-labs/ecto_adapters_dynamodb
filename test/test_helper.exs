@@ -131,4 +131,5 @@ else
   IO.puts "Could not find eqc module - skipping property based testing!"
 end
 
-ExUnit.start()
+# Set seed: 0 so that tests are run in order - critical for our migration tests.
+ExUnit.start(seed: 0)
