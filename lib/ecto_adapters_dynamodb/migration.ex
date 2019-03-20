@@ -296,12 +296,15 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     [read_capacity, write_capacity] = options[:provisioned_throughput] || [1,1]
     global_indexes = build_secondary_indexes(options[:global_indexes])
     local_indexes = build_secondary_indexes(options[:local_indexes])
+    billing_mode = options[:billing_mode] || :provisioned
 
-    create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, @initial_wait, 0)
+    create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, billing_mode, @initial_wait, 0)
   end
 
-  defp create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, wait_interval, time_waited) do
-    result = Dynamo.create_table(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes) |> ExAws.request
+  defp create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, billing_mode, wait_interval, time_waited) do
+    # The nil and false args (8th and 9th args, respectively) correspond to TTL options ttl_attribute and enabled in the
+    # fork of ex_aws_dynamo that we're currently using. It should be easy enough to add support for those, if we want to.
+    result = Dynamo.create_table(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, nil, false, billing_mode) |> ExAws.request
 
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.create_table_recursive: DynamoDB/ExAws response", %{"#{inspect __MODULE__}.create_table_recursive-result" => inspect result})
 
@@ -316,7 +319,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         if (time_waited + to_wait) <= @max_wait do
           ecto_dynamo_log(:info, "#{inspect __MODULE__}.create_table_recursive: #{inspect error} ... waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
           :timer.sleep(to_wait)
-          create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, to_wait, time_waited + to_wait)
+          create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, billing_mode, to_wait, time_waited + to_wait)
         else
           raise "#{inspect error} ... wait exceeding configured max wait time, stopping migration at create table #{inspect table_name}..."
         end

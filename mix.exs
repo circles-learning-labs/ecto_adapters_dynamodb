@@ -51,7 +51,9 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   defp deps do
     [
       {:ecto, "~> 2.2"},
-      {:ex_aws_dynamo, "~> 2.0"},
+      # {:ex_aws_dynamo, "~> 2.0"},
+      # For the moment, using a fork (of a fork) of ex_aws_dynamo, which adds support for billing modes.
+      {:ex_aws_dynamo, git: "git@github.com:circles-learning-labs/ex_aws_dynamo.git", branch: "master"},
       {:poison, "~> 3.0"},
       {:hackney, "~> 1.6"},
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false},

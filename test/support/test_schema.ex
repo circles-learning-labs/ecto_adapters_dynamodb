@@ -129,7 +129,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Dog do
   use Ecto.Schema
   @primary_key {:id, :binary_id, autogenerate: true}
 
-  schema "dog" do
+  schema "test_dog" do
     field :name, :string
   end
 
@@ -151,7 +151,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Cat do
   use Ecto.Schema
   @primary_key {:id, :binary_id, autogenerate: true}
 
-  schema "cat" do
+  schema "test_cat" do
     field :name, :string
   end
 

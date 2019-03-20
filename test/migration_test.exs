@@ -19,11 +19,13 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
   end
 
   describe "execute_ddl" do
+    # This migration will create the dog table
     test "create_if_not_exists: table" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
       assert length(result) == 1
     end
 
+    # This migration will create the cat table
     test "create: table" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
       assert length(result) == 1
