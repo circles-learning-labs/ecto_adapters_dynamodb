@@ -394,8 +394,10 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       %{index_name: index[:index_name],
         key_schema: build_secondary_key_schema(index[:keys]),
         projection: build_secondary_projection(index[:projection])}
-      |> Map.merge(if index[:provisioned_throughput], do: %{read_capacity_units: Enum.at(index[:provisioned_throughput], 0),
-                                                            write_capacity_units: Enum.at(index[:provisioned_throughput], 1)}, else: %{})
+      |> Map.merge(if !is_nil(index[:provisioned_throughput]), do: %{provisioned_throughput: %{
+                                                                      read_capacity_units: Enum.at(index[:provisioned_throughput], 0),
+                                                                      write_capacity_units: Enum.at(index[:provisioned_throughput], 1)}
+                                                                    }, else: %{})
     end)
   end
 
