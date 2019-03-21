@@ -8,14 +8,14 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   
   The functions, `add`, `remove` and `modify` correspond to indexes on the DynamoDB table. Using `add`, the second parameter, field type (which corresponds with the DynamoDB attribute) must be specified. Use the third parameter to specify a primary key not already specified. For a HASH-only primary key, use `primary_key: true` as the third parameter. For a composite primary key (HASH and RANGE), in addition to the `primary_key` specification, set the third parameter on the range key attribute to `range_key: true`. There should be only one primary key (hash or composite) specified per table.
  
-  To specify index details, such as provisioned throughput, create_if_not_exists/drop_if_exists, global and local indexes, use the `options` keyword in `create table` and `alter table`, please see the examples below for greater detail.
+  To specify index details, such as provisioned throughput, create_if_not_exists/drop_if_exists, billing_mode, and global and local indexes, use the `options` keyword in `create table` and `alter table`, please see the examples below for greater detail.
 
   *Please note that `change` may not work as expected on rollback. We recommend specifying `up` and `down` instead.*
 
   ```
   Example:
 
-  #Migration file 1:
+  # Migration file 1:
 
     def change do
       create table(:post,
@@ -39,6 +39,31 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
 
   # Migration file 2:
+
+    def up do
+      create_if_not_exists table(:rabbit,
+        primary_key: false,
+        options: [
+          billing_mode: :pay_per_request,
+          global_indexes: [
+            [index_name: "name",
+              keys: [:name]]
+          ]
+        ]) do
+
+        add :id, :string, primary_key: true
+        add :name, :string, hash_key: true
+
+        timestamps()
+      end
+    end
+
+    def down do
+      drop_if_exists table(:rabbit)
+    end
+
+
+  # Migration file 3:
 
     def up do
       alter table(:post,
@@ -68,7 +93,8 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end
 
 
-  # Migration file 3:
+  # Migration file 4:
+
     def up do
       alter table(:post) do
         # modify will not be processed in a rollback if 'change' is used
