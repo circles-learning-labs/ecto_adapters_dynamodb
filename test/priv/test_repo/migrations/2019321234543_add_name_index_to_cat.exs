@@ -1,18 +1,19 @@
-defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddNameIndexToDog do
+defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddNameIndexToCat do
   @moduledoc """
   Used when testing migrations.
 
-  Add an index on name to the dog table. That table is set as an on-demand table in a previous
-  migration, so we don't need to specify any throughput here.
+  Add an index on name to the cat table. The table's provisioned throughput is [1,1],
+  so here we'll apply different settings to the index.
   """
   use Ecto.Migration
 
   def up do
-    alter table(:dog,
+    alter table(:cat,
       options: [
         global_indexes: [
           [index_name: "name",
             keys: [:name],
+            provisioned_throughput: [2,1],
             create_if_not_exists: true]
         ]
       ]) do
@@ -22,7 +23,7 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddNameIndexToDog do
   end
 
   def down do
-    alter table(:dog,
+    alter table(:cat,
       options: [
         global_indexes: [
           [index_name: "name",
