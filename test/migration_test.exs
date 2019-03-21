@@ -24,7 +24,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
       table_info = Ecto.Adapters.DynamoDB.Info.table_info("dog")
 
       assert length(result) == 1
-      # assert table_info["BillingModeSummary"]["BillingMode"] == "PAY_PER_REQUEST"
+      assert table_info["BillingModeSummary"]["BillingMode"] == "PAY_PER_REQUEST"
     end
 
     test "create: table" do
