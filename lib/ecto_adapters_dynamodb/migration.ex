@@ -391,13 +391,11 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   defp build_secondary_indexes(nil), do: []
   defp build_secondary_indexes(global_indexes) do
     Enum.map(global_indexes, fn index ->
-      [read_capacity, write_capacity] = index[:provisioned_throughput] || [1,1]
-
       %{index_name: index[:index_name],
         key_schema: build_secondary_key_schema(index[:keys]),
-        provisioned_throughput: %{read_capacity_units: read_capacity,
-                                  write_capacity_units: write_capacity},
         projection: build_secondary_projection(index[:projection])}
+      |> Map.merge(if index[:provisioned_throughput], do: %{read_capacity_units: Enum.at(index[:provisioned_throughput], 0),
+                                                            write_capacity_units: Enum.at(index[:provisioned_throughput], 1)}, else: %{})
     end)
   end
 
