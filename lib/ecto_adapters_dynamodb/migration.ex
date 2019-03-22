@@ -72,6 +72,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
             [index_name: "content",
              keys: [:content],
              create_if_not_exists: true,
+             provisioned_throughput: [1,1],
              projection: [projection_type: :include, non_key_attributes: [:email]]]
           ]
         ]) do
@@ -273,6 +274,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: non-active status found in table", %{"#{inspect __MODULE__}.update_table_recursive-non_active_status" => %{table_name: table.name, non_active_statuses: non_active_statuses}})
 
       to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
+
       if (time_waited + to_wait) <= @max_wait do
         ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
 
@@ -319,7 +321,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
   defp create_table(table_name, field_clauses, options) do
     {key_schema, key_definitions} = build_key_schema_and_definitions(table_name, field_clauses, options)
-    [read_capacity, write_capacity] = options[:provisioned_throughput] || [1,1]
+    [read_capacity, write_capacity] = options[:provisioned_throughput] || [nil,nil]
     global_indexes = build_secondary_indexes(options[:global_indexes])
     local_indexes = build_secondary_indexes(options[:local_indexes])
     billing_mode = options[:billing_mode] || :provisioned
@@ -433,11 +435,10 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end)
   end
 
-  # Include provisioned_throughput, when it has been explicitly provided.
-  defp maybe_add_throughput(data_map, nil), do: Map.merge(data_map, %{})
-  defp maybe_add_throughput(data_map, [read_capacity, write_capacity]) do
-    Map.merge(data_map, %{provisioned_throughput: %{read_capacity_units: read_capacity, write_capacity_units: write_capacity}})
-  end
+  # Include provisioned_throughput only when it has been explicitly provided.
+  defp maybe_add_throughput(index_map, nil), do: Map.merge(index_map, %{})
+  defp maybe_add_throughput(index_map, [read_capacity, write_capacity]), do:
+    Map.merge(index_map, %{provisioned_throughput: %{read_capacity_units: read_capacity, write_capacity_units: write_capacity}})
 
   defp convert_type(type) do
     case type do
@@ -453,9 +454,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   # :create_if_not_exists and/or :drop_if_exists options
   defp assess_existence_options(data, table) do
     existing_index_names = list_existing_global_secondary_index_names(table.name)
-
     {create_if_not_exist_indexes, drop_if_exists_indexes} = get_existence_options(table.options)
-
     filter_fun = &(assess_conditional_index_operations(&1, existing_index_names, create_if_not_exist_indexes, drop_if_exists_indexes))
     filtered_global_secondary_index_updates = Enum.filter(data[:global_secondary_index_updates], filter_fun)
 
