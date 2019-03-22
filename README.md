@@ -91,7 +91,7 @@ By default, we configure the adapter to fetch all pages recursively for a Dynamo
 We only launch one instance of ExAws application (and have not yet investigated running multiple instances). This means we can only point to a single amazon Dynamo instance. It's currently not possible to run against two different amazon AWS accounts concurrently. Hopefully this won't be a problem for most users.
 
 #### Adapter.Migration
-We support Ecto migration tasks via **create_table** and **alter_table** only. The functions `add`, `remove` and `modify` work with corresponding *indexes* on the DynamoDB table, rather than columns (as they would in a relational database). The adapter will automatically wait and retry requests when encountering DynamoDB errors that have "OK to retry? Yes" listed in the DynamoDB docs, according to an exponential backoff schedule. Since working with DynamoDB indexes and describing tables includes many options outside of Ecto's scope, for our supported syntax, please see details and examples in the **Ecto.Adapters.DynamoDB.Migration** moduledoc, as well as the configuration options, `:migration_initial_wait`, `:migration_wait_exponent`, `:migration_max_wait`, `:migration_table_capacity`.
+We support Ecto migration tasks via **create_table**, **create_if_not_exists_table**, and **alter_table** only. The functions `add`, `remove` and `modify` work with corresponding *indexes* on the DynamoDB table, rather than columns (as they would in a relational database). The adapter will automatically wait and retry requests when encountering DynamoDB errors that have "OK to retry? Yes" listed in the DynamoDB docs, according to an exponential backoff schedule. Since working with DynamoDB indexes and describing tables includes many options outside of Ecto's scope, for our supported syntax, please see details and examples in the **Ecto.Adapters.DynamoDB.Migration** moduledoc, as well as the configuration options, `:migration_initial_wait`, `:migration_wait_exponent`, `:migration_max_wait`, `:migration_table_capacity`.
 
 Please note: Ecto migration calls Repo.all on the *schema_migrations* table, which corresponds with a DynamoDB scan. To run migrations, add "schema_migrations" (or the alternate name you've configured for it) in the configuration file to the config variable, **:scan_tables**. Additionally, note that the creation of the schema-migration records table takes time - if you have not created it yourself already, we recommend running `mix ecto.migrate --step 0`, then confirming the table is up, which will prevent the adapter from attempting to retrieve records from the schema-migrations table before it's ready.
 
@@ -128,6 +128,9 @@ Get, Insert, Delete and Update. As long as it's simple queries against single ta
 * update/2
 * update!/2
 * update_all/3
+
+#### Migrations
+In late 2018, Amazon introduced a new billing option for tables that allows users to specify table billing as *pay per request* (AKA "on-demand") as well as *provisioned* - [more info](https://aws.amazon.com/dynamodb/pricing/on-demand/) - our migrations support both of these options. See `migration.ex` for examples.
 
 ## Installation
 
