@@ -3,7 +3,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
 
   def project do
     [app: :ecto_adapters_dynamodb,
-     version: "0.6.0",
+     version: "1.0.0",
      elixir: "~> 1.4",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
@@ -58,7 +58,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
       {:hackney, "~> 1.6"},
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
       {:eqc_ex, "~> 1.4.2", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.18.4", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.19.3", only: :dev, runtime: false},
     ]
   end
 

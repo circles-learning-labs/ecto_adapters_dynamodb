@@ -138,7 +138,7 @@ Install the [Hex](https://hex.pm/packages/ecto_adapters_dynamodb) package by add
 
 ```elixir
 def deps do
-  [{:ecto_adapters_dynamodb, "~> 0.6.0"}]
+  [{:ecto_adapters_dynamodb, "~> 1.0.0"}]
 end
 ```
 
@@ -146,7 +146,7 @@ Otherwise, to fetch from GitHub:
 
 ```elixir
 def deps do
-  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "0.6.0"}]
+  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "1.0.0"}]
 end
 ```
 
@@ -442,6 +442,12 @@ This runs a scan against the given table and updates the in-memory cached copy o
 The **projection_expression** option is used internally during **delete_all** to select only the key attributes and is recognized during query construction.
 
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc) and published on [HexDocs](https://hexdocs.pm). Once published, the docs can be found at [https://hexdocs.pm/ecto_adapters_dynamodb](https://hexdocs.pm/ecto_adapters_dynamodb).
+
+## Upgrade guides
+
+### 0.X.X -> 1.X.X
+
+Please see the instructions [here](/upgrade_guides/version_1_upgrade_guide.md)
 
 # License
 Copyright Circles Learning Labs
