@@ -4,8 +4,11 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
   Test migrations will be tracked in the test_schema_migrations table (see config/test.exs)
   """
-  use ExUnit.Case
+  # When the "down" tests are run at the end, suppress the "redefining modules" warnings.
+  # https://stackoverflow.com/questions/36926388/how-can-i-avoid-the-warning-redefining-module-foo-when-running-exunit-tests-m
+  Code.compiler_options(ignore_module_conflict: true)
 
+  use ExUnit.Case
   alias Ecto.Adapters.DynamoDB.TestRepo
 
   @migration_path Path.expand("test/priv/test_repo/migrations")
@@ -82,6 +85,12 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
       assert index["ProvisionedThroughput"]["ReadCapacityUnits"] == 3
       assert index["ProvisionedThroughput"]["WriteCapacityUnits"] == 2
     end
+  end
+
+  test "run migrations down" do
+    {:ok, migrations} = File.ls(@migration_path)
+    result = Ecto.Migrator.run(TestRepo, @migration_path, :down, all: true)
+    assert length(result) == length(migrations)
   end
 
 end
