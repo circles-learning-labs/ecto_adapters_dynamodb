@@ -35,7 +35,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
       assert table_info["BillingModeSummary"]["BillingMode"] == "PROVISIONED"
     end
 
-    test "update table: add index to on-demand table" do
+    test "alter table: add index to on-demand table" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
       {:ok, table_info} = ExAws.Dynamo.describe_table("dog") |> ExAws.request
 
@@ -47,7 +47,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
       assert index["ProvisionedThroughput"]["WriteCapacityUnits"] == 0
     end
 
-    test "update table: add index to provisioned table" do
+    test "alter table: add index to provisioned table" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
       {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> ExAws.request
 
@@ -69,6 +69,18 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
       assert index["IndexName"] == "name"
       assert index["ProvisionedThroughput"]["ReadCapacityUnits"] == 0
       assert index["ProvisionedThroughput"]["WriteCapacityUnits"] == 0
+    end
+
+    test "alter table: modify index throughput" do
+      result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
+      {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> ExAws.request
+
+      [index] = table_info["Table"]["GlobalSecondaryIndexes"]
+
+      assert length(result) == 1
+      assert index["IndexName"] == "name"
+      assert index["ProvisionedThroughput"]["ReadCapacityUnits"] == 3
+      assert index["ProvisionedThroughput"]["WriteCapacityUnits"] == 2
     end
   end
 

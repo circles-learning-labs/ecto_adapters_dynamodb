@@ -328,7 +328,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   defp create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, billing_mode, wait_interval, time_waited) do
-    # The nil and false args (8th and 9th args, respectively) correspond to TTL options ttl_attribute and enabled in the
+    # The nil and false args (8th and 9th args, respectively) correspond to TTL options 'ttl_attribute' and 'enabled' in the
     # fork of ex_aws_dynamo that we're currently using. It should be easy enough to add support for those, if we want to.
     result = Dynamo.create_table(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, nil, false, billing_mode) |> ExAws.request
 
@@ -394,10 +394,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       %{index_name: index[:index_name],
         key_schema: build_secondary_key_schema(index[:keys]),
         projection: build_secondary_projection(index[:projection])}
-      |> Map.merge(if index[:provisioned_throughput], do: %{provisioned_throughput: %{
-                                                            read_capacity_units: Enum.at(index[:provisioned_throughput], 0),
-                                                            write_capacity_units: Enum.at(index[:provisioned_throughput], 1)}
-                                                          }, else: %{})
+      |> maybe_add_throughput(index[:provisioned_throughput])
     end)
   end
 
@@ -427,15 +424,19 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         {:remove, field} ->
           {[%{delete: %{index_name: field}} | delete], update, key_list}
         {:modify, field, _type, opts} ->
-          [read_capacity, write_capacity] = opts[:provisioned_throughput] || [1,1]
-          provisioned_throughput =  %{read_capacity_units: read_capacity, write_capacity_units: write_capacity}
-          {delete, [%{update: %{index_name: field, provisioned_throughput: provisioned_throughput}} | update], key_list}
+          {delete, [%{update: %{index_name: field} |> maybe_add_throughput(opts[:provisioned_throughput])} | update], key_list}
         {:add, field, type, _opts} ->
           {delete, update, [{field, type} | key_list]}
         _ ->
           {delete, update, key_list}
       end
     end)
+  end
+
+  # Include provisioned_throughput, when it has been explicitly provided.
+  defp maybe_add_throughput(data_map, nil), do: Map.merge(data_map, %{})
+  defp maybe_add_throughput(data_map, [read_capacity, write_capacity]) do
+    Map.merge(data_map, %{provisioned_throughput: %{read_capacity_units: read_capacity, write_capacity_units: write_capacity}})
   end
 
   defp convert_type(type) do
