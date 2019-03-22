@@ -1148,7 +1148,7 @@ defmodule Ecto.Adapters.DynamoDB do
             # Repo.insert_all DynamoDB provides an instructive message during an update (forwarded by ExAws),
             # but less so for batch_write_item, so we catch the empty string as well.
             # Dynamo does not allow insertion of empty strings in any case.
-            (Enum.member?(indexed_fields, to_string(field)) and not type in ["S", "N"]) || val == ""
+            (Enum.member?(indexed_fields, to_string(field)) and type not in ["S", "N"]) || val == ""
           end)
         end)
 

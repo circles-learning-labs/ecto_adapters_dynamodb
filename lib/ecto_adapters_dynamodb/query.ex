@@ -222,7 +222,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp collect_non_indexed_search([], _index_fields, acc), do: acc
   defp collect_non_indexed_search([search_clause | search_clauses], index_fields, acc) do
     case search_clause do
-      {field, {_val, _op}} = complete_tuple when not field in [:and, :or] ->
+      {field, {_val, _op}} = complete_tuple when field not in [:and, :or] ->
         if Enum.member?(index_fields, field),
         do: collect_non_indexed_search(search_clauses, index_fields, acc),
         else: collect_non_indexed_search(search_clauses, index_fields, [complete_tuple | acc])
@@ -473,7 +473,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp deep_find_key([], _), do: nil
   defp deep_find_key([clause | clauses], key) do
     case clause do
-      {field, {val, op}} when not field in [:and, :or] ->
+      {field, {val, op}} when field not in [:and, :or] ->
         if field == key, do: {val, op}, else: deep_find_key(clauses, key)
       {logical_op, deeper_clauses} when logical_op in [:and, :or] ->
         found = deep_find_key(deeper_clauses, key)
