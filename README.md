@@ -138,7 +138,7 @@ Install the [Hex](https://hex.pm/packages/ecto_adapters_dynamodb) package by add
 
 ```elixir
 def deps do
-  [{:ecto_adapters_dynamodb, "~> 0.5.1"}]
+  [{:ecto_adapters_dynamodb, "~> 0.6.0"}]
 end
 ```
 
@@ -146,9 +146,12 @@ Otherwise, to fetch from GitHub:
 
 ```elixir
 def deps do
-  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "0.4.6"}]
+  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "0.6.0"}]
 end
 ```
+
+### Local DynamoDB version
+In order to make sure your local version of DynamoDB is up to date with the current production features, please use the latest release of DynamoDB local. As of spring 2019, the latest version is `1.11.477`, released on February 6, 2019.
 
 ### Configuration
 Configuring a repository to use the DynamoDB ecto adapter is pretty similar to most other Ecto adapters. Change the `adapter` option in the Repo configuration to 'Ecto.Adapters.DynamoDB', and then set the required (or optional) values in the keyword list that follows.
