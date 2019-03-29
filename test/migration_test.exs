@@ -40,7 +40,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
     test "alter table: add index to on-demand table" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
-      {:ok, table_info} = ExAws.Dynamo.describe_table("dog") |> ExAws.request
+      {:ok, table_info} = ExAws.Dynamo.describe_table("dog") |> ExAws.request()
 
       [index] = table_info["Table"]["GlobalSecondaryIndexes"]
 
@@ -52,7 +52,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
     test "alter table: add index to provisioned table" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
-      {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> ExAws.request
+      {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> ExAws.request()
 
       [index] = table_info["Table"]["GlobalSecondaryIndexes"]
 
@@ -64,19 +64,22 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
     test "create_if_not_exists: on-demand table with index" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
-      {:ok, table_info} = ExAws.Dynamo.describe_table("rabbit") |> ExAws.request
+      {:ok, table_info} = ExAws.Dynamo.describe_table("rabbit") |> ExAws.request()
 
-      [index] = table_info["Table"]["GlobalSecondaryIndexes"]
+      [foo_index, name_index] = table_info["Table"]["GlobalSecondaryIndexes"]
 
       assert length(result) == 1
-      assert index["IndexName"] == "name"
-      assert index["ProvisionedThroughput"]["ReadCapacityUnits"] == 0
-      assert index["ProvisionedThroughput"]["WriteCapacityUnits"] == 0
+      assert name_index["IndexName"] == "name"
+      assert name_index["ProvisionedThroughput"]["ReadCapacityUnits"] == 0
+      assert name_index["ProvisionedThroughput"]["WriteCapacityUnits"] == 0
+      assert foo_index["IndexName"] == "foo"
+      assert foo_index["ProvisionedThroughput"]["ReadCapacityUnits"] == 0
+      assert foo_index["ProvisionedThroughput"]["WriteCapacityUnits"] == 0
     end
 
     test "alter table: modify index throughput" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
-      {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> ExAws.request
+      {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> ExAws.request()
 
       [index] = table_info["Table"]["GlobalSecondaryIndexes"]
 
@@ -88,8 +91,16 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
   end
 
   describe "execute_ddl - local vs. production discrepancies" do
-    test "create_if_not_exists and alter table: add an index to a table where the billing mode has been manually changed in production" do
+    # In the pair of migrations in this test, we create a provisioned table and then attempt to add an index with no specified throughput, as you would for an on-demand table.
+    # This is meant to replicate a scenario where a provisioned table is set to on-demand via the AWS dashboard...
+    # some time later, a developer writes a migration to add an index to the (now on-demand) table in production, but her local table is still provisioned.
+    # The index migration will not specify provisioned_throughput, but this will fail locally - the dev version of DDB will just hang rather than raising an error.
+    # When Mix.env is :dev or :test, we'll need to quietly add provisioned_throughput to the index so that the migration can be run.
+    # The logic associated with this can be found in lib/migration.ex, under the private method maybe_default_throughput/3.
+    test "create_if_not_exists and alter table: add an index to a table where the billing mode has been manually changed to on-demand in production" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 2)
+
+      assert length(result) == 2
     end
   end
 

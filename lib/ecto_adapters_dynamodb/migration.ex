@@ -287,7 +287,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       # Before passing the alter data to Dynamo, perform filtering based on
       # the presence of :create_if_not_exists of :drop_if_exists options
       existence_option_filtered_data = assess_existence_options(data, table)
-                                       |> maybe_default_provisioned_throughput(table)
+                                       |> maybe_default_throughput(table_info)
 
       case existence_option_filtered_data[:global_secondary_index_updates] do
         [] -> nil
@@ -320,15 +320,20 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end
   end
 
-  defp maybe_default_provisioned_throughput(data, table), do: maybe_default_provisioned_throughput(Mix.env, data, table)
-  # In production, don't alter the index data, production DDB will reject the migration
+  defp maybe_default_throughput(data, table_info), do: maybe_default_throughput(Mix.env, data, table_info)
+  # In production, don't alter the index data. Production DDB will reject the migration
   # if there's disagreement between the table's billing mode and the options specified in the index migration.
-  defp maybe_default_provisioned_throughput(:prod, data, _table), do: data
-  # However, in local development and testing environments, the dev version of DDB may hang on certain disagreements.
-  defp maybe_default_provisioned_throughput(_env, data, %{name: name} = table) do
-    table_info = Ecto.Adapters.DynamoDB.Info.table_info(name)
+  defp maybe_default_throughput(:prod, data, _table_info), do: data
+  # However, in local development and testing environments, the dev version of DDB will hang on index migrations
+  # that attempt to add an index to a provisioned table without specifying throughput. The problem doesn't exist
+  # the other way around; local DDB will ignore throughput specified for indexes where the table is on-demand.
+  defp maybe_default_throughput(_env, data, table_info) do
     if table_info["BillingModeSummary"]["BillingMode"] == "PROVISIONED" do
-      updated_global_secondary_index_updates = for index_update <- data.global_secondary_index_updates, {action, index_info} <- index_update, do: %{action => Map.put_new(index_info, :provisioned_throughput, %{read_capacity_units: 1, write_capacity_units: 1})}
+      updated_global_secondary_index_updates =
+        for index_update <- data.global_secondary_index_updates, {action, index_info} <- index_update, do:
+          # If the table is provisioned but the index_info lacks :provisioned_throughput, add a map of "default" values.
+          %{action => Map.put_new(index_info, :provisioned_throughput, %{read_capacity_units: 1, write_capacity_units: 1})}
+
       Map.replace!(data, :global_secondary_index_updates, updated_global_secondary_index_updates)
     else
       data

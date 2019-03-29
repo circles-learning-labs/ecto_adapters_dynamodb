@@ -13,12 +13,15 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddRabbitTable do
         billing_mode: :pay_per_request,
         global_indexes: [
           [index_name: "name",
-            keys: [:name]]
+            keys: [:name]],
+          [index_name: "foo",
+            keys: [:foo]]
         ]
       ]) do
 
       add :id, :string, primary_key: true
       add :name, :string, hash_key: true
+      add :foo, :string, hash_key: true
 
       timestamps()
     end

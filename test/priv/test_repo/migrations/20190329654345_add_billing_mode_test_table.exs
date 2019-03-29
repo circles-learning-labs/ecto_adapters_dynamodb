@@ -4,16 +4,15 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddBillingModeTestTable do
 
   Create a billing_mode_test table. This will be used with the following migration to test a particular scenario...
 
-  A table's billing mode (on-demand or provisioned) can be set both through migrations, or through the AWS dashboard;
+  A table's billing mode (on-demand or provisioned) can be set either through migrations or through the AWS dashboard;
   it's possible to have a scenario where a developer would create a provisioned table via migration which an admin
   then flips to pay_per_request via the dashboard. The dev may then create a migration to add an index to that table,
   which is now on-demand in production but provisioned locally; the migration would lack a specified provisioned throughput,
   which would work in production but would fail locally.
 
-  This migration and the following one aim to replicate such a scenario - the table is created as provisioned, but the
-  index does not specify a provisioned throughput.
+  This migration and the following one aim to replicate such a scenario - the table is created as provisioned, but the index does not specify a provisioned throughput.
 
-  In production, this kind of discrepancy produces one of the following errors, depending on the discrepancies:
+  In production, this kind of discrepancy produces one of the following errors, depending on the disagreement:
 
     (ExAws.Error) ExAws Request Error! {"ValidationException", "One or more parameter values were invalid: Both ReadCapacityUnits and WriteCapacityUnits must be specified for index: name"}
 
@@ -21,6 +20,8 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddBillingModeTestTable do
 
   However, in local development, the first error won't be thrown, the migration will just hang until it times out;
   the second won't occur at all, local dev DDB will just ignore any specified provisioned throughput.
+
+  The logic associated with this can be found in lib/migration.ex, under the private method maybe_default_throughput/3.
   """
   use Ecto.Migration
 

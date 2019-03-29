@@ -76,17 +76,18 @@ defmodule TestHelper do
 
   def on_exit() do
     IO.puts "deleting test tables"
-    Dynamo.delete_table("test_person") |> ExAws.request
-    Dynamo.delete_table("test_book_page") |> ExAws.request
+    Dynamo.delete_table("test_person") |> ExAws.request()
+    Dynamo.delete_table("test_book_page") |> ExAws.request()
   end
   def on_exit(:migration) do
     IO.puts "deleting test tables"
     # Except for test_schema_migrations, these tables should be deleted during the "down" migration test.
     # Just to make sure, we'll clean up here anyway.
-    Dynamo.delete_table("dog") |> ExAws.request
-    Dynamo.delete_table("cat") |> ExAws.request
-    Dynamo.delete_table("rabbit") |> ExAws.request
-    Dynamo.delete_table("test_schema_migrations") |> ExAws.request
+    Dynamo.delete_table("dog") |> ExAws.request()
+    Dynamo.delete_table("cat") |> ExAws.request()
+    Dynamo.delete_table("rabbit") |> ExAws.request()
+    Dynamo.delete_table("billing_mode_test") |> ExAws.request()
+    Dynamo.delete_table("test_schema_migrations") |> ExAws.request()
   end
 
 end
