@@ -12,15 +12,11 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddNameIndexToBillingModeTe
         global_indexes: [
           [index_name: "name",
             keys: [:name],
-            create_if_not_exists: true],
-          # [index_name: "foo",
-          #   keys: [:foo],
-          #   create_if_not_exists: true]
+            create_if_not_exists: true]
         ]
       ]) do
 
       add :name, :string, hash_key: true
-      # add :foo,  :string, hash_key: true
     end
   end
 
@@ -29,14 +25,11 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddNameIndexToBillingModeTe
       options: [
         global_indexes: [
           [index_name: "name",
-            drop_if_exists: true],
-          # [index_name: "foo",
-          #   drop_if_exists: true]
+            drop_if_exists: true]
         ]
       ]
     ) do
       remove :name
-      # remove :foo
     end
   end
 
