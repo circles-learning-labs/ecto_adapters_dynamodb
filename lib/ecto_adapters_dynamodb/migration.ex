@@ -320,14 +320,14 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end
   end
 
-  defp maybe_default_throughput(data, table_info), do: maybe_default_throughput(Mix.env, data, table_info)
+  defp maybe_default_throughput(data, table_info), do: maybe_default_throughput(Application.get_env(:ecto_adapters_dynamodb, :dynamodb_local), data, table_info)
   # In production, don't alter the index data. Production DDB will reject the migration
   # if there's disagreement between the table's billing mode and the options specified in the index migration.
-  defp maybe_default_throughput(:prod, data, _table_info), do: data
+  defp maybe_default_throughput(false, data, _table_info), do: data
   # However, in local development and testing environments, the dev version of DDB will hang on index migrations
   # that attempt to add an index to a provisioned table without specifying throughput. The problem doesn't exist
   # the other way around; local DDB will ignore throughput specified for indexes where the table is on-demand.
-  defp maybe_default_throughput(_env, data, table_info) do
+  defp maybe_default_throughput(_using_ddb_local, data, table_info) do
     if table_info["BillingModeSummary"]["BillingMode"] == "PROVISIONED" do
       updated_global_secondary_index_updates =
         for index_update <- data.global_secondary_index_updates, {action, index_info} <- index_update, do:

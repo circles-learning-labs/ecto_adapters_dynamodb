@@ -235,6 +235,12 @@ config :ecto_adapters_dynamodb,
 
 The above snippet will (1) set the adapter to ignore fields that are set to `nil` in the changeset, inserting the record without those attributes, (2) set the adapter to remove attributes in a record during an update where those fields are set to `nil` in the changeset, and (3) cache scan results from the "colour" table, providing the cached result in subsequent calls. More details for each of those options follow.
 
+#### Production DynamoDB vs. local development DynamoDB
+
+**:dynamodb_local** :: boolean, *default:* `false`
+
+Indicate whether you are running against production (default) or local DynamoDB. The local development version of DyanmoDB is not a true replica of the software used in production, and some local behaviours require special handling. We recommend setting this config value in any environment you will be running against local DyanmoDB.
+
 #### `nil` value handling options
 
 **:insert_nil_fields** :: boolean, *default:* `true`

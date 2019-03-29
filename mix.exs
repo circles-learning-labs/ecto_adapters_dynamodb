@@ -26,6 +26,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
      env: [
        cached_tables: [],
        insert_nil_fields: true,
+       dynamodb_local: false,
        log_levels: [:info],
        log_colours: %{info: :green, debug: :normal},
        log_in_colour: System.get_env("MIX_ENV") == "dev",
