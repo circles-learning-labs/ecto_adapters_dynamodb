@@ -287,6 +287,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       # Before passing the alter data to Dynamo, perform filtering based on
       # the presence of :create_if_not_exists of :drop_if_exists options
       existence_option_filtered_data = assess_existence_options(data, table)
+                                       |> maybe_default_provisioned_throughput(table)
 
       case existence_option_filtered_data[:global_secondary_index_updates] do
         [] -> nil
@@ -316,6 +317,21 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
               raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
           end
       end
+    end
+  end
+
+  defp maybe_default_provisioned_throughput(data, table), do: maybe_default_provisioned_throughput(Mix.env, data, table)
+  # In production, don't alter the index data, production DDB will reject the migration
+  # if there's disagreement between the table's billing mode and the options specified in the index migration.
+  defp maybe_default_provisioned_throughput(:prod, data, _table), do: data
+  # However, in local development and testing environments, the dev version of DDB may hang on certain disagreements.
+  defp maybe_default_provisioned_throughput(_env, data, %{name: name} = table) do
+    table_info = Ecto.Adapters.DynamoDB.Info.table_info(name)
+    if table_info["BillingModeSummary"]["BillingMode"] == "PROVISIONED" do
+      updated_global_secondary_index_updates = for index_update <- data.global_secondary_index_updates, {action, index_info} <- index_update, do: %{action => Map.put_new(index_info, :provisioned_throughput, %{read_capacity_units: 1, write_capacity_units: 1})}
+      Map.replace!(data, :global_secondary_index_updates, updated_global_secondary_index_updates)
+    else
+      data
     end
   end
 

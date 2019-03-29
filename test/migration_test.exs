@@ -87,6 +87,12 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
     end
   end
 
+  describe "execute_ddl - local vs. production discrepancies" do
+    test "create_if_not_exists and alter table: add an index to a table where the billing mode has been manually changed in production" do
+      result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 2)
+    end
+  end
+
   test "run migrations down" do
     {:ok, migrations} = File.ls(@migration_path)
     result = Ecto.Migrator.run(TestRepo, @migration_path, :down, all: true)
