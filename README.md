@@ -8,9 +8,11 @@ Keep in mind that DynamoDB is a key-value store designed for very high scale, wh
 If you wish to contribute, please run `$ mix test` and confirm that the test results are error-free before you push your commits. (Bonus points for improving our tests and adding your own tests for your changes. Patches with corresponding tests are more likely to be accepted, especially if they are significant.)
 
 ### Special thanks to ExAws project
+
 We use [ExAws](https://github.com/CargoSense/ex_aws/) to wrap the actual DynamoDB API and requests. This project would not be possible without the extensive work in ExAws.
 
 ### Design limitations
+
 There are a lot of common things you can do in Ecto with a SQL database that you just can't do (or can't do efficiently) with DynamoDB. If you expect to pick up your existing Ecto-based app and just swap in DynamoDB, you're going to be disappointed. You still have to use this adapter the same way you would approach using a key-value store, and avoid the kinds of patterns you'd use with a relational database.
 
 **Is DynamoDB the right choice for you?**
@@ -29,6 +31,7 @@ An example of this is our handling of table scans (see below).
 Lastly, please read and understand how DynamoDB and its queries and indexes work. If you don't, then a lot of the following behaviour is going to seem random, and you'll be frustrated trying to figure out why things don't work the way you expect them to. We've done our best to simplify what we can, but underneath it all, it's still DynamoDB.
 
 #### How we use indexes
+
 In DynamoDB, we can fetch individual records or batches of records *very* quickly if we know the primary key to look up, or the key of an indexed field. We **can't** easily perform queries which don't have a simple key or ID to look up:
 
 Will work: (note that this will be a *case sensitive* match as well.)
@@ -48,6 +51,7 @@ If we do not find any matching table index for the query (either a HASH key of a
 The adapter will query DynamoDB for a list of indexes and indexed fields on the table, and by default it will cache the results to avoid the overhead of repeatedly pulling the same lists of indexes on every query. This does mean that if you update the indexes on a table in DynamoDB, you will need to execute the **Ecto.Adapters.DynamoDB.Cache.update_table_info!** function or restart the adapter.
 
 #### Limited support for fetching all records. 'scan' disabled by default
+
 Fetching records based on a hash of the primary key allows DynamoDB to distribute its data across many partitions on many servers, resulting in high scalability and reliability. It also means that you can't do arbitrary queries based on unindexed fields.
 
 Well, that's not quite true, but running queries against un-indexed fields is usually a terrible idea. We can translate queries without any matching indexes to a DynamoDB `scan` operation, but this is not recommended as it can easily burn through all your read capacity. By default, attempting to perform these kinds of queries will raise an error. You can allow them to succeed by enabling the 'scan' option at the adapter level for all queries, or by specifying the corresponding option on individual queries. See 'scan' options below for more information.
@@ -55,6 +59,7 @@ Well, that's not quite true, but running queries against un-indexed fields is us
 If you need to do this a lot, you're losing most of the benefits of DynamoDB, so think carefully before you do.
 
 #### No joins
+
 DynamoDB does not support joins. Thus, neither do we. Pretty simple.
 While it's technically possible for us to decompose the query into multiple individual requests against each table and then perform the join ourselves, this will likely result in very poor performance, and burning through excess read units to do so. It's better to construct these 'joins' manually using key/value lookups against indexes carefully chosen to preserve your predictable key/value store performance.
 
@@ -63,15 +68,18 @@ This is one of those things that are technically possible, but would result in v
 That said, for very simple joins that match a limited number of keys where all the relevant fields are indexed, joins could probably be emulated pretty reasonably. We'd entertain the notion of accepting a patch for this, if anyone wants to go to the trouble, and if the code contains some reasonable safeguards to avoid executing big, expensive joins by accident. It would be tricky though, and it's certainly not a priority for us right now.
 
 #### No transactions
+
 Similar deal as with joins. DynamoDB does not support transactions, so neither do we. And, unlike joins where we could theoretically emulate them, there's simply no way to provide support for transactions in the adapter.
 
 #### Limited sorting
+
 DynamoDB can ONLY return sorted results if there is a matching HASH+RANGE index where the desired sort key is the RANGE portion of the index. In this case we support the **:scan_index_forward** [option](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html) as a parameter to Repo queries. However, writing queries like `SELECT * FROM person ORDER BY last_name LIMIT 50` may not be practical; we'd have to retrieve every record from the table to do this. (See also *DynamoDB LIMIT & Paging* below.)
 
 From DynamoDB's [Query API](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html):
 >Query results are always sorted by the sort key value. If the data type of the sort key is Number, the results are returned in numeric order; otherwise, the results are returned in order of UTF-8 bytes. By default, the sort order is ascending. To reverse the order, set the `ScanIndexForward` parameter to false.
 
 #### Update support
+
 We currently support both `update` and `update_all` with some performance caveats. Since DynamoDB currently does not offer a batch update operation, we emulate it in `update_all` (and `update` if the full primary key is not provided). The adapter first fetches the query results to get all the relevant keys, then updates the records one by one (paging as it goes, see *DynamoDB LIMIT & Paging* below). Consequently, performance might be slower than expected due to the need to execute individual fetches followed by individual inserts. Also please note that this means that update operations are *not atomic*! Multiple concurrent updates to the same record can race with each other, causing some updates to be silently lost.
 
 All of these caveats can be especially pernicious if you're performing eventually consistent reads, as is the default for DynamoDB: you could write a new version of a record to a key, then attempt to perform an update to the same key, which could read from a zone that hasn't received your write yet. This would cause the update's fetch to return an older version of the record, which will then be modified and written back to DDB, overwriting your changes from the previous write! Thus, even if a single client synchronously updates a key, waits for success, then does another update, you may still experience a complete loss of the first of those two updates! So, the moral of the story is, be really careful with updates; and, you may want to use consistent reads unless you really know what you're doing (see the `consistent_read` option for more info).
@@ -85,29 +93,37 @@ We currently support DynamoDB's **BatchWriteItem** via Ecto's `Repo.insert_all()
 We currently support DynamoDB's **BatchGetItem** via an **:in** clause in `Repo.all` for both hard-coded and variable lists - for example, `Repo.all(from m in Model, where: m.id in ["id_1", "id_2"])` or `Repo.all(from m in Model, where: m.id in ^model_ids)`. For tables with a composite primary key, range keys must be supplied in another **:in** clause in matching order - for example, `TestRepo.all(from bp in BookPage, where: bp.id in ["page:test-1", "page:test-2"] and bp.page_num in [1, 2])`. DynamoDB enforces a limit of 100 records per batch get, but we allow for an unlimited number of records by chunking large groups.
 
 #### DynamoDB LIMIT & Paging
+
 By default, we configure the adapter to fetch all pages recursively for a DynamoDB `query` operation, and to *not* fetch all pages recursively in the case of a DynamoDB `scan` operation. This default can be overridden with the inline **:recursive** and **:page_limit** options (see below). We do not respond to the Ecto `limit` option; rather, we support a **:scan_limit** option, which corresponds with DynamoDB's [limit option](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html#Query.Limit), limiting "the number of items that it returns in the result."
 
 #### Only ONE DynamoDB adapter can be configured
+
 We only launch one instance of ExAws application (and have not yet investigated running multiple instances). This means we can only point to a single amazon Dynamo instance. It's currently not possible to run against two different amazon AWS accounts concurrently. Hopefully this won't be a problem for most users.
 
 #### Adapter.Migration
+
 We support Ecto migration tasks via **create_table**, **create_if_not_exists_table**, and **alter_table** only. The functions `add`, `remove` and `modify` work with corresponding *indexes* on the DynamoDB table, rather than columns (as they would in a relational database). The adapter will automatically wait and retry requests when encountering DynamoDB errors that have "OK to retry? Yes" listed in the DynamoDB docs, according to an exponential backoff schedule. Since working with DynamoDB indexes and describing tables includes many options outside of Ecto's scope, for our supported syntax, please see details and examples in the **Ecto.Adapters.DynamoDB.Migration** moduledoc, as well as the configuration options, `:migration_initial_wait`, `:migration_wait_exponent`, `:migration_max_wait`, `:migration_table_capacity`.
 
 Please note: Ecto migration calls Repo.all on the *schema_migrations* table, which corresponds with a DynamoDB scan. To run migrations, add "schema_migrations" (or the alternate name you've configured for it) in the configuration file to the config variable, **:scan_tables**. Additionally, note that the creation of the schema-migration records table takes time - if you have not created it yourself already, we recommend running `mix ecto.migrate --step 0`, then confirming the table is up, which will prevent the adapter from attempting to retrieve records from the schema-migrations table before it's ready.
 
 ### Unimplemented Features
+
 While the previous section listed limitations that we're unlikely to work around due to philosophical differences between DynamoDB as a key/value store vs an SQL relational database, there are some features that we just haven't implemented yet. Feel free to help out if any of these are important to you!
 
 #### Adapter.Storage
+
 In the current release, we do not support Adapter.Storage callbacks.
 
 #### Adapter.Structure
+
 To be honest, we don't even know what this is for. So it's not going to work :)
 
 #### Associations & Embeds
+
 While we've not tested these, without joins it's unlikely they work well (if at all).
 
 ### So what DOES work?
+
 Well, basic CRUD really, which is all you should really expect from a key/value store :).
 
 Get, Insert, Delete and Update. As long as it's simple queries against single tables, it's probably going to work. Anything beyond that probably isn't. All of the following Ecto functions should work to some extent, if not necessarily in every scenario.
@@ -130,6 +146,7 @@ Get, Insert, Delete and Update. As long as it's simple queries against single ta
 * update_all/3
 
 #### Migrations
+
 In late 2018, Amazon introduced a new billing option for tables that allows users to specify table billing as *pay per request* (AKA "on-demand") as well as *provisioned* - [more info](https://aws.amazon.com/dynamodb/pricing/on-demand/) - our migrations support both of these options. See `migration.ex` for examples.
 
 ## Installation
@@ -138,7 +155,7 @@ Install the [Hex](https://hex.pm/packages/ecto_adapters_dynamodb) package by add
 
 ```elixir
 def deps do
-  [{:ecto_adapters_dynamodb, "~> 1.0.0"}]
+  [{:ecto_adapters_dynamodb, "~> 1.1.0"}]
 end
 ```
 
@@ -146,14 +163,16 @@ Otherwise, to fetch from GitHub:
 
 ```elixir
 def deps do
-  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "1.0.0"}]
+  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "1.1.0"}]
 end
 ```
 
 ### Local DynamoDB version
+
 In order to make sure your local version of DynamoDB is up to date with the current production features, please use the latest release of DynamoDB local. As of spring 2019, the latest version is `1.11.477`, released on February 6, 2019.
 
 ### Configuration
+
 Configuring a repository to use the DynamoDB ecto adapter is pretty similar to most other Ecto adapters. Change the `adapter` option in the Repo configuration to 'Ecto.Adapters.DynamoDB', and then set the required (or optional) values in the keyword list that follows.
 
 These are **different** from the normal Ecto options. For example, in DynamoDB you don't have `username`, `password`, or `database` options - you'll need to delete these lines. Instead you'll add Amazon `access_key_id`, `secret_access_key`, `region`, and the optional `dynamodb` `host` and `scheme` options if you're not running against the default live Amazon instances (for example, running the local Amazon dev version of DynamoDB for testing and development).
@@ -185,6 +204,7 @@ Include the adapter in the project's applications list.
 ```
 
 #### Configuring a Development Environment against a local instance of Dynamo
+
 For development, we use the [local version](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) of DynamoDB, and some dummy variable assignments. Note that the access key/secret here are hardcoded in to the config, and that we set a `dynamo` key that overrides the connection parameters from the defaults for AWS. We point it to l`ocalhost:8000` - the default for a local DynamoDB test server.
 
 **config/dev.exs"**
@@ -206,6 +226,7 @@ config :my_app, MyModule.Repo,
 ```
 
 #### Configuring a Production environment using Dynamo running on AWS
+
 For a production setup, it's much simpler. No need to specify the host/ports for dynamo, as it will default to the appriopriate AWS service in the region selected.
 
 In this example configration we do not hard code the secret or access key. These following settings tell ExAws to first attempt to pull the secret and access key from environment variables labelled `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. If it cannot find those environment variables, it will attempt to fall back on AWS role based authentication (This only applies if this instance is running in an appropriately configured amazon instance.)
@@ -224,6 +245,7 @@ config :my_app, MyModule.Repo,
 ```
 
 ### Other adapter options
+
 The following are adapter options that apply to the Ecto adapter, and are NOT related to ExAws configuration. They control certain behavioural aspects for the driver, enabling and disabling default behaviours and features on queries.
 
 ```elixir
@@ -252,6 +274,7 @@ Determines if fields in the changeset with `nil` values will be inserted as Dyna
 Determines if, during **Repo.update** or **Repo.update_all**, fields in the changeset with `nil` values will be removed from the record/s or set to the DynamoDB `null` value. This option is also available inline per query.
 
 #### Logging Configuration
+
 The adapter's logging options are configured during compile time, and can be altered in the application's configuration files ("config/config.exs", "config/dev.exs", "config/test.exs" and "config/test.exs"). To enable logging in colour, the `MIX_ENV` environment variable must be explicitly exported as `dev` during compilation.
 
 We provide a few informational log lines, such as which adapter call is being processed, as well as the table, lookup fields, and options detected. Configure an optional log path to have the messages recorded on file.
@@ -263,6 +286,7 @@ We provide a few informational log lines, such as which adapter call is being pr
 **:log_path** :: string, *default:* `""`
 
 #### Scan-related options
+
 **:scan_tables** :: [string], *default:* `[]`
 
 A list of table names for tables pre-approved for a DynamoDB **scan** command in case an indexed field is not provided in the query *wheres*. By default, scans are completely disabled on all tables. Use this option carefully; you may be better off using the inline query options to make sure you only perform table scans when you explicitly expect to do so.
@@ -280,6 +304,7 @@ Pre-approves all tables for a DynamoDB **scan** command in case an indexed field
 A list of table names for tables assigned for caching of the first page of results (without setting DynamoDB's **limit** parameter in the scan request). For a set table, call `Repo.all(Model)` to cache the first page of results. To override the caching for a table in this list, and perform a regular scan with associated inline options (see below), provide an additional `scan: true` option with the query; for example, `Repo.all(Model, scan: true, recursive: true)`.
 
 #### Migration-related options
+
 **:migration_initial_wait** :: integer, *default:* `1000`
 
 The time in milliseconds of the first wait period before retrying a DynamoDB **create_table** or **update_table** request.

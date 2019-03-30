@@ -284,15 +284,18 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         raise "Wait exceeding configured max wait time, stopping migration at update table #{inspect table.name}...\nData: #{inspect data}"
       end
     else
-      # Before passing the alter data to Dynamo, perform filtering based on
-      # the presence of :create_if_not_exists of :drop_if_exists options
-      existence_option_filtered_data = assess_existence_options(data, table)
-                                       |> maybe_default_throughput(table_info)
+      # Before passinng the index data to Dynamo, do a little extra preparation:
+      # - filter the data based on the presence of :create_if_not_exists or :drop_if_exists_options
+      # - if the user is running against Dynamo's local development version (in config, dynamodb_local: true),
+      #   we may need to add provisioned_throughput to indexes to handle situations where the local table is provisioned
+      #   but the index will be added to a production table that is on-demand.
+      prepared_data = assess_existence_options(data, table)
+                      |> maybe_default_throughput_local(table_info)
 
-      case existence_option_filtered_data[:global_secondary_index_updates] do
+      case prepared_data[:global_secondary_index_updates] do
         [] -> nil
         _ ->
-          result = Dynamo.update_table(table.name, existence_option_filtered_data) |> ExAws.request
+          result = Dynamo.update_table(table.name, prepared_data) |> ExAws.request
 
           ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: DynamoDB/ExAws response", %{"#{inspect __MODULE__}.update_table_recursive-result" => inspect result})
 
@@ -320,19 +323,25 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end
   end
 
-  defp maybe_default_throughput(data, table_info), do: maybe_default_throughput(Application.get_env(:ecto_adapters_dynamodb, :dynamodb_local), data, table_info)
-  # In production, don't alter the index data. Production DDB will reject the migration
-  # if there's disagreement between the table's billing mode and the options specified in the index migration.
-  defp maybe_default_throughput(false, data, _table_info), do: data
-  # However, in local development and testing environments, the dev version of DDB will hang on index migrations
+  # When running against local Dynamo, we me need to perform some additional special handling for indexes.
+  defp maybe_default_throughput_local(data, table_info), do: maybe_default_throughput_local(Application.get_env(:ecto_adapters_dynamodb, :dynamodb_local), data, table_info)
+  # In production, don't alter the index data. Production DDB will reject the migration if there's
+  # disagreement between the table's billing mode and the options specified in the index migration.
+  defp maybe_default_throughput_local(false, data, _table_info), do: data
+  # However, when runnning against the local dev version of Dynamo, it will hang on index migrations
   # that attempt to add an index to a provisioned table without specifying throughput. The problem doesn't exist
-  # the other way around; local DDB will ignore throughput specified for indexes where the table is on-demand.
-  defp maybe_default_throughput(_using_ddb_local, data, table_info) do
+  # the other way around; local Dynamo will ignore throughput specified for indexes where the table is on-demand.
+  defp maybe_default_throughput_local(_using_ddb_local, data, table_info) do
     if table_info["BillingModeSummary"]["BillingMode"] == "PROVISIONED" do
       updated_global_secondary_index_updates =
-        for index_update <- data.global_secondary_index_updates, {action, index_info} <- index_update, do:
-          # If the table is provisioned but the index_info lacks :provisioned_throughput, add a map of "default" values.
-          %{action => Map.put_new(index_info, :provisioned_throughput, %{read_capacity_units: 1, write_capacity_units: 1})}
+        for index_update <- data.global_secondary_index_updates, {action, index_info} <- index_update do
+          if action in [:create, :update] do
+            # If the table is provisioned but the index_info lacks :provisioned_throughput, add a map of "default" values.
+            %{action => Map.put_new(index_info, :provisioned_throughput, %{read_capacity_units: 1, write_capacity_units: 1})}
+          else
+            index_update
+          end
+        end
 
       Map.replace!(data, :global_secondary_index_updates, updated_global_secondary_index_updates)
     else
