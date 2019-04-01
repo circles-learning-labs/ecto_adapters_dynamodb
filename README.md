@@ -261,7 +261,7 @@ The above snippet will (1) set the adapter to ignore fields that are set to `nil
 
 **:dynamodb_local** :: boolean, *default:* `false`
 
-Indicate whether you are running against production (default) or local DynamoDB. The local development version of DyanmoDB is not a true replica of the software used in production, and some local behaviours require special handling - in some scenarios for instance, production DynamoDB will raise an error whereas the local version will just hang until it times out. We recommend setting this config value in any environment you will be running against local DyanmoDB.
+Indicate whether you are running against production (default) or local DynamoDB. The local development version of DynamoDB is not a true replica of the software used in production, and some local behaviours require special handling - in some scenarios for instance, production DynamoDB will raise an error whereas the local version will just hang until it times out. We recommend setting this config value to `true` in any environment you will be running against local DynamoDB.
 
 Here's an illustration of a situation where this will be useful:
 
@@ -273,7 +273,7 @@ A developer writes a migration that creates a new table set to the "provisioned"
 
 but local DynamoDB will hang until it times out and the migration will not be run.
 
-It is our opinion that the developer in this scenario would want to be able to run the migration locally without necessarily having to change the billing mode of the table, since there is no local equivalent of the AWS dashboard and rewriting/rerunning migrations may be undesirable or impractical. Instead, by setting `dynamodb_local: true`, this adapter will "ignore" the discrepancy by quietly adding default provisioned throughput to the index, allowing the developer to continue her work while keepign her local migrations in sync with production.
+It is our opinion that the developer in this scenario would want to be able to run the migration locally without necessarily having to change the billing mode of the table, since there is no local equivalent of the AWS dashboard and rewriting/rerunning migrations may be undesirable or impractical. Instead, by setting `dynamodb_local: true`, this adapter will "ignore" the discrepancy by quietly adding default provisioned throughput to the index, allowing the developer to continue her work while keeping her local migrations in sync with production.
 
 Not to put too fine a point on it, but attempting to run a migration to add an index with provisioned throughput to an "on-demand" table in production will raise the error
 
