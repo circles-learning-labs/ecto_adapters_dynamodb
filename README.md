@@ -261,7 +261,27 @@ The above snippet will (1) set the adapter to ignore fields that are set to `nil
 
 **:dynamodb_local** :: boolean, *default:* `false`
 
-Indicate whether you are running against production (default) or local DynamoDB. The local development version of DyanmoDB is not a true replica of the software used in production, and some local behaviours require special handling. We recommend setting this config value in any environment you will be running against local DyanmoDB.
+Indicate whether you are running against production (default) or local DynamoDB. The local development version of DyanmoDB is not a true replica of the software used in production, and some local behaviours require special handling - in some scenarios for instance, production DynamoDB will raise an error whereas the local version will just hang until it times out. We recommend setting this config value in any environment you will be running against local DyanmoDB.
+
+Here's an illustration of a situation where this will be useful:
+
+A developer writes a migration that creates a new table set to the "provisioned" billing mode and runs the migration locally and in production. Several months (and several migrations) later, an administrator changes the billing mode for the table from "provisioned" to "on-demand" via the AWS dashboard. The developer is asked to add a new index to the table, and she writes a migration for the index that does not specify provisioned throughput. Since the production table is now "on-demand", the index will run against production without issue; however, her local table is still set to "provisioned". In production, attempting to add an index with no specified throughput to a "provisioned" table will raise the error
+
+```
+(ExAws.Error) ExAws Request Error! {"ValidationException", "One or more parameter values were invalid: Both ReadCapacityUnits and WriteCapacityUnits must be specified for index: index_name"}
+```
+
+but local DynamoDB will hang until it times out and the migration will not be run.
+
+It is our opinion that the developer in this scenario would want to be able to run the migration locally without necessarily having to change the billing mode of the table, since there is no local equivalent of the AWS dashboard and rewriting/rerunning migrations may be undesirable or impractical. Instead, by setting `dynamodb_local: true`, this adapter will "ignore" the discrepancy by quietly adding default provisioned throughput to the index, allowing the developer to continue her work while keepign her local migrations in sync with production.
+
+Not to put too fine a point on it, but attempting to run a migration to add an index with provisioned throughput to an "on-demand" table in production will raise the error
+
+```
+(ExAws.Error) ExAws Request Error! {"ValidationException", "One or more parameter values were invalid: Neither ReadCapacityUnits nor WriteCapacityUnits can be specified for index: name when BillingMode is PAY_PER_REQUEST"}
+```
+
+whereas local DynamoDB will simply ignore the throughput and proceed to add the index anyway... so setting this value in your configuration will help to ensure uniform behavior when migrating indexes.
 
 #### `nil` value handling options
 
