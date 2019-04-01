@@ -3,6 +3,10 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
   Unit tests for migrations.
 
   Test migrations will be tracked in the test_schema_migrations table (see config/test.exs)
+
+  Note that migration tests must be run in order, so in test_helper.exs, we use the command `ExUnit.start(seed: 0)`
+
+  The order of tests in this file MUST match the order of execution of the files in test/priv/test_repo/migrations
   """
   # When the "down" tests are run at the end, suppress the "redefining modules" warnings.
   # https://stackoverflow.com/questions/36926388/how-can-i-avoid-the-warning-redefining-module-foo-when-running-exunit-tests-m
@@ -16,9 +20,9 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
   setup_all do
     TestHelper.setup_all(:migration)
 
-    on_exit fn ->
+    on_exit(fn ->
       TestHelper.on_exit(:migration)
-    end
+    end)
   end
 
   describe "execute_ddl" do
@@ -41,7 +45,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
     test "alter table: add index to on-demand table" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
       {:ok, table_info} = ExAws.Dynamo.describe_table("dog") |> ExAws.request()
-
       [index] = table_info["Table"]["GlobalSecondaryIndexes"]
 
       assert length(result) == 1
@@ -53,7 +56,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
     test "alter table: add index to provisioned table" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
       {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> ExAws.request()
-
       [index] = table_info["Table"]["GlobalSecondaryIndexes"]
 
       assert length(result) == 1
@@ -65,7 +67,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
     test "create_if_not_exists: on-demand table with index" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
       {:ok, table_info} = ExAws.Dynamo.describe_table("rabbit") |> ExAws.request()
-
       [foo_index, name_index] = table_info["Table"]["GlobalSecondaryIndexes"]
 
       assert length(result) == 1
@@ -80,11 +81,22 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
     test "alter table: modify index throughput" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
       {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> ExAws.request()
-
       [index] = table_info["Table"]["GlobalSecondaryIndexes"]
 
       assert length(result) == 1
       assert index["IndexName"] == "name"
+      assert index["ProvisionedThroughput"]["ReadCapacityUnits"] == 3
+      assert index["ProvisionedThroughput"]["WriteCapacityUnits"] == 2
+    end
+
+    test "alter table: attempt to add an index that already exists" do
+      result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
+      {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> ExAws.request()
+      [index] = table_info["Table"]["GlobalSecondaryIndexes"]
+
+      assert length(result) == 1
+      assert index["IndexName"] == "name"
+      # If the migration is successful, the throughput specified by the preceding migration will not have been altered.
       assert index["ProvisionedThroughput"]["ReadCapacityUnits"] == 3
       assert index["ProvisionedThroughput"]["WriteCapacityUnits"] == 2
     end
@@ -109,5 +121,4 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
     result = Ecto.Migrator.run(TestRepo, @migration_path, :down, all: true)
     assert length(result) == length(migrations)
   end
-
 end

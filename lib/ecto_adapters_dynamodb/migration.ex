@@ -289,7 +289,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       # - if the user is running against Dynamo's local development version (in config, dynamodb_local: true),
       #   we may need to add provisioned_throughput to indexes to handle situations where the local table is provisioned
       #   but the index will be added to a production table that is on-demand.
-      prepared_data = assess_existence_options(data, table)
+      prepared_data = make_safe_index_requests(data, table)
                       |> maybe_default_throughput_local(table_info)
 
       case prepared_data[:global_secondary_index_updates] do
@@ -323,9 +323,9 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     end
   end
 
-  # When running against local Dynamo, we me need to perform some additional special handling for indexes.
+  # When running against local Dynamo, we may need to perform some additional special handling for indexes.
   defp maybe_default_throughput_local(data, table_info), do: maybe_default_throughput_local(Application.get_env(:ecto_adapters_dynamodb, :dynamodb_local), data, table_info)
-  # In production, don't alter the index data. Production DDB will reject the migration if there's
+  # When running against production Dynamo, don't alter the index data. Production DDB will reject the migration if there's
   # disagreement between the table's billing mode and the options specified in the index migration.
   defp maybe_default_throughput_local(false, data, _table_info), do: data
   # However, when runnning against the local dev version of Dynamo, it will hang on index migrations
@@ -481,8 +481,9 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   # Compare the list of existing global secondary indexes with the indexes flagged with
-  # :create_if_not_exists and/or :drop_if_exists options
-  defp assess_existence_options(data, table) do
+  # :create_if_not_exists and/or :drop_if_exists options and filter them accordingly -
+  # skipping any that already exist or do not exist, respectively.
+  defp make_safe_index_requests(data, table) do
     existing_index_names = list_existing_global_secondary_index_names(table.name)
     {create_if_not_exist_indexes, drop_if_exists_indexes} = get_existence_options(table.options)
     filter_fun = &(assess_conditional_index_operations(&1, existing_index_names, create_if_not_exist_indexes, drop_if_exists_indexes))
