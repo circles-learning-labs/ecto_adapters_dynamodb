@@ -137,5 +137,8 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Planet do
     page
     |> Ecto.Changeset.cast(params, [:name])
     |> Ecto.Changeset.validate_required([:id, :name])
+    |> Ecto.Changeset.unique_constraint(:name)
+    # In order to use the test_planet table for testing fragment queries
+    # on a composite primary key, we'll allow for duplicate ids but enforce unique names.
   end
 end
