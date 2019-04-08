@@ -7,6 +7,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   alias Ecto.Adapters.DynamoDB.TestSchema.Person
   alias Ecto.Adapters.DynamoDB.TestSchema.Address
   alias Ecto.Adapters.DynamoDB.TestSchema.BookPage
+  alias Ecto.Adapters.DynamoDB.TestSchema.Planet
 
   @test_table "test_person"
 
@@ -389,7 +390,27 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert Enum.at(result, 0).last_name == "Holden"
     end
 
-    test "query all on global secondary index with a composite key, using a fragment on the range key" do
+    test "query all on a composite primary key, using a 'begins_with' fragment on the range key" do
+      planet1 = %{
+        id: "planet",
+        name: "Jupiter"
+      }
+      planet2 = %{
+        id: "planet",
+        name: "Pluto"
+      }
+
+      TestRepo.insert_all(Planet, [planet1, planet2])
+      name_frag = "J"
+
+      q = from(p in Planet, where: p.id == "planet" and fragment("begins_with(?, ?)", p.name, ^name_frag))
+
+      result = TestRepo.all(q)
+
+      assert length(result) == 1
+    end
+
+    test "query all on global secondary index with a composite key, using a 'begins_with' fragment on the range key" do
       person1 = %{
                   id: "person-michael-jordan",
                   first_name: "Michael",

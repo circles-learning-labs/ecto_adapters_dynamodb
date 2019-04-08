@@ -17,8 +17,9 @@ defmodule TestHelper do
     TestRepo.start_link()
 
     IO.puts "deleting any leftover test tables that may exist"
-    Dynamo.delete_table("test_person") |> ExAws.request
-    Dynamo.delete_table("test_book_page") |> ExAws.request
+    Dynamo.delete_table("test_person") |> ExAws.request()
+    Dynamo.delete_table("test_book_page") |> ExAws.request()
+    Dynamo.delete_table("test_planet") |> ExAws.request()
 
     IO.puts "creating test person table"
     # Only need to define types for indexed fields:
@@ -79,6 +80,10 @@ defmodule TestHelper do
     key_definitions = %{id: :string, page_num: :number}
     Dynamo.create_table("test_book_page", [id: :hash, page_num: :range], key_definitions, 100, 100, [], []) |> ExAws.request!
 
+    IO.puts "creating test planet table"
+    key_definitions = %{id: :string, name: :string}
+    Dynamo.create_table("test_planet", [id: :hash, name: :range], key_definitions, 100, 100, [], []) |> ExAws.request!
+
     :ok
   end
   def setup_all(:migration) do
@@ -96,6 +101,7 @@ defmodule TestHelper do
     IO.puts "deleting test tables"
     Dynamo.delete_table("test_person") |> ExAws.request()
     Dynamo.delete_table("test_book_page") |> ExAws.request()
+    Dynamo.delete_table("test_planet") |> ExAws.request()
   end
   def on_exit(:migration) do
     IO.puts "deleting test tables"

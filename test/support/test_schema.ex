@@ -123,3 +123,19 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.BookPage do
     # https://hexdocs.pm/ecto/Ecto.Changeset.html#unique_constraint/3-complex-constraints
   end
 end
+
+defmodule Ecto.Adapters.DynamoDB.TestSchema.Planet do
+  use Ecto.Schema
+  @primary_key {:id, :binary_id, autogenerate: true}
+  @foreign_key_type :binary_id
+
+  schema "test_planet" do
+    field :name, :string
+  end
+
+  def changeset(page, params \\ %{}) do
+    page
+    |> Ecto.Changeset.cast(params, [:name])
+    |> Ecto.Changeset.validate_required([:id, :name])
+  end
+end
