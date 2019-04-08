@@ -388,6 +388,33 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert Enum.at(result, 0).first_name == "James"
       assert Enum.at(result, 0).last_name == "Holden"
     end
+
+    test "query all on global secondary index with a composite key, using a fragment on the range key" do
+      person1 = %{
+                  id: "person-michael-jordan",
+                  first_name: "Michael",
+                  last_name: "Jordan",
+                  age: 52,
+                  email: "mjordan@test.com",
+                  password: "password",
+                }
+      person2 = %{
+                  id: "person-michael-macdonald",
+                  first_name: "Michael",
+                  last_name: "MacDonald",
+                  age: 74,
+                  email: "singin_dude@test.com",
+                  password: "password",
+                }
+
+      TestRepo.insert_all(Person, [person1, person2])
+      email_frag = "m"
+      q = from(p in Person, where: p.first_name == "Michael" and fragment("begins_with(?, ?)", p.email, ^email_frag))
+
+      result = TestRepo.all(q)
+
+      assert length(result) == 1
+    end
   end
 
   describe "Repo.update/1" do
