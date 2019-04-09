@@ -27,7 +27,22 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   # Regular queries
   def get_item(table, search, opts) do
-    results = case get_best_index!(table, search) do
+    parsed_index = case get_best_index!(table, search) do
+      # Primary key without range
+      {:primary, [_idx] = idxs} ->
+        {:primary, idxs}
+      {:primary, idxs} ->
+        {_, op2} = deep_find_key(search, Enum.at(idxs, 1))
+          # Maybe query on composite primary
+          if op2 in [:between, :begins_with, :<, :>, :<=, :>=] do
+            {:primary_partial, idxs}
+          else
+            {:primary, idxs}
+          end
+      parsed -> parsed
+    end
+
+    results = case parsed_index do
       # primary key based lookup uses the efficient 'get_item' operation
       {:primary, indexes} = index ->
         {hash_values, op} = deep_find_key(search, hd indexes)
@@ -61,6 +76,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         index_fields = get_hash_range_key_list(index)
         {hash_values, op} = deep_find_key(search, hd index_fields)
         # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#query/2
+
         query = construct_search(index, search, opts)
 
         do_fetch_recursive = fn(qry) ->
