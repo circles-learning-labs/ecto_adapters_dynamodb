@@ -53,7 +53,21 @@ defmodule TestHelper do
           read_capacity_units: 100,
           write_capacity_units: 100,
         },
-        projection: %{projection_type: "ALL"} 
+        projection: %{projection_type: "ALL"}
+      },
+      %{
+        index_name: "first_name",
+        key_schema: [
+          %{
+            attribute_name: "first_name",
+            key_type: "HASH",
+          },
+        ],
+        provisioned_throughput: %{
+          read_capacity_units: 100,
+          write_capacity_units: 100,
+        },
+        projection: %{projection_type: "ALL"}
       },
       %{
         index_name: "first_name_age",
@@ -98,13 +112,13 @@ defmodule TestHelper do
   end
 
   def on_exit() do
-    IO.puts "deleting test tables"
+    IO.puts "deleting main test tables"
     Dynamo.delete_table("test_person") |> ExAws.request()
     Dynamo.delete_table("test_book_page") |> ExAws.request()
     Dynamo.delete_table("test_planet") |> ExAws.request()
   end
   def on_exit(:migration) do
-    IO.puts "deleting test tables"
+    IO.puts "deleting migration test tables"
     # Except for test_schema_migrations, these tables should be deleted during the "down" migration test.
     # Just to make sure, we'll clean up here anyway.
     Dynamo.delete_table("dog") |> ExAws.request()

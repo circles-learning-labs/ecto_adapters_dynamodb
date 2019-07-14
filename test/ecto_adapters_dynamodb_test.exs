@@ -13,10 +13,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
   setup_all do
     TestHelper.setup_all()
-
-    on_exit fn ->
-      TestHelper.on_exit()
-    end
   end
 
   describe "Repo.insert/1" do
@@ -323,6 +319,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       sorted_ids = Enum.sort([person1.id, person2.id])
       result = TestRepo.all(from p in Person, where: p.first_name == "Wayne")
                |> Enum.map(&(&1.id))
+               |> Enum.sort()
 
       assert result == sorted_ids
     end
