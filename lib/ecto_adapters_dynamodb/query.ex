@@ -445,14 +445,16 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         end
       :not_found  ->
         case match_index_hash_part(index, search) do
-          :not_found                   -> find_best_match(indexes, search, best)    # haven't found anything good, keep looking, retain our previous best match.
-          {_, _, hash} = index_partial ->
-            # If the current best is a hash-only index (formatted like {"idx_name", ["hash"]})
-            # and we find that the hash key of the index_partial is the same, continue to use the hash-only key as best.
-            if is_tuple(best) and tuple_size(best) == 2
-            and elem(best, 1) == hash,
-              do:   find_best_match(indexes, search, best),
-              else: find_best_match(indexes, search, index_partial)
+          :not_found                     -> find_best_match(indexes, search, best)    # haven't found anything good, keep looking, retain our previous best match.
+          {_, _, [hash]} = index_partial ->
+            # If the current best is a hash-only index (formatted like {"idx_name", ["best_hash"]})
+            # and we find that the hash key of the index_partial is the same, continue to use the hash-only index as best.
+            case best do
+              {_, [best_hash]} -> if best_hash == hash,
+                                  do:   find_best_match(indexes, search, best),
+                                  else: find_best_match(indexes, search, index_partial)
+              _                -> find_best_match(indexes, search, index_partial)
+            end
         end
     end
   end
@@ -469,12 +471,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         range_key = deep_find_key(search, range)
         if hash_key != nil and elem(hash_key, 1) in [:==, :in]
         and range_key != nil and elem(range_key, 1) != :is_nil,
-          do: index, else: :not_found
+        do: index, else: :not_found
 
       {_, [hash]} ->
         hash_key = deep_find_key(search, hash)
         if hash_key != nil and elem(hash_key, 1) in [:==, :in], 
-          do: index, else: :not_found
+        do: index, else: :not_found
     end
   end
 
@@ -485,12 +487,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       {:primary, [hash, _range]} ->
         hash_key = deep_find_key(search, hash)
         if hash_key != nil and elem(hash_key, 1) == :==,
-          do: {:primary_partial, [hash]}, else: :not_found
+        do: {:primary_partial, [hash]}, else: :not_found
 
       {index_name, [hash, _range]} ->
         hash_key = deep_find_key(search, hash)
         if hash_key != nil and elem(hash_key, 1) == :==,
-          do: {:secondary_partial, index_name, [hash]}, else: :not_found
+        do: {:secondary_partial, index_name, [hash]}, else: :not_found
 
       _ -> :not_found
     end
