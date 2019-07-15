@@ -13,16 +13,18 @@ defmodule Ecto.Adapters.DynamoDB.Query.Test do
 
   # When we have a hash-only key that also appears as the hash part of a composite key,
   # query on the key that best matches the situation. In the example below, we have two indexes
-  # on the test_person table, first_name and first_name_email. If we just query on first_name,
-  # use the hash-only key rather than the composite key; otherwise, querying with the composite key would
-  # fail to return records where a first name was provided but email was nil.
+  # on the test_person table, first_name and first_name_email. If we just query on a hash indexed field
+  # (either on its own, or with additional conditions), use the hash-only key rather than the composite key;
+  # otherwise, querying with the composite key would fail to return records where a first_name was provided but email was nil.
   test "get_matching_secondary_index/2" do
     tablename = "test_person"
     hash_idx_result = get_matching_secondary_index(tablename, [{"first_name", {"Jerry", :==}}])
     composite_idx_result = get_matching_secondary_index(tablename, [and: [{"first_name", {"Jerry", :==}}, {"email", {"jerry@test.com", :==}}]])
+    multi_cond_hash_idx_result = get_matching_secondary_index(tablename, [and: [{"first_name", {"Jerry", :==}}, {"last_name", {"Garcia", :==}}]])
 
     assert hash_idx_result == {"first_name", ["first_name"]}
     assert composite_idx_result == {"first_name_email", ["first_name", "email"]}
+    assert multi_cond_hash_idx_result == {"first_name", ["first_name"]}
   end
   
 end

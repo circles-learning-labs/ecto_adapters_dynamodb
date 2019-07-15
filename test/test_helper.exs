@@ -38,6 +38,20 @@ defmodule TestHelper do
          projection: %{projection_type: "ALL"}
       },
       %{
+        index_name: "first_name",
+        key_schema: [
+          %{
+            attribute_name: "first_name",
+            key_type: "HASH",
+          },
+        ],
+        provisioned_throughput: %{
+          read_capacity_units: 100,
+          write_capacity_units: 100,
+        },
+        projection: %{projection_type: "ALL"}
+      },
+      %{
         index_name: "first_name_email",
         key_schema: [
           %{
@@ -48,20 +62,6 @@ defmodule TestHelper do
             attribute_name: "email",
             key_type: "RANGE",
           }
-        ],
-        provisioned_throughput: %{
-          read_capacity_units: 100,
-          write_capacity_units: 100,
-        },
-        projection: %{projection_type: "ALL"}
-      },
-      %{
-        index_name: "first_name",
-        key_schema: [
-          %{
-            attribute_name: "first_name",
-            key_type: "HASH",
-          },
         ],
         provisioned_throughput: %{
           read_capacity_units: 100,

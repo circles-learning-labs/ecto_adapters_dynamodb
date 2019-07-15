@@ -436,17 +436,23 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp find_best_match([], _search, best), do: best
   defp find_best_match([index|indexes], search, best) do
     case match_index(index, search) do
-      {_, [_,_]} -> index   # Matching on both hash + sort makes this the best index (as well as we can tell)
-      {_, [idx]} ->
+      {_, [_,_]}  -> index   # Matching on both hash + sort makes this the best index (as well as we can tell)
+      {_, [hash]} ->
         case search do
-          # If we're only querying on a single field and we find a matching hash-only index, that's the index to use.
-          [{field, {_, _}}] -> if field == idx, do: index, else: find_best_match(indexes, search, :not_found)
+          # If we're only querying on a single field and we find a matching hash-only index, that's the index to use, no need to check others.
+          [{field, {_, _}}] -> if field == hash, do: index, else: find_best_match(indexes, search, best)
           _                 -> find_best_match(indexes, search, index)   # we have a candidate for best match, though it's a hash key only. Look for better.
         end
-      :not_found ->
+      :not_found  ->
         case match_index_hash_part(index, search) do
-          :not_found    -> find_best_match(indexes, search, best)    # haven't found anything good, keep looking, retain our previous best match.
-          index_partial -> find_best_match(indexes, search, index_partial) 
+          :not_found                   -> find_best_match(indexes, search, best)    # haven't found anything good, keep looking, retain our previous best match.
+          {_, _, hash} = index_partial ->
+            # If the current best is a hash-only index (formatted like {"idx_name", ["hash"]})
+            # and we find that the hash key of the index_partial is the same, continue to use the hash-only key as best.
+            if is_tuple(best) and tuple_size(best) == 2
+            and elem(best, 1) == hash,
+              do:   find_best_match(indexes, search, best),
+              else: find_best_match(indexes, search, index_partial)
         end
     end
   end
