@@ -50,6 +50,16 @@ If we do not find any matching table index for the query (either a HASH key of a
 
 The adapter will query DynamoDB for a list of indexes and indexed fields on the table, and by default it will cache the results to avoid the overhead of repeatedly pulling the same lists of indexes on every query. This does mean that if you update the indexes on a table in DynamoDB, you will need to execute the **Ecto.Adapters.DynamoDB.Cache.update_table_info!** function or restart the adapter.
 
+##### Index selection - default behavior
+
+When querying a table, the adapter's default behavior is to automatically select the "best" index on which to query based on the fields in the query. A few things to note:
+
+- A hash-only index will be preferred over a composite index with the **same** hash key if only the hash key field is represented in the query. For example, if you have a `user` model with a hash-only key on `first_name` and a composite key on `first_name, last_name`, a query that only includes `first_name` will use the hash-only index (and vice-versa). While this probably seems like expected behavior, consider what will happen if the range key from the composite index is not a required field in your application; a query that includes both `first_name` and `last_name` **will not** include records where the range key is `nil` (as that record hasn't been added to that index), but a query that does not include `last_name` **will** return those records.
+
+- In the event that a query should include two fields fields that are represented by a hash-only index and the hash portion of a composite index, the hash-only index will always be chosen. Again, consider a `user` model with a hash-only `first_name` index and a composite `last_name, email` index; a query that includes `first_name` and `last_name` will use the hash-only index. Such a scenario should probably be avoided, but in case is does happen, we wanted to be explicit about what behavior to expect.
+
+So in general, expect the adapter to prefer hash-only indexes where they could be seen as best-representing a query. Lesson: create your data models and queries carefully.
+
 #### Limited support for fetching all records. 'scan' disabled by default
 
 Fetching records based on a hash of the primary key allows DynamoDB to distribute its data across many partitions on many servers, resulting in high scalability and reliability. It also means that you can't do arbitrary queries based on unindexed fields.

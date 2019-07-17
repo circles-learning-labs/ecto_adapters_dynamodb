@@ -446,14 +446,14 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       :not_found  ->
         case match_index_hash_part(index, search) do
           :not_found                     -> find_best_match(indexes, search, best)    # haven't found anything good, keep looking, retain our previous best match.
-          {_, _, [hash]} = index_partial ->
-            # If the current best is a hash-only index (formatted like {"idx_name", ["best_hash"]})
-            # and we find that the hash key of the index_partial is the same, continue to use the hash-only index as best.
+          index_partial ->
+            # If the current best is a hash-only index (formatted like {"idx_name", ["hash"]}), always choose it over a partial secondary.
+            # Note that this default behavior would cause a hash-only key to be selected over a partial with a different hash
+            # in cases where a query might be ambiguous - for example, a query on a user's first_name and last_name where
+            # a hash-only index exists on first_name and a composite index exists on last_name_something_else.
             case best do
-              {_, [best_hash]} -> if best_hash == hash,
-                                  do:   find_best_match(indexes, search, best),
-                                  else: find_best_match(indexes, search, index_partial)
-              _                -> find_best_match(indexes, search, index_partial)
+              {_, [_]} -> find_best_match(indexes, search, best)
+              _        -> find_best_match(indexes, search, index_partial)
             end
         end
     end
