@@ -2,7 +2,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   @moduledoc """
   Some query wrapper functions for helping us query dynamo db. Selects indexes to use, etc.
   Not to be confused with `Ecto.Query`.
-
   """
 
   import Ecto.Adapters.DynamoDB.Info

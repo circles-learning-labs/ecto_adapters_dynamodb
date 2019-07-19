@@ -362,7 +362,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   defp create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, billing_mode, wait_interval, time_waited) do
     # The nil and false args (8th and 9th args, respectively) correspond to TTL options 'ttl_attribute' and 'enabled' in the
     # fork of ex_aws_dynamo that we're currently using. It should be easy enough to add support for those, if we want to.
-    result = Dynamo.create_table(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, nil, false, billing_mode) |> ExAws.request
+    result = Dynamo.create_table(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, billing_mode) |> ExAws.request
 
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.create_table_recursive: DynamoDB/ExAws response", %{"#{inspect __MODULE__}.create_table_recursive-result" => inspect result})
 
