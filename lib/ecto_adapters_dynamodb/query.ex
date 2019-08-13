@@ -438,6 +438,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
+  defp maybe_manual_select_index(explicit_index, secondary_indexes)
+  when is_atom(explicit_index) do
+    explicit_index
+    |> Atom.to_string()
+    |> maybe_manual_select_index(secondary_indexes)
+  end
   defp maybe_manual_select_index(explicit_index, secondary_indexes), do:
     Enum.find(secondary_indexes, fn({name, _keys}) -> name == explicit_index end)
 

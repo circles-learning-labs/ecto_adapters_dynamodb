@@ -22,12 +22,14 @@ defmodule Ecto.Adapters.DynamoDB.Query.Test do
     composite_idx_result = get_matching_secondary_index(tablename, [and: [{"first_name", {"Jerry", :==}}, {"email", {"jerry@test.com", :==}}]], [])
     multi_cond_hash_idx_result = get_matching_secondary_index(tablename, [and: [{"first_name", {"Jerry", :==}}, {"last_name", {"Garcia", :==}}]], [])
     # If a user provides an explicit :index option, select that index if it is available.
-    idx_option_result = get_matching_secondary_index(tablename, [and: [{"first_name", {"Jerry", :==}}, {"last_name", {"Garcia", :==}}]], [index: "email"])
+    string_idx_option_result = get_matching_secondary_index(tablename, [and: [{"first_name", {"Jerry", :==}}, {"last_name", {"Garcia", :==}}]], [index: "email"])
+    atom_idx_option_result = get_matching_secondary_index(tablename, [and: [{"first_name", {"Jerry", :==}}, {"last_name", {"Garcia", :==}}]], [index: :email])
 
     assert hash_idx_result == {"first_name", ["first_name"]}
     assert composite_idx_result == {"first_name_email", ["first_name", "email"]}
     assert multi_cond_hash_idx_result == {"first_name", ["first_name"]}
-    assert idx_option_result == {"email", ["email"]}
+    assert string_idx_option_result == {"email", ["email"]}
+    assert atom_idx_option_result == {"email", ["email"]}
   end
   
 end

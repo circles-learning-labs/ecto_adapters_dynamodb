@@ -50,9 +50,9 @@ If we do not find any matching table index for the query (either a HASH key of a
 
 The adapter will query DynamoDB for a list of indexes and indexed fields on the table, and by default it will cache the results to avoid the overhead of repeatedly pulling the same lists of indexes on every query. This does mean that if you update the indexes on a table in DynamoDB, you will need to execute the **Ecto.Adapters.DynamoDB.Cache.update_table_info!** function or restart the adapter.
 
-##### Index selection - default behavior
+##### Secondary index selection - default behavior
 
-When querying a table, the adapter's default behavior is to automatically select the "best" index on which to query based on the fields in the query. A few things to note:
+When querying a table (`from f in Foo, where: ...`), the adapter's default behavior is to automatically select the "best" index on which to query based on the fields in the query. A few things to note:
 
 - A hash-only index will be preferred over a composite index with the **same** hash key if only the hash key field is represented in the query. For example, if you have a `user` model with a hash-only key on `first_name` and a composite key on `first_name, last_name`, a query that only includes `first_name` will use the hash-only index; a query with both fields will use the composite. While this probably seems like expected behavior, consider what will happen if the range key from the composite index is not a required field in your application; a query that includes both `first_name` and `last_name` **will not** include records where the range key is `nil` (as that record hasn't been added to that index), but a query that does not include `last_name` **will** return those records.
 
@@ -449,6 +449,10 @@ Fetches all pages recursively and performs the relevant operation on results in 
 **:page_limit** :: integer, *default:* none
 
 Sets the maximum number of pages to access. The query will execute recursively until the page limit has been reached or there are no more pages (overrides **:recursive** option).
+
+**:index** :: string | atom, *default:* none
+
+When querying on a secondary index, this option allows a user to explicitly set the index on which to query by providing the name of that index. In most query cases, the adapter will be able to select the "best" index to use without this option, but there are some scenarios where the choice may be ambiguous, such as a query on `first_name` and `last_name` where the indexes `first_name_last_name` and `last_name_first_name` both exist. Without passing an `:index` option in such cases, the adapter may arbitrarily select one index over the other, and consistent results can not be guaranteed. This is especially important when a query includes operations that are specific to either hash or range key behaviors such as `:in`, which will work when applied to hash keys but will break for range keys.
 
 #### QueryInfo agent
 
