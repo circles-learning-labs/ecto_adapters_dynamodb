@@ -433,6 +433,33 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert length(result) == 1
     end
+
+    test "query all on a global secondary index where an :index option has been provided to resolve an ambiguous index choice" do
+      person1 = %{
+                  id: "person-methuselah-baby",
+                  first_name: "Methuselah",
+                  last_name: "Baby",
+                  age: 0,
+                  email: "newborn_baby@test.com",
+                  password: "password",
+                }
+      person2 = %{
+                  id: "person-methuselah-jones",
+                  first_name: "Methuselah",
+                  last_name: "Jones",
+                  age: 969,
+                  email: "methuselah@test.com",
+                  password: "password",
+                }
+
+      TestRepo.insert_all(Person, [person1, person2])
+
+      q = from(p in Person, where: p.first_name == "Methuselah" and p.age in [0, 969])
+      # based on the query, it won't be clear to the adapter whether to choose the first_name_age or age_first_name index - pass the :index option to make sure it queries correctly.
+      result = TestRepo.all(q, index: "age_first_name")
+
+      assert length(result) == 2
+    end
   end
 
   describe "Repo.update/1" do

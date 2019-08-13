@@ -427,6 +427,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   def get_matching_secondary_index(tablename, search, opts) do
     secondary_indexes = tablename |> secondary_indexes()
 
+    # A user may provide an :index opt in a query, in which case we will prioritize choosing that index.
     case opts[:index] do
       nil            -> find_best_match(secondary_indexes, search, :not_found)
       explicit_index ->
@@ -438,7 +439,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
   defp maybe_manual_select_index(explicit_index, secondary_indexes), do:
-    Enum.find(secondary_indexes, fn({name, _keys}) -> name == Atom.to_string(explicit_index) end)
+    Enum.find(secondary_indexes, fn({name, _keys}) -> name == explicit_index end)
 
 
   defp find_best_match([], _search, best), do: best

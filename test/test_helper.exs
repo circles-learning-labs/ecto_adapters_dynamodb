@@ -87,6 +87,24 @@ defmodule TestHelper do
         },
         projection: %{projection_type: "ALL"}
       },
+      %{
+        index_name: "age_first_name",
+        key_schema: [
+          %{
+            attribute_name: "age",
+            key_type: "HASH",
+          },
+          %{
+            attribute_name: "first_name",
+            key_type: "RANGE",
+          }
+        ],
+        provisioned_throughput: %{
+          read_capacity_units: 100,
+          write_capacity_units: 100,
+        },
+        projection: %{projection_type: "ALL"}
+      },
     ]
     Dynamo.create_table("test_person", [id: :hash], key_definitions, 100, 100, indexes, []) |> ExAws.request!
 
