@@ -131,6 +131,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Planet do
 
   schema "test_planet" do
     field :name, :string
+    field :mass, :integer
   end
 
   def changeset(page, params \\ %{}) do

@@ -134,9 +134,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
 
-  # we've a list of fields from an index that matches (some of) the search fields,
-  # so construct a dynamo db search criteria map with only the given fields and their
-  # search objects!
+  # we've a list of fields from an index that matches (some of) the search fields, so construct
+  # a DynamoDB search criteria map with only the given fields and their search objects!
   @spec construct_search({:primary | :primary_partial | nil | String.t, [String.t]}, search, keyword) :: keyword
   @spec construct_search({:secondary_partial, String.t, [String.t]}, search, keyword) :: keyword
   def construct_search({:primary, index_fields}, search, opts), do: construct_search(%{}, index_fields, search, opts)
@@ -484,6 +483,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         # Also, the hash part can only accept an :== operator.
         hash_key = deep_find_key(search, hash)
         range_key = deep_find_key(search, range)
+
         if hash_key != nil and elem(hash_key, 1) in [:==, :in]
         and range_key != nil and elem(range_key, 1) != :is_nil,
         do: index, else: :not_found
@@ -501,12 +501,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     case index do
       {:primary, [hash, _range]} ->
         hash_key = deep_find_key(search, hash)
-        if hash_key != nil and elem(hash_key, 1) == :==,
+        if hash_key != nil and elem(hash_key, 1) in [:==, :in],
         do: {:primary_partial, [hash]}, else: :not_found
 
       {index_name, [hash, _range]} ->
         hash_key = deep_find_key(search, hash)
-        if hash_key != nil and elem(hash_key, 1) == :==,
+        if hash_key != nil and elem(hash_key, 1) in [:==, :in],
         do: {:secondary_partial, index_name, [hash]}, else: :not_found
 
       _ -> :not_found

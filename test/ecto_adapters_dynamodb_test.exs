@@ -390,11 +390,13 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     test "query all on a composite primary key, using a 'begins_with' fragment on the range key" do
       planet1 = %{
         id: "planet",
-        name: "Jupiter"
+        name: "Jupiter",
+        mass: 6537292902,
       }
       planet2 = %{
         id: "planet",
-        name: "Pluto"
+        name: "Pluto",
+        mass: 3465,
       }
 
       TestRepo.insert_all(Planet, [planet1, planet2])
@@ -405,6 +407,51 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       result = TestRepo.all(q)
 
       assert length(result) == 1
+    end
+
+    test "query all on a partial primary composite index using 'in' and '==' operations" do
+      planet1 = %{
+        id: "planet-earth",
+        name: "Earth",
+        mass: 476,
+      }
+      planet2 = %{
+        id: "planet-mars",
+        name: "Mars",
+        mass: 425,
+      }
+
+      TestRepo.insert_all(Planet, [planet1, planet2])
+      ids = ["planet-earth", "planet-mars"]
+      in_q = from(p in Planet, where: p.id in ^ids)
+      equals_q = from(p in Planet, where: p.id == "planet-earth")
+      in_result = TestRepo.all(in_q)
+      equals_result = TestRepo.all(equals_q)
+
+      assert length(in_result) == 2
+      assert length(equals_result) == 1
+    end
+
+    test "query all on a partial secondary index using 'in' and '==' operations" do
+      planet1 = %{
+        id: "planet-mercury",
+        name: "Mercury",
+        mass: 153,
+      }
+      planet2 = %{
+        id: "planet-saturn",
+        name: "Saturn",
+        mass: 409282891,
+      }
+
+      TestRepo.insert_all(Planet, [planet1, planet2])
+      in_q = from(p in Planet, where: p.name in ["Mercury", "Saturn"])
+      equals_q = from(p in Planet, where: p.name == "Mercury")
+      in_result = TestRepo.all(in_q)
+      equals_result = TestRepo.all(equals_q)
+
+      assert length(in_result) == 2
+      assert length(equals_result) == 1
     end
 
     test "query all on global secondary index with a composite key, using a 'begins_with' fragment on the range key" do

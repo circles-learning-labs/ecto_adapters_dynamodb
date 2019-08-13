@@ -113,8 +113,28 @@ defmodule TestHelper do
     Dynamo.create_table("test_book_page", [id: :hash, page_num: :range], key_definitions, 100, 100, [], []) |> ExAws.request!
 
     IO.puts "creating test planet table"
-    key_definitions = %{id: :string, name: :string}
-    Dynamo.create_table("test_planet", [id: :hash, name: :range], key_definitions, 100, 100, [], []) |> ExAws.request!
+    key_definitions = %{id: :string, name: :string, mass: :number}
+    indexes = [
+      %{
+        index_name: "name_mass",
+        key_schema: [
+          %{
+            attribute_name: "name",
+            key_type: "HASH",
+          },
+          %{
+            attribute_name: "mass",
+            key_type: "RANGE",
+          }
+        ],
+        provisioned_throughput: %{
+          read_capacity_units: 100,
+          write_capacity_units: 100,
+        },
+        projection: %{projection_type: "ALL"}
+      },
+    ]
+    Dynamo.create_table("test_planet", [id: :hash, name: :range], key_definitions, 100, 100, indexes, []) |> ExAws.request!
 
     :ok
   end
