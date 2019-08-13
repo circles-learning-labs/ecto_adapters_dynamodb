@@ -14,6 +14,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   @typep search_clause :: {key, match_clause} | {boolean_op, [search_clause]}
   @typep search :: [search_clause]
   @typep dynamo_response :: %{required(String.t) => term}
+  @typep query_opts :: [{atom(), any()}]
 
   # parameters for get_item: 
   # TABLE_NAME::string,
@@ -26,7 +27,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   # Regular queries
   def get_item(table, search, opts) do
-    parsed_index = case get_best_index!(table, search) do
+    parsed_index = case get_best_index!(table, search, opts) do
       # Primary key without range
       {:primary, [_idx] = idxs} ->
         {:primary, idxs}
@@ -364,8 +365,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   Exception if the index doesn't exist.
   """
-  @spec get_best_index(table_name, search) :: :not_found | {:primary, [String.t]} | {:primary_partial, [String.t]} | {String.t, [String.t]}
-  def get_best_index(tablename, search) do
+  @spec get_best_index(table_name, search, query_opts) :: :not_found | {:primary, [String.t]} | {:primary_partial, [String.t]} | {String.t, [String.t]}
+  def get_best_index(tablename, search, opts) do
     case get_matching_primary_index(tablename, search) do
       # if we found a primary index with hash+range match, it's probably the best index.
       {:primary, _} = index -> index
@@ -373,13 +374,13 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       # we've found a primary hash index, but lets check if there's a more specific
       # secondary index with hash+sort available...
       {:primary_partial, _primary_hash} = index ->
-        case get_matching_secondary_index(tablename, search) do
+        case get_matching_secondary_index(tablename, search, opts) do
           {_, [_, _]} = sec_index -> sec_index  # we've found a better, more specific index.
           _                       -> index      # :not_found, or any other hash? default back to the primary.
         end
 
       # no primary found, so try for a secondary.
-      :not_found -> get_matching_secondary_index(tablename, search)
+      :not_found -> get_matching_secondary_index(tablename, search, opts)
     end
   end
 
@@ -387,12 +388,11 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   @doc """
   Same as get_best_index, but refers to a scan option on failure
   """
-  def get_best_index!(tablename, search) do
-    case get_best_index(tablename, search) do
+  def get_best_index!(tablename, search, opts \\ []) do
+    case get_best_index(tablename, search, opts) do
       :not_found -> :scan
       index      -> index
     end
-
   end
 
 
@@ -412,7 +412,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
       # We might be able to use a range query for all results with
       # the hash part, such as all circle_member with a specific person_id (all a user's circles).
-      :not_found             -> match_index_hash_part(primary_key, search)
+      :not_found            -> match_index_hash_part(primary_key, search)
     end
   end
 
@@ -424,12 +424,21 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   TODO: Does not help with range queries. -> The match_index_hash_part function is
     beginning to address this.
   """
-  def get_matching_secondary_index(tablename, search) do
-    # For each index, see how well it matches the search criteria.
-    tablename
-    |> secondary_indexes()
-    |> find_best_match(search, :not_found)
+  def get_matching_secondary_index(tablename, search, opts) do
+    secondary_indexes = tablename |> secondary_indexes()
+
+    case opts[:index] do
+      nil            -> find_best_match(secondary_indexes, search, :not_found)
+      explicit_index ->
+        case maybe_manual_select_index(explicit_index, secondary_indexes) do
+          nil   -> find_best_match(secondary_indexes, search, :not_found)
+          index -> index
+        end
+    end
   end
+
+  defp maybe_manual_select_index(explicit_index, secondary_indexes), do:
+    Enum.find(secondary_indexes, fn({name, _keys}) -> name == Atom.to_string(explicit_index) end)
 
 
   defp find_best_match([], _search, best), do: best
@@ -444,7 +453,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         end
       :not_found  ->
         case match_index_hash_part(index, search) do
-          :not_found                     -> find_best_match(indexes, search, best)    # haven't found anything good, keep looking, retain our previous best match.
+          :not_found    -> find_best_match(indexes, search, best)    # haven't found anything good, keep looking, retain our previous best match.
           index_partial ->
             # If the current best is a hash-only index (formatted like {"idx_name", ["hash"]}), always choose it over a partial secondary.
             # Note that this default behavior would cause a hash-only key to be selected over a partial with a different hash
