@@ -364,7 +364,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   Exception if the index doesn't exist.
   """
-  @spec get_best_index(table_name, search, query_opts) :: :not_found | {:primary, [String.t]} | {:primary_partial, [String.t]} | {String.t, [String.t]}
+  @spec get_best_index(table_name, search, query_opts) :: :not_found | {:primary, [String.t]} | {:primary_partial, [String.t]} | {String.t, [String.t]} | {:secondary_partial, String.t, [String.t]}
   def get_best_index(tablename, search, opts) do
     case get_matching_primary_index(tablename, search) do
       # if we found a primary index with hash+range match, it's probably the best index.
