@@ -30,6 +30,13 @@ defmodule Ecto.Adapters.DynamoDB.Query.Test do
     assert multi_cond_hash_idx_result == {"first_name", ["first_name"]}
     assert string_idx_option_result == {"email", ["email"]}
     assert atom_idx_option_result == {"email", ["email"]}
+
+    assert_raise(ArgumentError, "Ecto.Adapters.DynamoDB.Query.get_matching_secondary_index/3 error: :index option does not match existing secondary index names. Did you mean email?", fn ->
+      get_matching_secondary_index(tablename, [{"first_name", {"Jerry", :==}}], [index: "emai"])
+    end)
+    assert_raise(ArgumentError, "Ecto.Adapters.DynamoDB.Query.get_matching_secondary_index/3 error: :index option does not match existing secondary index names.", fn ->
+      get_matching_secondary_index(tablename, [{"first_name", {"Jerry", :==}}], [index: :foobar])
+    end)
   end
   
 end

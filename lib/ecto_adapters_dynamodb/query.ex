@@ -364,7 +364,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   Exception if the index doesn't exist.
   """
-  @spec get_best_index(table_name, search, query_opts) :: :not_found | {:primary, [String.t]} | {:primary_partial, [String.t]} | {String.t, [String.t]} | {:secondary_partial, String.t, [String.t]}
+  @spec get_best_index(table_name, search, query_opts) :: :not_found | {:primary, [String.t]} | {:primary_partial, [String.t]} | {String.t, [String.t]} | {:secondary_partial, String.t, [String.t]} | no_return
   def get_best_index(tablename, search, opts) do
     case get_matching_primary_index(tablename, search) do
       # if we found a primary index with hash+range match, it's probably the best index.
@@ -408,7 +408,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     case match_index(primary_key, search) do
       # We found a full primary index
       {:primary, _} = index -> index
-
       # We might be able to use a range query for all results with
       # the hash part, such as all circle_member with a specific person_id (all a user's circles).
       :not_found            -> match_index_hash_part(primary_key, search)
@@ -429,23 +428,37 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     # A user may provide an :index opt in a query, in which case we will prioritize choosing that index.
     case opts[:index] do
       nil            -> find_best_match(secondary_indexes, search, :not_found)
-      explicit_index ->
-        case maybe_manual_select_index(explicit_index, secondary_indexes) do
-          nil   -> find_best_match(secondary_indexes, search, :not_found)
+      index_option ->
+        case maybe_select_index_option(index_option, secondary_indexes) do
+          nil   -> index_option_error(index_option, secondary_indexes)
           index -> index
         end
     end
   end
 
-  defp maybe_manual_select_index(explicit_index, secondary_indexes)
-  when is_atom(explicit_index) do
-    explicit_index
+  defp maybe_select_index_option(index_option, secondary_indexes)
+  when is_atom(index_option) do
+    index_option
     |> Atom.to_string()
-    |> maybe_manual_select_index(secondary_indexes)
+    |> maybe_select_index_option(secondary_indexes)
   end
-  defp maybe_manual_select_index(explicit_index, secondary_indexes), do:
-    Enum.find(secondary_indexes, fn({name, _keys}) -> name == explicit_index end)
+  defp maybe_select_index_option(index_option, secondary_indexes), do:
+    Enum.find(secondary_indexes, fn({name, _keys}) -> name == index_option end)
 
+  defp index_option_error(_index_option, []) do
+    raise ArgumentError, message: "#{inspect __MODULE__}.get_matching_secondary_index/3 error: :index option does not match existing secondary index names."
+  end
+  defp index_option_error(index_option, secondary_indexes) do
+    index_option = if is_atom(index_option), do: Atom.to_string(index_option), else: index_option
+    {nearest_index_name, jaro_distance} = secondary_indexes
+                                          |> Enum.map(fn({name, _keys}) -> {name, String.jaro_distance(index_option, name)} end)
+                                          |> Enum.max_by(fn {_name, jaro_distance} -> jaro_distance end)
+
+    case jaro_distance >= 0.75 do
+      true  -> raise ArgumentError, message: "#{inspect __MODULE__}.get_matching_secondary_index/3 error: :index option does not match existing secondary index names. Did you mean #{nearest_index_name}?"
+      false -> index_option_error(index_option, [])
+    end
+  end
 
   defp find_best_match([], _search, best), do: best
   defp find_best_match([index|indexes], search, best) do
@@ -535,7 +548,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         page_limit
 
       page_limit when (is_integer page_limit) and page_limit < 1 ->
-        raise ArgumentError, message: "#{inspect __MODULE__}.parse_recursive_option/2 error: :page_limit option must be greater than 0"
+        raise ArgumentError, message: "#{inspect __MODULE__}.parse_recursive_option/2 error: :page_limit option must be greater than 0."
 
       _ when scan_or_query == :scan ->
         # scan defaults to no recursion, opts[:recursive] must equal true to enable it
@@ -593,7 +606,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   @spec maybe_scan_error(table_name) :: no_return
   defp maybe_scan_error(table) do
-    raise ArgumentError, message: "Scan option or configuration have not been specified, and could not confirm the table, #{inspect table}, as listed for scan or caching in the application's configuration. Please see README file for details."
+    raise ArgumentError, message: "#{inspect __MODULE__}.maybe_scan/3 error: :scan option or configuration have not been specified, and could not confirm the table, #{inspect table}, as listed for scan or caching in the application's configuration. Please see README file for details."
   end
 
   @typep fetch_func :: (table_name, keyword -> ExAws.Operation.JSON.t)
