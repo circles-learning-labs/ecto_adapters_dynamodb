@@ -445,13 +445,14 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp maybe_select_index_option(index_option, secondary_indexes), do:
     Enum.find(secondary_indexes, fn({name, _keys}) -> name == index_option end)
 
+  @spec index_option_error(String.t | atom(), [{String.t, [String.t]}]) :: no_return
   defp index_option_error(_index_option, []) do
     raise ArgumentError, message: "#{inspect __MODULE__}.get_matching_secondary_index/3 error: :index option does not match existing secondary index names."
   end
   defp index_option_error(index_option, secondary_indexes) do
     index_option = if is_atom(index_option), do: Atom.to_string(index_option), else: index_option
     {nearest_index_name, jaro_distance} = secondary_indexes
-                                          |> Enum.map(fn({name, _keys}) -> {name, String.jaro_distance(index_option, name)} end)
+                                          |> Enum.map(fn {name, _keys} -> {name, String.jaro_distance(index_option, name)} end)
                                           |> Enum.max_by(fn {_name, jaro_distance} -> jaro_distance end)
 
     case jaro_distance >= 0.75 do
