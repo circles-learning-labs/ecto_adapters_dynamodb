@@ -27,6 +27,11 @@ defmodule Ecto.Adapters.DynamoDB do
   alias ExAws.Dynamo
   alias Ecto.Query.BooleanExpr
 
+
+  def start_link(x) do
+    IO.inspect x
+  end
+
   # I don't think this is necessary: Probably under child_spec and ensure_all_started
   def start_link(repo, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.start_link", %{"#{inspect __MODULE__}.start_link-params" => %{repo: repo, opts: opts}})
@@ -37,58 +42,42 @@ defmodule Ecto.Adapters.DynamoDB do
   ## Adapter behaviour - defined in lib/ecto/adapter.ex (in the ecto github repository)
 
   def init(config) do
-    IO.inspect config
-    {:ok, %{}, %{}}
-# [
-#   repo: Ecto.Adapters.DynamoDB.TestRepo,
-#   telemetry_prefix: [:ecto, :adapters, :dynamo_db, :test_repo],
-#   otp_app: :ecto_adapters_dynamodb,
-#   timeout: 15000,
-#   pool_size: 10,
-#   adapter: Ecto.Adapters.DynamoDB,
-#   migration_source: "test_schema_migrations",
-#   debug_requests: true,
-#   access_key_id: "abcd",
-#   secret_access_key: "1234",
-#   region: "us-east-1",
-#   dynamodb: [
-#     scheme: "http://",
-#     host: "localhost",
-#     port: 8000,
-#     region: "us-east-1"
-#   ]
-# ]
+    # The child and meta shown here are my initial approximations
+    # of what that data needs to look like, based on some experiments with Postgres.
+    child = %{
+      id: Ecto.Adapters.DynamoDB,
+      start: {Ecto.Adapters.DynamoDB, :start_link,
+        [
+          {Ecto.Adapters.DynamoDB,
+          [
+            otp_app: :ecto_adapters_dynamodb,
+            telemetry_prefix: [:ecto, :adapters, :dynamo_db, :test_repo],
+            repo: Ecto.Adapters.DynamoDB.TestRepo,
+            timeout: 15000,
+            pool_timeout: 5000,
+            adapter: Ecto.Adapters.DynamoDB,
+            migration_source: "test_schema_migrations",
+            debug_requests: true,
+            access_key_id: "abcd",
+            secret_access_key: "1234",
+            region: "us-east-1",
+            dynamodb: [
+              scheme: "http://",
+              host: "localhost",
+              port: 8000,
+              region: "us-east-1"
+            ]
+          ]}
+        ]}
+    }
 
+    meta = %{
+      opts: [timeout: 15000, pool_size: 10],
+      telemetry: {Ecto.Adapters.DynamoDB.TestRepo, :debug,
+       [:ecto, :adapters, :dynamo_db, :test_repo]}
+    }
 
-    # child = %{
-    #   id: DBConnection.Ownership.Manager,
-    #   start: {DBConnection.Ownership.Manager, :start_link,
-    #    [
-    #      {Postgrex.Protocol,
-    #       [
-    #         types: Postgrex.DefaultTypes,
-    #         port: 5432,
-    #         repo: Ecto3TestApp.TestRepo,
-    #         telemetry_prefix: [:ecto3_test_app, :test_repo],
-    #         otp_app: :ecto_3_test_app,
-    #         timeout: 15000,
-    #         adapter: Ecto.Adapters.Postgres,
-    #         username: "postgres",
-    #         password: "postgres",
-    #         database: "ecto_3_test",
-    #         hostname: "localhost",
-    #         pool: DBConnection.Ownership,
-    #         pool_size: 10
-    #       ]}
-    #    ]}
-    # }
-
-    # meta = %{
-    #   opts: [timeout: 15000, pool: DBConnection.Ownership, pool_size: 10],
-    #   sql: Ecto.Adapters.Postgres.Connection,
-    #   telemetry: {Ecto3TestApp.TestRepo, :debug,
-    #    [:ecto3_test_app, :test_repo, :query]}
-    # }
+    {:ok, child, meta}
   end
 
   @doc """
