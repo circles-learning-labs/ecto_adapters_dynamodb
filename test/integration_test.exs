@@ -7,6 +7,10 @@ defmodule Ecto.Adapters.DynamoDB.Integration.Test do
 
   @ex_aws_dynamo_test_table_name "ex_aws_dynamo_test_table"
 
+  setup_all do
+    TestHelper.setup_all()
+  end
+
   describe "Integration tests for ExAws.Dynamo" do
     test "create_table" do
       Dynamo.create_table(@ex_aws_dynamo_test_table_name, [email: :hash, age: :range], [email: :string, age: :number], 1, 1) |> ExAws.request!

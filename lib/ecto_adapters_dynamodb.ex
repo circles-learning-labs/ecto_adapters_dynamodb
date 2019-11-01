@@ -36,6 +36,61 @@ defmodule Ecto.Adapters.DynamoDB do
 
   ## Adapter behaviour - defined in lib/ecto/adapter.ex (in the ecto github repository)
 
+  def init(config) do
+    IO.inspect config
+    {:ok, %{}, %{}}
+# [
+#   repo: Ecto.Adapters.DynamoDB.TestRepo,
+#   telemetry_prefix: [:ecto, :adapters, :dynamo_db, :test_repo],
+#   otp_app: :ecto_adapters_dynamodb,
+#   timeout: 15000,
+#   pool_size: 10,
+#   adapter: Ecto.Adapters.DynamoDB,
+#   migration_source: "test_schema_migrations",
+#   debug_requests: true,
+#   access_key_id: "abcd",
+#   secret_access_key: "1234",
+#   region: "us-east-1",
+#   dynamodb: [
+#     scheme: "http://",
+#     host: "localhost",
+#     port: 8000,
+#     region: "us-east-1"
+#   ]
+# ]
+
+
+    # child = %{
+    #   id: DBConnection.Ownership.Manager,
+    #   start: {DBConnection.Ownership.Manager, :start_link,
+    #    [
+    #      {Postgrex.Protocol,
+    #       [
+    #         types: Postgrex.DefaultTypes,
+    #         port: 5432,
+    #         repo: Ecto3TestApp.TestRepo,
+    #         telemetry_prefix: [:ecto3_test_app, :test_repo],
+    #         otp_app: :ecto_3_test_app,
+    #         timeout: 15000,
+    #         adapter: Ecto.Adapters.Postgres,
+    #         username: "postgres",
+    #         password: "postgres",
+    #         database: "ecto_3_test",
+    #         hostname: "localhost",
+    #         pool: DBConnection.Ownership,
+    #         pool_size: 10
+    #       ]}
+    #    ]}
+    # }
+
+    # meta = %{
+    #   opts: [timeout: 15000, pool: DBConnection.Ownership, pool_size: 10],
+    #   sql: Ecto.Adapters.Postgres.Connection,
+    #   telemetry: {Ecto3TestApp.TestRepo, :debug,
+    #    [:ecto3_test_app, :test_repo, :query]}
+    # }
+  end
+
   @doc """
   Returns the childspec that starts the adapter process.
   """
