@@ -548,7 +548,11 @@ defmodule Ecto.Adapters.DynamoDB do
     insert_nil_field_option = Keyword.get(opts, :insert_nil_fields, true)
     do_not_insert_nil_fields = insert_nil_field_option == false || Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
 
-    {_, table} = schema_meta.source
+    # {_, table} = schema_meta.source
+
+    # schema_meta no longer returns a tuple, just a string
+    table = schema_meta.source
+
     model = schema_meta.schema
     fields_map = Enum.into(fields, %{})
     record = if do_not_insert_nil_fields, do: fields_map, else: build_record_map(model, fields_map)
