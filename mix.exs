@@ -36,7 +36,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
        scan_limit: 100,
        scan_tables: []
      ],
-     applications: [:ex_aws, :hackney, :poison]
+     # applications: [:ex_aws, :hackney, :poison] # commented out to make sure all applications start
    ]
   end
 
@@ -52,6 +52,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   defp deps do
     [
       # {:ecto_sql, "~> 3.0"},
+      {:db_connection, git: "https://github.com/elixir-ecto/db_connection.git", override: true}, # adding this so I can manipulate it - it's an ecto_sql dep.
       {:ecto_sql, git: "https://github.com/elixir-ecto/ecto_sql.git"},
       {:ecto, git: "https://github.com/elixir-ecto/ecto.git"},
       {:ex_aws_dynamo, "~> 2.2"},

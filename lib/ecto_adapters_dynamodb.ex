@@ -28,7 +28,8 @@ defmodule Ecto.Adapters.DynamoDB do
   alias Ecto.Query.BooleanExpr
 
 
-  def start_link(_) do
+  def start_link(options) do
+    # Need to parse the options for logging (see commented out version below)
     Agent.start_link fn -> [] end
   end
 
@@ -38,15 +39,30 @@ defmodule Ecto.Adapters.DynamoDB do
   #   Agent.start_link fn -> [] end
   # end
 
+  # called by DBConnection.Connection.connect (apply(mod, :connect, [connect_opts(opts)]))
+  def connect(opts) do
+    {:ok, %{}}
+  end
+
+  # called by DBConnection.Connection.handle_cast
+  def checkout(state) do
+    {:ok, state}
+  end
+
+  # called by DBConnection.Connection.connect
+  def ping(state) do
+    {:ok, state}
+  end
 
   ## Adapter behaviour - defined in lib/ecto/adapter.ex (in the ecto github repository)
 
+  # This was child_spec, now is init - need to actually construct the data I've hardcoded for now.
   def init(config) do
     # The child and meta shown here are my initial approximations
     # of what that data needs to look like, based on some experiments with Postgres.
     child = %{
-      id: Ecto.Adapters.DynamoDB,
-      start: {Ecto.Adapters.DynamoDB, :start_link,
+      id: DBConnection.Ownership.Manager,
+      start: {DBConnection.Ownership.Manager, :start_link,
         [
           {Ecto.Adapters.DynamoDB,
           [
