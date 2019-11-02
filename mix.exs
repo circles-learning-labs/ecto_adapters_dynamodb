@@ -36,7 +36,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
        scan_limit: 100,
        scan_tables: []
      ],
-     # applications: [:ex_aws, :hackney, :poison] # commented out to make sure all applications start
+     applications: [:ex_aws, :hackney, :poison, :ecto_sql]
    ]
   end
 
