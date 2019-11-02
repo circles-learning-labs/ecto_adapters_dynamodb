@@ -41,21 +41,6 @@ defmodule Ecto.Adapters.DynamoDB do
   #   Agent.start_link fn -> [] end
   # end
 
-  # called by DBConnection.Connection.connect (apply(mod, :connect, [connect_opts(opts)]))
-  def connect(opts) do
-    {:ok, %{}}
-  end
-
-  # called by DBConnection.Connection.handle_cast
-  def checkout(state) do
-    {:ok, state}
-  end
-
-  # called by DBConnection.Connection.connect
-  def ping(state) do
-    {:ok, state}
-  end
-
   ## Adapter behaviour - defined in lib/ecto/adapter.ex (in the ecto github repository)
 
   # This was child_spec, now is init - need to actually construct the data I've hardcoded for now.
@@ -66,7 +51,7 @@ defmodule Ecto.Adapters.DynamoDB do
       id: DBConnection.Ownership.Manager,
       start: {DBConnection.Ownership.Manager, :start_link,
         [
-          {Ecto.Adapters.DynamoDB,
+          {Ecto.Adapters.DynamoDB.Protocol,
           [
             otp_app: :ecto_adapters_dynamodb,
             telemetry_prefix: [:ecto, :adapters, :dynamo_db, :test_repo],
