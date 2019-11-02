@@ -71,10 +71,10 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   end
 
   describe "Repo.get/2" do
-    test "Repo.get/2 - no matching record" do
-      result = TestRepo.get(Person, "person-faketestperson")
-      assert result == nil
-    end
+    # test "Repo.get/2 - no matching record" do
+    #   result = TestRepo.get(Person, "person-faketestperson")
+    #   assert result == nil
+    # end
 
     # test "insert a record and retrieve it by its primary key" do
     #   TestRepo.insert(%Person{
