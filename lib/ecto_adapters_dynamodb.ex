@@ -31,8 +31,8 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # This was getting called, but now seems not to be - can't see what's changed
   # How does this get called?
-  def start_link(options) do
-    # Need to parse the options for logging (see commented out version below)
+  def start_link({_module, config}) do
+    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.start_link", %{"#{inspect __MODULE__}.start_link-params" => %{config: config}})
     Agent.start_link fn -> [] end
   end
 
