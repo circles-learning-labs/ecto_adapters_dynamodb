@@ -14,6 +14,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   setup_all do
     TestHelper.setup_all()
 
+    # Temporarily adding this on_exit() here - remove later when more tests open up
     on_exit(fn ->
       TestHelper.on_exit()
     end)
@@ -69,67 +70,67 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
   end
 
-  # describe "Repo.get/2" do
-  #   test "Repo.get/2 - no matching record" do
-  #     result = TestRepo.get(Person, "person-faketestperson")
-  #     assert result == nil
-  #   end
+  describe "Repo.get/2" do
+    test "Repo.get/2 - no matching record" do
+      result = TestRepo.get(Person, "person-faketestperson")
+      assert result == nil
+    end
 
-  #   test "insert a record and retrieve it by its primary key" do
-  #     TestRepo.insert(%Person{
-  #       id: "person-john",
-  #       first_name: "John",
-  #       last_name: "Lennon",
-  #       age: 40,
-  #       email: "john@beatles.com",
-  #       password: "password",
-  #       role: "musician"
-  #     })
-  #     result = TestRepo.get(Person, "person-john")
+    # test "insert a record and retrieve it by its primary key" do
+    #   TestRepo.insert(%Person{
+    #     id: "person-john",
+    #     first_name: "John",
+    #     last_name: "Lennon",
+    #     age: 40,
+    #     email: "john@beatles.com",
+    #     password: "password",
+    #     role: "musician"
+    #   })
+    #   result = TestRepo.get(Person, "person-john")
 
-  #     assert result.first_name == "John"
-  #     assert result.last_name == "Lennon"
-  #     assert Ecto.get_meta(result, :state) == :loaded
-  #   end
+    #   assert result.first_name == "John"
+    #   assert result.last_name == "Lennon"
+    #   assert Ecto.get_meta(result, :state) == :loaded
+    # end
 
-  #   test "insert a record and get with a hash/range pkey" do
-  #     name = "houseofleaves"
-  #     page1 = %BookPage{
-  #               id: name,
-  #               page_num: 1,
-  #               text: "abc",
-  #             }
-  #     page2 = %BookPage{
-  #               id: name,
-  #               page_num: 2,
-  #               text: "def",
-  #             }
-  #     cs1 = BookPage.changeset(page1)
-  #     cs2 = BookPage.changeset(page2)
-  #     duplicate_page_cs = BookPage.changeset(%BookPage{
-  #                                              id: name,
-  #                                              page_num: 1,
-  #                                              text: "ghi",
-  #                                            })
+    # test "insert a record and get with a hash/range pkey" do
+    #   name = "houseofleaves"
+    #   page1 = %BookPage{
+    #             id: name,
+    #             page_num: 1,
+    #             text: "abc",
+    #           }
+    #   page2 = %BookPage{
+    #             id: name,
+    #             page_num: 2,
+    #             text: "def",
+    #           }
+    #   cs1 = BookPage.changeset(page1)
+    #   cs2 = BookPage.changeset(page2)
+    #   duplicate_page_cs = BookPage.changeset(%BookPage{
+    #                                            id: name,
+    #                                            page_num: 1,
+    #                                            text: "ghi",
+    #                                          })
 
-  #     {:ok, page1} = TestRepo.insert(cs1)
-  #     {:ok, page2} = TestRepo.insert(cs2)
-  #     {:error, _} = TestRepo.insert(duplicate_page_cs)
+    #   {:ok, page1} = TestRepo.insert(cs1)
+    #   {:ok, page2} = TestRepo.insert(cs2)
+    #   {:error, _} = TestRepo.insert(duplicate_page_cs)
 
-  #     query = from p in BookPage, where: p.id == ^name
-  #     results = query |> TestRepo.all |> Enum.sort_by(&(&1.page_num))
-  #     [res1, res2] = results
+    #   query = from p in BookPage, where: p.id == ^name
+    #   results = query |> TestRepo.all |> Enum.sort_by(&(&1.page_num))
+    #   [res1, res2] = results
 
-  #     assert res1 == page1
-  #     assert res2 == page2
+    #   assert res1 == page1
+    #   assert res2 == page2
 
-  #     query1 = from p in BookPage, where: p.id == ^name and p.page_num == 1
-  #     query2 = from p in BookPage, where: p.id == ^name and p.page_num == 2
+    #   query1 = from p in BookPage, where: p.id == ^name and p.page_num == 1
+    #   query2 = from p in BookPage, where: p.id == ^name and p.page_num == 2
 
-  #     assert [page1] == TestRepo.all(query1)
-  #     assert [page2] == TestRepo.all(query2)
-  #   end
-  # end
+    #   assert [page1] == TestRepo.all(query1)
+    #   assert [page2] == TestRepo.all(query2)
+    # end
+  end
 
   # describe "Repo.insert_all/2" do
   #   test "batch-insert multiple records" do

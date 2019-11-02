@@ -15,6 +15,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   @behaviour Ecto.Adapter
   @behaviour Ecto.Adapter.Schema
+  @behaviour Ecto.Adapter.Queryable
   #@behaviour Ecto.Adapter.Storage
   #@behaviour Ecto.Adapter.Migration
 
@@ -245,10 +246,13 @@ defmodule Ecto.Adapters.DynamoDB do
   #          query: {:nocache, prepared} |
   #                 {:cached, (prepared -> :ok), cached} |
   #                 {:cache, (cached -> :ok), prepared}
-  def execute(repo, meta, {:nocache, {func, prepared}}, params, process, opts) do
-    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.execute", %{"#{inspect __MODULE__}.execute-params" => %{repo: repo, meta: meta, prepared: prepared, params: params, process: process, opts: opts}})
 
-    {table, model} = prepared.from
+
+  # the 5th arg, process, has been dropped
+  def execute(%{repo: repo}, meta, {:nocache, {func, prepared}}, params, opts) do
+    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.execute", %{"#{inspect __MODULE__}.execute-params" => %{repo: repo, meta: meta, prepared: prepared, params: params, opts: opts}})
+
+    {table, model} = prepared.from.source # table and model are now nested under .from.source
     validate_where_clauses!(prepared)
     lookup_fields = extract_lookup_fields(prepared.wheres, params, [])
 
