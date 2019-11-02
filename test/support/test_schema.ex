@@ -134,8 +134,8 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Planet do
     field :mass, :integer
   end
 
-  def changeset(page, params \\ %{}) do
-    page
+  def changeset(struct, params \\ %{}) do
+    struct
     |> Ecto.Changeset.cast(params, [:name])
     |> Ecto.Changeset.validate_required([:id, :name])
     |> Ecto.Changeset.unique_constraint(:name)

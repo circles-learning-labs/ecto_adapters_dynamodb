@@ -14,6 +14,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
 
   @behaviour Ecto.Adapter
+  @behaviour Ecto.Adapter.Schema
   #@behaviour Ecto.Adapter.Storage
   #@behaviour Ecto.Adapter.Migration
 
