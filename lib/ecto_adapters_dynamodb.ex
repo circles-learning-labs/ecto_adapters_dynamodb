@@ -29,7 +29,8 @@ defmodule Ecto.Adapters.DynamoDB do
   alias ExAws.Dynamo
   alias Ecto.Query.BooleanExpr
 
-
+  # This was getting called, but now seems not to be - can't see what's changed
+  # How does this get called?
   def start_link(options) do
     # Need to parse the options for logging (see commented out version below)
     Agent.start_link fn -> [] end
@@ -43,68 +44,45 @@ defmodule Ecto.Adapters.DynamoDB do
 
   ## Adapter behaviour - defined in lib/ecto/adapter.ex (in the ecto github repository)
 
-  # This was child_spec, now is init - need to actually construct the data I've hardcoded for now.
   def init(config) do
-    # The child and meta shown here are my initial approximations
-    # of what that data needs to look like, based on some experiments with Postgres.
     child = %{
       id: DBConnection.Ownership.Manager,
       start: {DBConnection.Ownership.Manager, :start_link,
-        [
-          {Ecto.Adapters.DynamoDB.Protocol,
-          [
-            otp_app: :ecto_adapters_dynamodb,
-            telemetry_prefix: [:ecto, :adapters, :dynamo_db, :test_repo],
-            repo: Ecto.Adapters.DynamoDB.TestRepo,
-            timeout: 15000,
-            pool_timeout: 5000,
-            adapter: Ecto.Adapters.DynamoDB,
-            migration_source: "test_schema_migrations",
-            debug_requests: true,
-            access_key_id: "abcd",
-            secret_access_key: "1234",
-            region: "us-east-1",
-            dynamodb: [
-              scheme: "http://",
-              host: "localhost",
-              port: 8000,
-              region: "us-east-1"
-            ]
-          ]}
-        ]}
+               [{Ecto.Adapters.DynamoDB.Protocol, config}]}
     }
 
     meta = %{
       opts: [timeout: 15000, pool_size: 10],
-      telemetry: {Ecto.Adapters.DynamoDB.TestRepo, :debug,
-       [:ecto, :adapters, :dynamo_db, :test_repo]}
+      telemetry: {config[:repo], :debug, config[:telemetry_prefix]}
     }
+
+    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.init", %{"#{inspect __MODULE__}.init-params" => %{child: child, meta: meta}})
 
     {:ok, child, meta}
   end
 
-  @doc """
-  Returns the childspec that starts the adapter process.
-  """
-  def child_spec(repo, opts) do
-    # TODO: need something here...
-    # * Pull dynamo db connection options from config
-    # * Start dynamo connector/aws libraries
-    # we'll return our own start_link for now, but I don't think we actually need
-    # an app here, we only need to ensure that our dependencies such as aws libs are started.
-    #
+    # @doc """
+    # Returns the childspec that starts the adapter process.
+    # """
+    # def child_spec(repo, opts) do
+    #   # TODO: need something here...
+    #   # * Pull dynamo db connection options from config
+    #   # * Start dynamo connector/aws libraries
+    #   # we'll return our own start_link for now, but I don't think we actually need
+    #   # an app here, we only need to ensure that our dependencies such as aws libs are started.
+    #   #
 
-   [:debug_requests, :access_key_id, :secret_access_key, :region, :dynamodb] |> Enum.map(fn key ->
-     if opts[key] != nil, do: Application.put_env(:ex_aws, key, opts[key])
-   end)
+    #  [:debug_requests, :access_key_id, :secret_access_key, :region, :dynamodb] |> Enum.map(fn key ->
+    #    if opts[key] != nil, do: Application.put_env(:ex_aws, key, opts[key])
+    #  end)
 
-    import Supervisor.Spec
-    child_spec = worker(__MODULE__, [repo, opts])
+    #   import Supervisor.Spec
+    #   child_spec = worker(__MODULE__, [repo, opts])
 
-    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.child_spec", %{"#{inspect __MODULE__}.child_spec-params" => %{repo: repo, child_spec: child_spec, opts: opts}})
+    #   ecto_dynamo_log(:debug, "#{inspect __MODULE__}.child_spec", %{"#{inspect __MODULE__}.child_spec-params" => %{repo: repo, child_spec: child_spec, opts: opts}})
 
-    child_spec
-  end
+    #   child_spec
+    # end
 
 
   @doc """
