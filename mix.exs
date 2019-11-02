@@ -52,7 +52,8 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   defp deps do
     [
       # {:ecto_sql, "~> 3.0"},
-      {:ecto_sql, git: "git@github.com:elixir-ecto/ecto_sql.git"},
+      {:ecto_sql, git: "https://github.com/elixir-ecto/ecto_sql.git"},
+      {:ecto, git: "https://github.com/elixir-ecto/ecto.git"},
       {:ex_aws_dynamo, "~> 2.2"},
       {:poison, "~> 3.0"},
       {:hackney, "~> 1.6"},

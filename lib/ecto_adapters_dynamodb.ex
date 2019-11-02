@@ -28,15 +28,15 @@ defmodule Ecto.Adapters.DynamoDB do
   alias Ecto.Query.BooleanExpr
 
 
-  def start_link(x) do
-    IO.inspect x
-  end
-
-  # I don't think this is necessary: Probably under child_spec and ensure_all_started
-  def start_link(repo, opts) do
-    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.start_link", %{"#{inspect __MODULE__}.start_link-params" => %{repo: repo, opts: opts}})
+  def start_link(_) do
     Agent.start_link fn -> [] end
   end
+
+  # # I don't think this is necessary: Probably under child_spec and ensure_all_started
+  # def start_link(repo, opts) do
+  #   ecto_dynamo_log(:debug, "#{inspect __MODULE__}.start_link", %{"#{inspect __MODULE__}.start_link-params" => %{repo: repo, opts: opts}})
+  #   Agent.start_link fn -> [] end
+  # end
 
 
   ## Adapter behaviour - defined in lib/ecto/adapter.ex (in the ecto github repository)

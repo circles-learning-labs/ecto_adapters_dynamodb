@@ -6,7 +6,7 @@
   "dialyxir": {:hex, :dialyxir, "0.5.0", "5bc543f9c28ecd51b99cc1a685a3c2a1a93216990347f259406a910cf048d1d7", [:mix], [], "hexpm"},
   "earmark": {:hex, :earmark, "1.2.6", "b6da42b3831458d3ecc57314dff3051b080b9b2be88c2e5aa41cd642a5b044ed", [:mix], [], "hexpm"},
   "ecto": {:git, "https://github.com/elixir-ecto/ecto.git", "b0348d273a25dfe3685ff55afeee0871668949a2", []},
-  "ecto_sql": {:git, "git@github.com:elixir-ecto/ecto_sql.git", "a5592af4e9abe66b2bc5d2ade43c9ad585cb20ea", []},
+  "ecto_sql": {:git, "https://github.com/elixir-ecto/ecto_sql.git", "99a09e96558c1d317aedefd58db0727be4e9595f", []},
   "eqc_ex": {:hex, :eqc_ex, "1.4.2", "c89322cf8fbd4f9ddcb18141fb162a871afd357c55c8c0198441ce95ffe2e105", [:mix], [], "hexpm"},
   "ex_aws": {:hex, :ex_aws, "2.1.1", "1e4de2106cfbf4e837de41be41cd15813eabc722315e388f0d6bb3732cec47cd", [:mix], [{:configparser_ex, "~> 4.0", [hex: :configparser_ex, repo: "hexpm", optional: true]}, {:hackney, "1.6.3 or 1.6.5 or 1.7.1 or 1.8.6 or ~> 1.9", [hex: :hackney, repo: "hexpm", optional: true]}, {:jsx, "~> 2.8", [hex: :jsx, repo: "hexpm", optional: true]}, {:poison, ">= 1.2.0", [hex: :poison, repo: "hexpm", optional: true]}, {:sweet_xml, "~> 0.6", [hex: :sweet_xml, repo: "hexpm", optional: true]}], "hexpm"},
   "ex_aws_dynamo": {:hex, :ex_aws_dynamo, "2.2.1", "53d2eab3614c7f291c6db450747cec600b7af08cd551643c4084ce4d6b40e062", [:mix], [{:ex_aws, "~> 2.0", [hex: :ex_aws, repo: "hexpm", optional: false]}], "hexpm"},
