@@ -29,25 +29,23 @@ defmodule Ecto.Adapters.DynamoDB do
   alias ExAws.Dynamo
   alias Ecto.Query.BooleanExpr
 
-  # This was getting called, but now seems not to be - can't see what's changed
-  # How does this get called?
+  # Called as a result of
+  #
+  #       start: {Ecto.Adapters.DynamoDB, :start_link,
+  #             [{Ecto.Adapters.DynamoDB.Protocol, config}]}
+  #
+  # in init/1 below
   def start_link({_module, config}) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.start_link", %{"#{inspect __MODULE__}.start_link-params" => %{config: config}})
     Agent.start_link fn -> [] end
   end
 
-  # # I don't think this is necessary: Probably under child_spec and ensure_all_started
-  # def start_link(repo, opts) do
-  #   ecto_dynamo_log(:debug, "#{inspect __MODULE__}.start_link", %{"#{inspect __MODULE__}.start_link-params" => %{repo: repo, opts: opts}})
-  #   Agent.start_link fn -> [] end
-  # end
-
   ## Adapter behaviour - defined in lib/ecto/adapter.ex (in the ecto github repository)
 
   def init(config) do
     child = %{
-      id: DBConnection.Ownership.Manager,
-      start: {DBConnection.Ownership.Manager, :start_link,
+      id: Ecto.Adapters.DynamoDB,
+      start: {Ecto.Adapters.DynamoDB, :start_link,
                [{Ecto.Adapters.DynamoDB.Protocol, config}]}
     }
 
