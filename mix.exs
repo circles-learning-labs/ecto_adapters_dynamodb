@@ -51,9 +51,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   # Type "mix help deps" for more examples and options
   defp deps do
     [
-      # {:ecto_sql, "~> 3.0"},
-      {:ecto_sql, git: "https://github.com/elixir-ecto/ecto_sql.git"}, # for now, get this from git source
-      {:ecto, git: "https://github.com/elixir-ecto/ecto.git"}, # for now, get this from git source
+      {:ecto_sql, "~> 3.0"},
       {:ex_aws_dynamo, "~> 2.2"},
       {:poison, "~> 3.0"},
       {:hackney, "~> 1.6"},
