@@ -44,9 +44,9 @@ defmodule Ecto.Adapters.DynamoDB do
 
   def init(config) do
     child = %{
-      id: Ecto.Adapters.DynamoDB,
-      start: {Ecto.Adapters.DynamoDB, :start_link,
-               [{Ecto.Adapters.DynamoDB.Protocol, config}]}
+      id: __MODULE__,
+      start: {__MODULE__, :start_link,
+               [{__MODULE__, config}]}
     }
 
     meta = %{
@@ -54,7 +54,7 @@ defmodule Ecto.Adapters.DynamoDB do
       telemetry: {config[:repo], :debug, config[:telemetry_prefix]}
     }
 
-    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.init", %{"#{inspect __MODULE__}.init-params" => %{child: child, meta: meta}})
+    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.init", %{"#{inspect __MODULE__}.init-params" => %{config: config}})
 
     {:ok, child, meta}
   end
