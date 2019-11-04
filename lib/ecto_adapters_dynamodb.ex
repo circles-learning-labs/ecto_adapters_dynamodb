@@ -647,8 +647,8 @@ defmodule Ecto.Adapters.DynamoDB do
             _                         -> []
           end
 
-          if items == [], do: raise "__MODULE__.delete error: no results found for record: #{inspect filters}"
-          if (length items) > 1, do: raise "__MODULE__.delete error: more than one result found for record: #{inspect filters} Please consider using the adapter's :range_key custom inline option (see README)."
+          if items == [], do: raise "#{inspect __MODULE__}.delete error: no results found for record: #{inspect filters}"
+          if (length items) > 1, do: raise "#{inspect __MODULE__}.delete error: more than one result found for record: #{inspect filters} Please consider using the adapter's :range_key custom inline option (see README)."
 
           for {field, key_map} <- Map.to_list(hd items) do
             [{_field_type, val}] = Map.to_list(key_map)
@@ -700,8 +700,8 @@ defmodule Ecto.Adapters.DynamoDB do
             _                         -> []
           end
 
-          if items == [], do: raise "__MODULE__.update error: no results found for record: #{inspect filters}"
-          if (length items) > 1, do: raise "__MODULE__.update error: more than one result found for record: #{inspect filters} Please consider using the adapter's :range_key custom inline option (see README)."
+          if items == [], do: raise "#{inspect __MODULE__}.update error: no results found for record: #{inspect filters}"
+          if (length items) > 1, do: raise "#{inspect __MODULE__}.update error: more than one result found for record: #{inspect filters} Please consider using the adapter's :range_key custom inline option (see README)."
 
           for {field, key_map} <- Map.to_list(hd items) do
             [{_field_type, val}] = Map.to_list(key_map)
