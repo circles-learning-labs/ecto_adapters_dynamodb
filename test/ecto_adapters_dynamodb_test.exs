@@ -76,22 +76,21 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert result == nil
     end
 
-    # test "insert a record and retrieve it by its primary key" do
-    #   TestRepo.insert(%Person{
-    #     id: "person-john",
-    #     first_name: "John",
-    #     last_name: "Lennon",
-    #     age: 40,
-    #     email: "john@beatles.com",
-    #     password: "password",
-    #     role: "musician"
-    #   })
-    #   result = TestRepo.get(Person, "person-john")
+    test "insert a record and retrieve it by its primary key" do
+      TestRepo.insert(%Person{
+        id: "person-john",
+        first_name: "John",
+        last_name: "Lennon",
+        age: 40,
+        email: "john@beatles.com",
+        password: "password",
+      })
+      result = TestRepo.get(Person, "person-john")
 
-    #   assert result.first_name == "John"
-    #   assert result.last_name == "Lennon"
-    #   assert Ecto.get_meta(result, :state) == :loaded
-    # end
+      assert result.first_name == "John"
+      assert result.last_name == "Lennon"
+      assert Ecto.get_meta(result, :state) == :loaded
+    end
 
     # test "insert a record and get with a hash/range pkey" do
     #   name = "houseofleaves"

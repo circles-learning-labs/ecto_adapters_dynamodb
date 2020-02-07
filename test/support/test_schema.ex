@@ -83,7 +83,6 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
     field :age,        :integer
     field :email,      :string
     field :password,   :string
-    field :role,       :string
     embeds_many :addresses, Address
   end
 
