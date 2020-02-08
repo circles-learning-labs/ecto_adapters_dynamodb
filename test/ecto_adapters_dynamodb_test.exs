@@ -162,380 +162,379 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
   end
 
-  # describe "Repo.all" do
-  #   test "batch-get multiple records when querying for an empty list" do
-  #     result = TestRepo.all(from p in Person, where: p.id in [])
-  #     assert result == []
-  #   end
+  describe "Repo.all" do
+    test "batch-get multiple records when querying for an empty list" do
+      result = TestRepo.all(from p in Person, where: p.id in [])
+      assert result == []
+    end
 
-  #   test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and a variable list of primary hash keys" do
-  #     person1 = %{
-  #                 id: "person-moe",
-  #                 first_name: "Moe",
-  #                 last_name: "Howard",
-  #                 age: 75,
-  #                 email: "moe@stooges.com",
-  #                 password: "password",
-  #               }
-  #     person2 = %{
-  #                 id: "person-larry",
-  #                 first_name: "Larry",
-  #                 last_name: "Fine",
-  #                 age: 72,
-  #                 email: "larry@stooges.com",
-  #                 password: "password",
-  #               }
-  #     person3 = %{
-  #                 id: "person-curly",
-  #                 first_name: "Curly",
-  #                 last_name: "Howard",
-  #                 age: 74,
-  #                 email: "curly@stooges.com",
-  #                 password: "password",
-  #               }
+    test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and a variable list of primary hash keys" do
+      person1 = %{
+                  id: "person-moe",
+                  first_name: "Moe",
+                  last_name: "Howard",
+                  age: 75,
+                  email: "moe@stooges.com",
+                  password: "password",
+                }
+      person2 = %{
+                  id: "person-larry",
+                  first_name: "Larry",
+                  last_name: "Fine",
+                  age: 72,
+                  email: "larry@stooges.com",
+                  password: "password",
+                }
+      person3 = %{
+                  id: "person-curly",
+                  first_name: "Curly",
+                  last_name: "Howard",
+                  age: 74,
+                  email: "curly@stooges.com",
+                  password: "password",
+                }
 
-  #     TestRepo.insert_all(Person, [person1, person2, person3])
+      TestRepo.insert_all(Person, [person1, person2, person3])
 
-  #     ids = [person1.id, person2.id, person3.id]
-  #     sorted_ids = Enum.sort(ids)
-  #     var_result = TestRepo.all(from p in Person, where: p.id in ^ids)
-  #                  |> Enum.map(&(&1.id))
-  #                  |> Enum.sort()
-  #     hc_result = TestRepo.all(from p in Person, where: p.id in ["person-moe", "person-larry", "person-curly"])
-  #                 |> Enum.map(&(&1.id))
-  #                 |> Enum.sort()
+      ids = [person1.id, person2.id, person3.id]
+      sorted_ids = Enum.sort(ids)
+      var_result = TestRepo.all(from p in Person, where: p.id in ^ids)
+                   |> Enum.map(&(&1.id))
+                   |> Enum.sort()
+      hc_result = TestRepo.all(from p in Person, where: p.id in ["person-moe", "person-larry", "person-curly"])
+                  |> Enum.map(&(&1.id))
+                  |> Enum.sort()
 
-  #     assert var_result == sorted_ids
-  #     assert hc_result == sorted_ids
-  #   end
+      assert var_result == sorted_ids
+      assert hc_result == sorted_ids
+    end
 
-  #   test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and a variable lists of composite primary keys" do
-  #     page1 = %{
-  #               id: "page:test-1",
-  #               page_num: 1,
-  #               text: "abc",
-  #             }
-  #     page2 = %{
-  #               id: "page:test-2",
-  #               page_num: 2,
-  #               text: "def",
-  #             }
+    test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and a variable lists of composite primary keys" do
+      page1 = %{
+                id: "page:test-1",
+                page_num: 1,
+                text: "abc",
+              }
+      page2 = %{
+                id: "page:test-2",
+                page_num: 2,
+                text: "def",
+              }
 
-  #     TestRepo.insert_all(BookPage, [page1, page2])
-  #     ids = [page1.id, page2.id]
-  #     pages = [1, 2]
+      TestRepo.insert_all(BookPage, [page1, page2])
+      ids = [page1.id, page2.id]
+      pages = [1, 2]
 
-  #     var_result = TestRepo.all(from bp in BookPage, where: bp.id in ^ids and bp.page_num in ^pages)
-  #                  |> Enum.map(&(&1.id))
-  #                  |> Enum.sort()
-  #     hc_result = TestRepo.all(from bp in BookPage, where: bp.id in ["page:test-1", "page:test-2"] and bp.page_num in [1, 2])
-  #                 |> Enum.map(&(&1.id))
-  #                 |> Enum.sort()
+      var_result = TestRepo.all(from bp in BookPage, where: bp.id in ^ids and bp.page_num in ^pages)
+                   |> Enum.map(&(&1.id))
+                   |> Enum.sort()
+      hc_result = TestRepo.all(from bp in BookPage, where: bp.id in ["page:test-1", "page:test-2"] and bp.page_num in [1, 2])
+                  |> Enum.map(&(&1.id))
+                  |> Enum.sort()
 
-  #     sorted_ids = Enum.sort(ids)
+      sorted_ids = Enum.sort(ids)
 
-  #     assert var_result == sorted_ids
-  #     assert hc_result == sorted_ids
-  #   end
+      assert var_result == sorted_ids
+      assert hc_result == sorted_ids
+    end
 
-  #   test "batch-get multiple records with an 'all... in...' query on a hash key-only global secondary index when querying for a hard-coded and variable list" do
-  #     person1 = %{
-  #       id: "person-jerrytest",
-  #       first_name: "Jerry",
-  #       last_name: "Garcia",
-  #       age: 55,
-  #       email: "jerry@test.com",
-  #       password: "password",
-  #     } 
-  #     person2 = %{
-  #       id: "person-bobtest",
-  #       first_name: "Bob",
-  #       last_name: "Weir",
-  #       age: 70,
-  #       email: "bob@test.com",
-  #       password: "password"
-  #     }
+    test "batch-get multiple records with an 'all... in...' query on a hash key-only global secondary index when querying for a hard-coded and variable list" do
+      person1 = %{
+        id: "person-jerrytest",
+        first_name: "Jerry",
+        last_name: "Garcia",
+        age: 55,
+        email: "jerry@test.com",
+        password: "password",
+      } 
+      person2 = %{
+        id: "person-bobtest",
+        first_name: "Bob",
+        last_name: "Weir",
+        age: 70,
+        email: "bob@test.com",
+        password: "password"
+      }
 
-  #     TestRepo.insert_all(Person, [person1, person2])
+      TestRepo.insert_all(Person, [person1, person2])
 
-  #     emails = [person1.email, person2.email]
-  #     sorted_ids = Enum.sort([person1.id, person2.id])
-  #     var_result = TestRepo.all(from p in Person, where: p.email in ^emails)
-  #                  |> Enum.map(&(&1.id))
-  #                  |> Enum.sort()
-  #     hc_result = TestRepo.all(from p in Person, where: p.email in ["jerry@test.com", "bob@test.com"])
-  #                 |> Enum.map(&(&1.id))
-  #                 |> Enum.sort()
+      emails = [person1.email, person2.email]
+      sorted_ids = Enum.sort([person1.id, person2.id])
+      var_result = TestRepo.all(from p in Person, where: p.email in ^emails)
+                   |> Enum.map(&(&1.id))
+                   |> Enum.sort()
+      hc_result = TestRepo.all(from p in Person, where: p.email in ["jerry@test.com", "bob@test.com"])
+                  |> Enum.map(&(&1.id))
+                  |> Enum.sort()
 
-  #     assert var_result == sorted_ids
-  #     assert hc_result == sorted_ids
+      assert var_result == sorted_ids
+      assert hc_result == sorted_ids
 
-  #     [var_multi_cond_result] = TestRepo.all(from p in Person, where: p.email in ^emails and p.age > 69)
-  #     [hc_multi_cond_result] = TestRepo.all(from p in Person, where: p.email in ["jerry@test.com", "bob@test.com"] and p.age < 69)
+      [var_multi_cond_result] = TestRepo.all(from p in Person, where: p.email in ^emails and p.age > 69)
+      [hc_multi_cond_result] = TestRepo.all(from p in Person, where: p.email in ["jerry@test.com", "bob@test.com"] and p.age < 69)
 
-  #     assert var_multi_cond_result.id == "person-bobtest"
-  #     assert hc_multi_cond_result.id == "person-jerrytest"
-  #   end
+      assert var_multi_cond_result.id == "person-bobtest"
+      assert hc_multi_cond_result.id == "person-jerrytest"
+    end
 
-  #   test "batch-get multiple records with an 'all... in...' query on a composite global secondary index (hash and range keys) when querying for a hard-coded and variable list" do
-  #     person1 = %{
-  #       id: "person:frank",
-  #       first_name: "Frank",
-  #       last_name: "Sinatra",
-  #       age: 45,
-  #       email: "frank_sinatra@test.com",
-  #     } 
-  #     person2 = %{
-  #       id: "person:dean",
-  #       first_name: "Dean",
-  #       last_name: "Martin",
-  #       age: 70,
-  #       email: "dean_martin@test.com",
-  #     }
+    test "batch-get multiple records with an 'all... in...' query on a composite global secondary index (hash and range keys) when querying for a hard-coded and variable list" do
+      person1 = %{
+        id: "person:frank",
+        first_name: "Frank",
+        last_name: "Sinatra",
+        age: 45,
+        email: "frank_sinatra@test.com",
+      } 
+      person2 = %{
+        id: "person:dean",
+        first_name: "Dean",
+        last_name: "Martin",
+        age: 70,
+        email: "dean_martin@test.com",
+      }
 
-  #     TestRepo.insert_all(Person, [person1, person2])
+      TestRepo.insert_all(Person, [person1, person2])
 
-  #     first_names = [person1.first_name, person2.first_name]
-  #     sorted_ids = Enum.sort([person1.id, person2.id])
-  #     var_result = TestRepo.all(from p in Person, where: p.first_name in ^first_names and p.age < 50)
-  #                  |> Enum.map(&(&1.id))
-  #     hc_result = TestRepo.all(from p in Person, where: p.first_name in ["Frank", "Dean"] and p.age > 40)
-  #                 |> Enum.map(&(&1.id))
-  #                 |> Enum.sort()
+      first_names = [person1.first_name, person2.first_name]
+      sorted_ids = Enum.sort([person1.id, person2.id])
+      var_result = TestRepo.all(from p in Person, where: p.first_name in ^first_names and p.age < 50)
+                   |> Enum.map(&(&1.id))
+      hc_result = TestRepo.all(from p in Person, where: p.first_name in ["Frank", "Dean"] and p.age > 40)
+                  |> Enum.map(&(&1.id))
+                  |> Enum.sort()
 
-  #     assert var_result == ["person:frank"]
-  #     assert hc_result == sorted_ids
-  #   end
+      assert var_result == ["person:frank"]
+      assert hc_result == sorted_ids
+    end
 
-  #   test "batch-get multiple records on a partial secondary index composite key (hash only)" do
-  #     person1 = %{
-  #       id: "person:wayne_shorter",
-  #       first_name: "Wayne",
-  #       last_name: "Shorter",
-  #       age: 75,
-  #       email: "wayne_shorter@test.com",
-  #     }
-  #     person2 = %{
-  #       id: "person:wayne_campbell",
-  #       first_name: "Wayne",
-  #       last_name: "Campbell",
-  #       age: 36,
-  #       email: "wayne_campbell@test.com"
-  #     }
+    test "batch-get multiple records on a partial secondary index composite key (hash only)" do
+      person1 = %{
+        id: "person:wayne_shorter",
+        first_name: "Wayne",
+        last_name: "Shorter",
+        age: 75,
+        email: "wayne_shorter@test.com",
+      }
+      person2 = %{
+        id: "person:wayne_campbell",
+        first_name: "Wayne",
+        last_name: "Campbell",
+        age: 36,
+        email: "wayne_campbell@test.com"
+      }
 
-  #     TestRepo.insert_all(Person, [person1, person2])
+      TestRepo.insert_all(Person, [person1, person2])
 
-  #     sorted_ids = Enum.sort([person1.id, person2.id])
-  #     result = TestRepo.all(from p in Person, where: p.first_name == "Wayne")
-  #              |> Enum.map(&(&1.id))
-  #              |> Enum.sort()
+      sorted_ids = Enum.sort([person1.id, person2.id])
+      result = TestRepo.all(from p in Person, where: p.first_name == "Wayne")
+               |> Enum.map(&(&1.id))
+               |> Enum.sort()
 
-  #     assert result == sorted_ids
-  #   end
+      assert result == sorted_ids
+    end
 
-  #   # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than
-  #   # 100 records will be rejected. We allow the user to call all() for more than 100 records
-  #   # by breaking up the requests into blocks of 100.
-  #   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
-  #   test "batch-get multiple records, exceeding BatchGetItem limit by 10 records" do
-  #     total_records = 110
-  #     people_to_insert = make_list_of_people_for_batch_insert(total_records) # create a list of people records
-  #     person_ids = for person <- people_to_insert, do: person.id # hang on to the ids separately
+    # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than
+    # 100 records will be rejected. We allow the user to call all() for more than 100 records
+    # by breaking up the requests into blocks of 100.
+    # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
+    test "batch-get multiple records, exceeding BatchGetItem limit by 10 records" do
+      total_records = 110
+      people_to_insert = make_list_of_people_for_batch_insert(total_records) # create a list of people records
+      person_ids = for person <- people_to_insert, do: person.id # hang on to the ids separately
 
-  #     handle_batch_insert_person(people_to_insert) # insert the records
+      TestRepo.insert_all(Person, people_to_insert)
+      result = TestRepo.all(from p in Person, where: p.id in ^person_ids)
+               |> Enum.map(&(&1.id))
 
-  #     result = TestRepo.all(from p in Person, where: p.id in ^person_ids)
-  #              |> Enum.map(&(&1.id))
+      assert length(result) == total_records
+    end
 
-  #     assert length(result) == total_records
-  #   end
+    test "batch-insert and query all on a hash key global secondary index" do
+      person1 = %{
+                  id: "person-tomtest",
+                  first_name: "Tom",
+                  last_name: "Jones",
+                  age: 70,
+                  email: "jones@test.com",
+                  password: "password",
+                }
+      person2 = %{
+                  id: "person-caseytest",
+                  first_name: "Casey",
+                  last_name: "Jones",
+                  age: 114,
+                  email: "jones@test.com",
+                  password: "password",
+                }
+      person3 = %{
+                  id: "person-jamestest",
+                  first_name: "James",
+                  last_name: "Jones",
+                  age: 71,
+                  email: "jones@test.com",
+                  password: "password",
+                }
 
-  #   test "batch-insert and query all on a hash key global secondary index" do
-  #     person1 = %{
-  #                 id: "person-tomtest",
-  #                 first_name: "Tom",
-  #                 last_name: "Jones",
-  #                 age: 70,
-  #                 email: "jones@test.com",
-  #                 password: "password",
-  #               }
-  #     person2 = %{
-  #                 id: "person-caseytest",
-  #                 first_name: "Casey",
-  #                 last_name: "Jones",
-  #                 age: 114,
-  #                 email: "jones@test.com",
-  #                 password: "password",
-  #               }
-  #     person3 = %{
-  #                 id: "person-jamestest",
-  #                 first_name: "James",
-  #                 last_name: "Jones",
-  #                 age: 71,
-  #                 email: "jones@test.com",
-  #                 password: "password",
-  #               }
+      TestRepo.insert_all(Person, [person1, person2, person3])
+      result = TestRepo.all(from p in Person, where: p.email == "jones@test.com")
 
-  #     TestRepo.insert_all(Person, [person1, person2, person3])
-  #     result = TestRepo.all(from p in Person, where: p.email == "jones@test.com")
+      assert length(result) == 3
+    end
 
-  #     assert length(result) == 3
-  #   end
+    test "query all on a multi-condition primary key/global secondary index" do
+      TestRepo.insert(%Person{
+                        id: "person:jamesholden",
+                        first_name: "James",
+                        last_name: "Holden",
+                        age: 18,
+                        email: "jholden@expanse.com",
+                      })
+      result = TestRepo.all(from p in Person, where: p.id == "person:jamesholden" and p.email == "jholden@expanse.com")
 
-  #   test "query all on a multi-condition primary key/global secondary index" do
-  #     TestRepo.insert(%Person{
-  #                       id: "person:jamesholden",
-  #                       first_name: "James",
-  #                       last_name: "Holden",
-  #                       age: 18,
-  #                       email: "jholden@expanse.com",
-  #                     })
-  #     result = TestRepo.all(from p in Person, where: p.id == "person:jamesholden" and p.email == "jholden@expanse.com")
+      assert Enum.at(result, 0).first_name == "James"
+      assert Enum.at(result, 0).last_name == "Holden"
+    end
 
-  #     assert Enum.at(result, 0).first_name == "James"
-  #     assert Enum.at(result, 0).last_name == "Holden"
-  #   end
+    test "query all on a composite primary key, using a 'begins_with' fragment on the range key" do
+      planet1 = %{
+        id: "planet",
+        name: "Jupiter",
+        mass: 6537292902,
+      }
+      planet2 = %{
+        id: "planet",
+        name: "Pluto",
+        mass: 3465,
+      }
 
-  #   test "query all on a composite primary key, using a 'begins_with' fragment on the range key" do
-  #     planet1 = %{
-  #       id: "planet",
-  #       name: "Jupiter",
-  #       mass: 6537292902,
-  #     }
-  #     planet2 = %{
-  #       id: "planet",
-  #       name: "Pluto",
-  #       mass: 3465,
-  #     }
+      TestRepo.insert_all(Planet, [planet1, planet2])
+      name_frag = "J"
 
-  #     TestRepo.insert_all(Planet, [planet1, planet2])
-  #     name_frag = "J"
+      q = from(p in Planet, where: p.id == "planet" and fragment("begins_with(?, ?)", p.name, ^name_frag))
 
-  #     q = from(p in Planet, where: p.id == "planet" and fragment("begins_with(?, ?)", p.name, ^name_frag))
+      result = TestRepo.all(q)
 
-  #     result = TestRepo.all(q)
+      assert length(result) == 1
+    end
 
-  #     assert length(result) == 1
-  #   end
+    test "query all on a partial primary composite index using 'in' and '==' operations" do
+      planet1 = %{
+        id: "planet-earth",
+        name: "Earth",
+        mass: 476,
+      }
+      planet2 = %{
+        id: "planet-mars",
+        name: "Mars",
+        mass: 425,
+      }
 
-  #   test "query all on a partial primary composite index using 'in' and '==' operations" do
-  #     planet1 = %{
-  #       id: "planet-earth",
-  #       name: "Earth",
-  #       mass: 476,
-  #     }
-  #     planet2 = %{
-  #       id: "planet-mars",
-  #       name: "Mars",
-  #       mass: 425,
-  #     }
+      TestRepo.insert_all(Planet, [planet1, planet2])
+      ids = ["planet-earth", "planet-mars"]
+      in_q = from(p in Planet, where: p.id in ^ids)
+      equals_q = from(p in Planet, where: p.id == "planet-earth")
+      in_result = TestRepo.all(in_q)
+      equals_result = TestRepo.all(equals_q)
 
-  #     TestRepo.insert_all(Planet, [planet1, planet2])
-  #     ids = ["planet-earth", "planet-mars"]
-  #     in_q = from(p in Planet, where: p.id in ^ids)
-  #     equals_q = from(p in Planet, where: p.id == "planet-earth")
-  #     in_result = TestRepo.all(in_q)
-  #     equals_result = TestRepo.all(equals_q)
+      assert length(in_result) == 2
+      assert length(equals_result) == 1
+    end
 
-  #     assert length(in_result) == 2
-  #     assert length(equals_result) == 1
-  #   end
+    test "query all on a partial secondary index using 'in' and '==' operations" do
+      planet1 = %{
+        id: "planet-mercury",
+        name: "Mercury",
+        mass: 153,
+      }
+      planet2 = %{
+        id: "planet-saturn",
+        name: "Saturn",
+        mass: 409282891,
+      }
 
-  #   test "query all on a partial secondary index using 'in' and '==' operations" do
-  #     planet1 = %{
-  #       id: "planet-mercury",
-  #       name: "Mercury",
-  #       mass: 153,
-  #     }
-  #     planet2 = %{
-  #       id: "planet-saturn",
-  #       name: "Saturn",
-  #       mass: 409282891,
-  #     }
+      TestRepo.insert_all(Planet, [planet1, planet2])
+      in_q = from(p in Planet, where: p.name in ["Mercury", "Saturn"])
+      equals_q = from(p in Planet, where: p.name == "Mercury")
+      in_result = TestRepo.all(in_q)
+      equals_result = TestRepo.all(equals_q)
 
-  #     TestRepo.insert_all(Planet, [planet1, planet2])
-  #     in_q = from(p in Planet, where: p.name in ["Mercury", "Saturn"])
-  #     equals_q = from(p in Planet, where: p.name == "Mercury")
-  #     in_result = TestRepo.all(in_q)
-  #     equals_result = TestRepo.all(equals_q)
+      assert length(in_result) == 2
+      assert length(equals_result) == 1
+    end
 
-  #     assert length(in_result) == 2
-  #     assert length(equals_result) == 1
-  #   end
+    test "query all on global secondary index with a composite key, using a 'begins_with' fragment on the range key" do
+      person1 = %{
+                  id: "person-michael-jordan",
+                  first_name: "Michael",
+                  last_name: "Jordan",
+                  age: 52,
+                  email: "mjordan@test.com",
+                  password: "password",
+                }
+      person2 = %{
+                  id: "person-michael-macdonald",
+                  first_name: "Michael",
+                  last_name: "MacDonald",
+                  age: 74,
+                  email: "singin_dude@test.com",
+                  password: "password",
+                }
 
-  #   test "query all on global secondary index with a composite key, using a 'begins_with' fragment on the range key" do
-  #     person1 = %{
-  #                 id: "person-michael-jordan",
-  #                 first_name: "Michael",
-  #                 last_name: "Jordan",
-  #                 age: 52,
-  #                 email: "mjordan@test.com",
-  #                 password: "password",
-  #               }
-  #     person2 = %{
-  #                 id: "person-michael-macdonald",
-  #                 first_name: "Michael",
-  #                 last_name: "MacDonald",
-  #                 age: 74,
-  #                 email: "singin_dude@test.com",
-  #                 password: "password",
-  #               }
+      TestRepo.insert_all(Person, [person1, person2])
+      email_frag = "m"
+      q = from(p in Person, where: p.first_name == "Michael" and fragment("begins_with(?, ?)", p.email, ^email_frag))
 
-  #     TestRepo.insert_all(Person, [person1, person2])
-  #     email_frag = "m"
-  #     q = from(p in Person, where: p.first_name == "Michael" and fragment("begins_with(?, ?)", p.email, ^email_frag))
+      result = TestRepo.all(q)
 
-  #     result = TestRepo.all(q)
+      assert length(result) == 1
+    end
 
-  #     assert length(result) == 1
-  #   end
+    test "query all on a global secondary index where an :index option has been provided to resolve an ambiguous index choice" do
+      person1 = %{
+                  id: "person-methuselah-baby",
+                  first_name: "Methuselah",
+                  last_name: "Baby",
+                  age: 0,
+                  email: "newborn_baby@test.com",
+                  password: "password",
+                }
+      person2 = %{
+                  id: "person-methuselah-jones",
+                  first_name: "Methuselah",
+                  last_name: "Jones",
+                  age: 969,
+                  email: "methuselah@test.com",
+                  password: "password",
+                }
 
-  #   test "query all on a global secondary index where an :index option has been provided to resolve an ambiguous index choice" do
-  #     person1 = %{
-  #                 id: "person-methuselah-baby",
-  #                 first_name: "Methuselah",
-  #                 last_name: "Baby",
-  #                 age: 0,
-  #                 email: "newborn_baby@test.com",
-  #                 password: "password",
-  #               }
-  #     person2 = %{
-  #                 id: "person-methuselah-jones",
-  #                 first_name: "Methuselah",
-  #                 last_name: "Jones",
-  #                 age: 969,
-  #                 email: "methuselah@test.com",
-  #                 password: "password",
-  #               }
+      TestRepo.insert_all(Person, [person1, person2])
 
-  #     TestRepo.insert_all(Person, [person1, person2])
+      q = from(p in Person, where: p.first_name == "Methuselah" and p.age in [0, 969])
+      # based on the query, it won't be clear to the adapter whether to choose the first_name_age or age_first_name index - pass the :index option to make sure it queries correctly.
+      result = TestRepo.all(q, index: "age_first_name")
 
-  #     q = from(p in Person, where: p.first_name == "Methuselah" and p.age in [0, 969])
-  #     # based on the query, it won't be clear to the adapter whether to choose the first_name_age or age_first_name index - pass the :index option to make sure it queries correctly.
-  #     result = TestRepo.all(q, index: "age_first_name")
+      assert length(result) == 2
+    end
+  end
 
-  #     assert length(result) == 2
-  #   end
-  # end
+  describe "Repo.update/1" do
+    test "update two fields on a record" do
+      TestRepo.insert(%Person{
+                        id: "person-update",
+                        first_name: "Update",
+                        last_name: "Test",
+                        age: 12,
+                        email: "update@test.com",
+                        password: "password",
+                      })
+      {:ok, result} = TestRepo.get(Person, "person-update")
+                      |> Ecto.Changeset.change([first_name: "Updated", last_name: "Tested"])
+                      |> TestRepo.update()
 
-  # describe "Repo.update/1" do
-  #   test "update two fields on a record" do
-  #     TestRepo.insert(%Person{
-  #                       id: "person-update",
-  #                       first_name: "Update",
-  #                       last_name: "Test",
-  #                       age: 12,
-  #                       email: "update@test.com",
-  #                       password: "password",
-  #                     })
-  #     {:ok, result} = TestRepo.get(Person, "person-update")
-  #                     |> Ecto.Changeset.change([first_name: "Updated", last_name: "Tested"])
-  #                     |> TestRepo.update()
-
-  #     assert result.first_name == "Updated"
-  #     assert result.last_name == "Tested"
-  #   end
-  # end
+      assert result.first_name == "Updated"
+      assert result.last_name == "Tested"
+    end
+  end
 
   # describe "Repo.update_all/3" do
   #   test "update fields on multiple records based on a primary hash key query" do
@@ -623,21 +622,21 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   #   end
   # end
 
-  # describe "Repo.delete/1" do
-  #   test "delete a single record" do
-  #     id = "person:delete"
-  #     {:ok, _} = TestRepo.insert(%Person{
-  #                  id: id,
-  #                  first_name: "Delete",
-  #                  age: 37,
-  #                  email: "delete_all@test.com",
-  #                })
-  #                |> elem(1)
-  #                |> TestRepo.delete()
+  describe "Repo.delete/1" do
+    test "delete a single record" do
+      id = "person:delete"
+      {:ok, _} = TestRepo.insert(%Person{
+                   id: id,
+                   first_name: "Delete",
+                   age: 37,
+                   email: "delete_all@test.com",
+                 })
+                 |> elem(1)
+                 |> TestRepo.delete()
 
-  #     assert TestRepo.get(Person, id) == nil
-  #   end
-  # end
+      assert TestRepo.get(Person, id) == nil
+    end
+  end
 
   # describe "Repo.delete_all/2" do
   #   test "delete multiple records" do
@@ -665,15 +664,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   #   end
   # end
 
-
-  # # Batch insert a list of records into the Person model.
-  # defp handle_batch_insert_person(people_to_insert) when is_list people_to_insert do
-  #   TestRepo.insert_all(Person, people_to_insert)
-  # end
-  # defp handle_batch_insert_person(total_records) when is_integer total_records do
-  #   make_list_of_people_for_batch_insert(total_records)
-  #   |> handle_batch_insert_person()
-  # end
 
   defp make_list_of_people_for_batch_insert(total_records) do
     for i <- 0..total_records, i > 0 do

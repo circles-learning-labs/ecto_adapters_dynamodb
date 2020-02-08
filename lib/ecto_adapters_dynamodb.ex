@@ -646,10 +646,10 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # In testing, 'filters' contained only the primary key and value
   # TODO: handle cases of more than one tuple in 'filters'?
-  def delete(repo, schema_meta, filters, opts) do
+  def delete(%{repo: repo} = _adapter_meta, schema_meta, filters, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.delete", %{"#{inspect __MODULE__}.delete-params" => %{repo: repo, schema_meta: schema_meta, filters: filters, opts: opts}})
 
-    {_, table} = schema_meta.source
+    table = schema_meta.source
 
     # We offer the :range_key option for tables with composite primary key
     # since Ecto will not provide the range_key value needed for the query.
@@ -699,10 +699,10 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  def update(repo, schema_meta, fields, filters, returning, opts) do
+  def update(%{repo: repo} = _adapter_meta, schema_meta, fields, filters, returning, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.update", %{"#{inspect __MODULE__}.update-params" => %{repo: repo, schema_meta: schema_meta, fields: fields, filters: filters, returning: returning, opts: opts}})
 
-    {_, table} = schema_meta.source
+    table = schema_meta.source
 
     # We offer the :range_key option for tables with composite primary key
     # since Ecto will not provide the range_key value needed for the query.
