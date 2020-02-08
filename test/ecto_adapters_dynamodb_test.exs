@@ -132,32 +132,35 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
   end
 
-  # describe "Repo.insert_all/2" do
-  #   test "batch-insert multiple records" do
-  #     total_records = 5
-  #     result = handle_batch_insert_person(total_records)
+  describe "Repo.insert_all/2" do
+    test "batch-insert single and multiple records" do
+      # single
+      total_records = 1
+      people = make_list_of_people_for_batch_insert(total_records)
+      result = TestRepo.insert_all(Person, people)
 
-  #     assert result == {total_records, nil}
-  #   end
+      assert result == {total_records, nil}
 
-  #   test "batch-insert a single record" do
-  #     total_records = 1
-  #     result = handle_batch_insert_person(total_records)
+      # multiple
+      total_records = 5
+      people = make_list_of_people_for_batch_insert(total_records)
+      result = TestRepo.insert_all(Person, people)
 
-  #     assert result == {total_records, nil}
-  #   end
+      assert result == {total_records, nil}
+    end
 
-  #   # DynamoDB has a constraint on the call to BatchWriteItem, where attempts to insert more than
-  #   # 25 records will be rejected. We allow the user to call insert_all() for more than 25 records
-  #   # by breaking up the requests into blocks of 25.
-  #   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
-  #   test "batch-insert multiple records, exceeding BatchWriteItem limit by 30 records" do
-  #     total_records = 55
-  #     result = handle_batch_insert_person(total_records)
+    # DynamoDB has a constraint on the call to BatchWriteItem, where attempts to insert more than
+    # 25 records will be rejected. We allow the user to call insert_all() for more than 25 records
+    # by breaking up the requests into blocks of 25.
+    # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
+    test "batch-insert multiple records, exceeding BatchWriteItem limit by 30 records" do
+      total_records = 55
+      people = make_list_of_people_for_batch_insert(total_records)
+      result = TestRepo.insert_all(Person, people)
 
-  #     assert result == {total_records, nil}
-  #   end
-  # end
+      assert result == {total_records, nil}
+    end
+  end
 
   # describe "Repo.all" do
   #   test "batch-get multiple records when querying for an empty list" do
@@ -663,14 +666,14 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   # end
 
 
-  # Batch insert a list of records into the Person model.
-  defp handle_batch_insert_person(people_to_insert) when is_list people_to_insert do
-    TestRepo.insert_all(Person, people_to_insert)
-  end
-  defp handle_batch_insert_person(total_records) when is_integer total_records do
-    make_list_of_people_for_batch_insert(total_records)
-    |> handle_batch_insert_person()
-  end
+  # # Batch insert a list of records into the Person model.
+  # defp handle_batch_insert_person(people_to_insert) when is_list people_to_insert do
+  #   TestRepo.insert_all(Person, people_to_insert)
+  # end
+  # defp handle_batch_insert_person(total_records) when is_integer total_records do
+  #   make_list_of_people_for_batch_insert(total_records)
+  #   |> handle_batch_insert_person()
+  # end
 
   defp make_list_of_people_for_batch_insert(total_records) do
     for i <- 0..total_records, i > 0 do

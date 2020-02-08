@@ -208,12 +208,10 @@ defmodule Ecto.Adapters.DynamoDB do
   #                 {:cached, (prepared -> :ok), cached} |
   #                 {:cache, (cached -> :ok), prepared}
 
-
-  # the 5th arg, process, has been dropped
-  def execute(%{repo: repo}, meta, {:nocache, {func, prepared}}, params, opts) do
+  def execute(%{repo: repo} = _adapter_meta, %{select: %{from: {_, {_, _, _, types}}}} = meta, {:nocache, {func, prepared}}, params, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.execute", %{"#{inspect __MODULE__}.execute-params" => %{repo: repo, meta: meta, prepared: prepared, params: params, opts: opts}})
 
-    {table, model} = prepared.from.source # table and model are now nested under .from.source
+    {table, _model} = prepared.from.source # table and model are now nested under .from.source
     validate_where_clauses!(prepared)
     lookup_fields = extract_lookup_fields(prepared.wheres, params, [])
 
@@ -253,14 +251,6 @@ defmodule Ecto.Adapters.DynamoDB do
           # Empty map means "not found"
           {0, []}
         else
-          # sources =
-          #   model.__schema__(:fields)
-          #   |> Enum.into(%{}, fn f ->
-          #     {model.__schema__(:field_source, f), f}
-          #   end)
-
-          %{select: %{from: {_, {:source, _, _, types}}}} = meta
-
           cond do
             !result["Count"] and !result["Responses"] ->
               decoded = decode_item(result["Item"], types)
@@ -561,25 +551,25 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  def insert_all(repo, schema_meta, field_list, fields, on_conflict, returning, opts) do
-    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.insert_all", %{"#{inspect __MODULE__}.insert_all-params" => %{repo: repo, schema_meta: schema_meta, field_list: field_list, fields: fields, on_conflict: on_conflict, returning: returning, opts: opts}})
+  def insert_all(%{repo: repo} = _adapter_meta, schema_meta, field_list, rows, on_conflict, return_sources, opts) do
+    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.insert_all", %{"#{inspect __MODULE__}.insert_all-params" => %{repo: repo, schema_meta: schema_meta, field_list: field_list, rows: rows, on_conflict: on_conflict, return_sources: return_sources, opts: opts}})
 
     insert_nil_field_option = Keyword.get(opts, :insert_nil_fields, true)
     do_not_insert_nil_fields = insert_nil_field_option == false || Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
 
-    {_, table} = schema_meta.source
+    table = schema_meta.source
     model = schema_meta.schema
 
-    prepared_fields = Enum.map(fields, fn(field_set) ->
-      mapped_fields = Enum.into(field_set, %{})
+    prepared_rows = Enum.map(rows, fn(row) ->
+      mapped_fields = Enum.into(row, %{})
       record = if do_not_insert_nil_fields, do: mapped_fields, else: build_record_map(model, mapped_fields)
 
       [put_request: [item: record]]
     end)
 
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.insert_all: local variables", %{"#{inspect __MODULE__}.insert_all-vars" => %{table: table, records: get_records_from_fields(prepared_fields)}})
+    ecto_dynamo_log(:info, "#{inspect __MODULE__}.insert_all: local variables", %{"#{inspect __MODULE__}.insert_all-vars" => %{table: table, records: get_records_from_fields(prepared_rows)}})
 
-    batch_write(table, prepared_fields, opts)
+    batch_write(table, prepared_rows, opts)
   end
 
   # DynamoDB will reject an entire batch of insert_all() records if there are more than 25 requests.
