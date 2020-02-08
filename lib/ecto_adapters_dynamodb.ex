@@ -1079,33 +1079,33 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  defp extract_select_fields(%Ecto.Query.SelectExpr{expr: expr} = _) do
-    case expr do
-      {_, _, [0]} ->
-        []
+  # defp extract_select_fields(%Ecto.Query.SelectExpr{expr: expr} = _) do
+  #   case expr do
+  #     {_, _, [0]} ->
+  #       []
 
-      {{:., _, [{_, _, _}, field]}, _, _} ->
-        [field]
+  #     {{:., _, [{_, _, _}, field]}, _, _} ->
+  #       [field]
 
-      {:{}, _, clauses} ->
-        for {{_, _, [{_, _, _}, field]}, _, _} <- clauses, do: field
-    end
-  end
+  #     {:{}, _, clauses} ->
+  #       for {{_, _, [{_, _, _}, field]}, _, _} <- clauses, do: field
+  #   end
+  # end
 
-  # Decodes maps and datetime, seemingly unhandled by ExAws Dynamo decoder
-  # (timestamps() corresponds with :naive_datetime)
-  defp custom_decode(item, model, select) do
-    selected_fields = extract_select_fields(select)
+  # # Decodes maps and datetime, seemingly unhandled by ExAws Dynamo decoder
+  # # (timestamps() corresponds with :naive_datetime)
+  # defp custom_decode(item, model, select) do
+  #   selected_fields = extract_select_fields(select)
 
-    case selected_fields do
-      [] ->
-        [Enum.reduce(model.__schema__(:fields), item, fn (field, acc) ->
-          Map.update!(acc, field, fn val -> decode_type(model.__schema__(:type, field), val) end)
-        end)]
-      fields ->
-        for field <- fields, do: decode_type(model.__schema__(:type, field), Map.get(item, field))
-    end
-  end
+  #   case selected_fields do
+  #     [] ->
+  #       [Enum.reduce(model.__schema__(:fields), item, fn (field, acc) ->
+  #         Map.update!(acc, field, fn val -> decode_type(model.__schema__(:type, field), val) end)
+  #       end)]
+  #     fields ->
+  #       for field <- fields, do: decode_type(model.__schema__(:type, field), Map.get(item, field))
+  #   end
+  # end
 
   defp decode_item(item, types) do
     types
@@ -1115,40 +1115,40 @@ defmodule Ecto.Adapters.DynamoDB do
     end)
   end
 
-  # This is used slightly differently
-  # when handling select in custom_decode/2
-  defp decode_type(type, val) do
-    if is_nil val do
-      val
-    else
-      case type do
-        :utc_datetime ->
-          {:ok, dt, _offset} = DateTime.from_iso8601(val)
-          dt
+  # # This is used slightly differently
+  # # when handling select in custom_decode/2
+  # defp decode_type(type, val) do
+  #   if is_nil val do
+  #     val
+  #   else
+  #     case type do
+  #       :utc_datetime ->
+  #         {:ok, dt, _offset} = DateTime.from_iso8601(val)
+  #         dt
 
-        :naive_datetime ->
-          NaiveDateTime.from_iso8601!(val)
+  #       :naive_datetime ->
+  #         NaiveDateTime.from_iso8601!(val)
 
-        {:embed, _} ->
-          decode_embed(type, val)
+  #       {:embed, _} ->
+  #         decode_embed(type, val)
 
-        t when t in [Ecto.Adapters.DynamoDB.DynamoDBSet, MapSet] ->
-          MapSet.new(val)
+  #       t when t in [Ecto.Adapters.DynamoDB.DynamoDBSet, MapSet] ->
+  #         MapSet.new(val)
 
-        _ -> val
-      end
-    end
-  end
+  #       _ -> val
+  #     end
+  #   end
+  # end
 
-  defp decode_embed(type, val) do
-    case Ecto.Adapters.SQL.load_embed(type, val) do
-      {:ok, decoded_value} ->
-        decoded_value
-      :error ->
-        ecto_dynamo_log(:info, "#{inspect __MODULE__}.decode_embed: failed to decode embedded value: #{inspect val}")
-        nil
-    end
-  end
+  # defp decode_embed(type, val) do
+  #   case Ecto.Adapters.SQL.load_embed(type, val) do
+  #     {:ok, decoded_value} ->
+  #       decoded_value
+  #     :error ->
+  #       ecto_dynamo_log(:info, "#{inspect __MODULE__}.decode_embed: failed to decode embedded value: #{inspect val}")
+  #       nil
+  #   end
+  # end
   # We found one instance where DynamoDB's error message could
   # be more instructive - when trying to set an indexed field to something
   # other than a string or number - so we're adding a more helpful message.
