@@ -208,8 +208,8 @@ defmodule Ecto.Adapters.DynamoDB do
   #                 {:cached, (prepared -> :ok), cached} |
   #                 {:cache, (cached -> :ok), prepared}
 
-  def execute(%{repo: repo} = _adapter_meta, %{select: %{from: {_, {_, _, _, types}}}} = meta, {:nocache, {func, prepared}}, params, opts) do
-    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.execute", %{"#{inspect __MODULE__}.execute-params" => %{repo: repo, meta: meta, prepared: prepared, params: params, opts: opts}})
+  def execute(%{repo: repo}, query_meta, {:nocache, {func, prepared}}, params, opts) do
+    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.execute", %{"#{inspect __MODULE__}.execute-params" => %{repo: repo, query_meta: query_meta, prepared: prepared, params: params, opts: opts}})
 
     {table, _model} = prepared.from.source # table and model are now nested under .from.source
     validate_where_clauses!(prepared)
@@ -251,6 +251,9 @@ defmodule Ecto.Adapters.DynamoDB do
           # Empty map means "not found"
           {0, []}
         else
+          # extract the field names and types from the query_meta.
+          %{select: %{from: {_, {_, _, _, types}}}} = query_meta
+
           cond do
             !result["Count"] and !result["Responses"] ->
               decoded = decode_item(result["Item"], types)
@@ -551,7 +554,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  def insert_all(%{repo: repo} = _adapter_meta, schema_meta, field_list, rows, on_conflict, return_sources, opts) do
+  def insert_all(%{repo: repo}, schema_meta, field_list, rows, on_conflict, return_sources, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.insert_all", %{"#{inspect __MODULE__}.insert_all-params" => %{repo: repo, schema_meta: schema_meta, field_list: field_list, rows: rows, on_conflict: on_conflict, return_sources: return_sources, opts: opts}})
 
     insert_nil_field_option = Keyword.get(opts, :insert_nil_fields, true)
@@ -646,7 +649,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # In testing, 'filters' contained only the primary key and value
   # TODO: handle cases of more than one tuple in 'filters'?
-  def delete(%{repo: repo} = _adapter_meta, schema_meta, filters, opts) do
+  def delete(%{repo: repo}, schema_meta, filters, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.delete", %{"#{inspect __MODULE__}.delete-params" => %{repo: repo, schema_meta: schema_meta, filters: filters, opts: opts}})
 
     table = schema_meta.source
@@ -699,7 +702,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  def update(%{repo: repo} = _adapter_meta, schema_meta, fields, filters, returning, opts) do
+  def update(%{repo: repo}, schema_meta, fields, filters, returning, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.update", %{"#{inspect __MODULE__}.update-params" => %{repo: repo, schema_meta: schema_meta, fields: fields, filters: filters, returning: returning, opts: opts}})
 
     table = schema_meta.source

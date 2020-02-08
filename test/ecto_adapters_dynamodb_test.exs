@@ -536,91 +536,91 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
   end
 
-  # describe "Repo.update_all/3" do
-  #   test "update fields on multiple records based on a primary hash key query" do
-  #     person1 = %{
-  #                 id: "person-george",
-  #                 first_name: "George",
-  #                 last_name: "Washington",
-  #                 age: 70,
-  #                 email: "george@washington.com",
-  #                 password: "password",
-  #               }
-  #     person2 = %{
-  #                 id: "person-thomas",
-  #                 first_name: "Thomas",
-  #                 last_name: "Jefferson",
-  #                 age: 27,
-  #                 email: "thomas@jefferson.com",
-  #                 password: "password",
-  #               }
-  #     person3 = %{
-  #                 id: "person-warren",
-  #                 first_name: "Warren",
-  #                 last_name: "Harding",
-  #                 age: 71,
-  #                 email: "warren@harding.com",
-  #                 password: "password",
-  #               }
+  describe "Repo.update_all/3" do
+    test "update fields on multiple records based on a primary hash key query" do
+      person1 = %{
+                  id: "person-george",
+                  first_name: "George",
+                  last_name: "Washington",
+                  age: 70,
+                  email: "george@washington.com",
+                  password: "password",
+                }
+      person2 = %{
+                  id: "person-thomas",
+                  first_name: "Thomas",
+                  last_name: "Jefferson",
+                  age: 27,
+                  email: "thomas@jefferson.com",
+                  password: "password",
+                }
+      person3 = %{
+                  id: "person-warren",
+                  first_name: "Warren",
+                  last_name: "Harding",
+                  age: 71,
+                  email: "warren@harding.com",
+                  password: "password",
+                }
 
-  #     ids = [person1.id, person2.id, person3.id]
-  #     TestRepo.insert_all(Person, [person1, person2, person3])
+      ids = [person1.id, person2.id, person3.id]
+      TestRepo.insert_all(Person, [person1, person2, person3])
 
-  #     # Note that we test queries with both hard-coded and variable lists, as these are handled differently.
-  #     hc_query = from p in Person, where: p.id in ["person-george", "person-thomas", "person-warren"]
-  #     var_query = from p in Person, where: p.id in ^ids
+      # Note that we test queries with both hard-coded and variable lists, as these are handled differently.
+      hc_query = from p in Person, where: p.id in ["person-george", "person-thomas", "person-warren"]
+      var_query = from p in Person, where: p.id in ^ids
 
-  #     TestRepo.update_all(hc_query, set: [last_name: nil])
-  #     TestRepo.update_all(var_query, set: [password: nil])
+      TestRepo.update_all(hc_query, set: [last_name: nil])
+      TestRepo.update_all(var_query, set: [password: nil])
 
-  #     result = TestRepo.all(from p in Person, where: p.id in ^ids)
-  #              |> Enum.map(fn(item) -> [item.last_name, item.password] end)
+      result = TestRepo.all(from p in Person, where: p.id in ^ids)
+               |> Enum.map(fn(item) -> [item.last_name, item.password] end)
 
-  #     assert result == [[nil, nil], [nil, nil], [nil, nil]]
+      assert result == [[nil, nil], [nil, nil], [nil, nil]]
 
-  #     TestRepo.update_all(hc_query, set: [first_name: "Joey", age: 12])
-  #     TestRepo.update_all(var_query, set: [password: "cheese", last_name: "Smith"])
+      TestRepo.update_all(hc_query, set: [first_name: "Joey", age: 12])
+      TestRepo.update_all(var_query, set: [password: "cheese", last_name: "Smith"])
 
-  #     result = TestRepo.all(from p in Person, where: p.id in ^ids)
-  #              |> Enum.map(fn(item) -> [item.first_name, item.last_name, item.age, item.password] end)
+      result = TestRepo.all(from p in Person, where: p.id in ^ids)
+               |> Enum.map(fn(item) -> [item.first_name, item.last_name, item.age, item.password] end)
 
-  #     assert result == [["Joey", "Smith", 12, "cheese"], ["Joey", "Smith", 12, "cheese"], ["Joey", "Smith", 12, "cheese"]]
-  #   end
+      assert result == [["Joey", "Smith", 12, "cheese"], ["Joey", "Smith", 12, "cheese"], ["Joey", "Smith", 12, "cheese"]]
+    end
 
-  #   test "update fields on multiple records based on a primary composite key query" do
-  #     page1 = %{
-  #               id: "page:test-3",
-  #               page_num: 1,
-  #               text: "abc",
-  #             }
-  #     page2 = %{
-  #               id: "page:test-4",
-  #               page_num: 2,
-  #               text: "def",
-  #             }
+    test "update fields on multiple records based on a primary composite key query" do
+      page1 = %{
+                id: "page:test-3",
+                page_num: 1,
+                text: "abc",
+              }
+      page2 = %{
+                id: "page:test-4",
+                page_num: 2,
+                text: "def",
+              }
 
-  #     TestRepo.insert_all(BookPage, [page1, page2])
-  #     ids = [page1.id, page2.id]
-  #     pages = [1, 2]
+      TestRepo.insert_all(BookPage, [page1, page2])
+      ids = [page1.id, page2.id]
+      pages = [1, 2]
 
-  #     hc_query = from bp in BookPage, where: bp.id in ["page:test-3", "page:test-4"] and bp.page_num in [1, 2]
-  #     var_query = from bp in BookPage, where: bp.id in ^ids and bp.page_num in ^pages
+      hc_query = from bp in BookPage, where: bp.id in ["page:test-3", "page:test-4"] and bp.page_num in [1, 2]
+      var_query = from bp in BookPage, where: bp.id in ^ids and bp.page_num in ^pages
 
-  #     TestRepo.update_all(hc_query, set: [text: "Call me Ishmael..."])
+      TestRepo.update_all(hc_query, set: [text: "Call me Ishmael..."])
 
-  #     hc_result = TestRepo.all(hc_query)
-  #                 |> Enum.map(fn(item) -> item.text end)
+      hc_result = TestRepo.all(hc_query)
+                  |> Enum.map(fn(item) -> item.text end)
 
-  #     assert hc_result == ["Call me Ishmael...", "Call me Ishmael..."]
+      assert hc_result == ["Call me Ishmael...", "Call me Ishmael..."]
 
-  #     TestRepo.update_all(var_query, set: [text: "... or just Joe would be fine."])
+      TestRepo.update_all(var_query, set: [text: "... or just Joe would be fine."])
 
-  #     var_result = TestRepo.all(var_query)
-  #                  |> Enum.map(fn(item) -> item.text end)
+      var_result = TestRepo.all(var_query)
+                   |> Enum.map(fn(item) -> item.text end)
 
-  #     assert var_result == ["... or just Joe would be fine.", "... or just Joe would be fine."]
-  #   end
-  # end
+      assert var_result == ["... or just Joe would be fine.", "... or just Joe would be fine."]
+    end
+  end
 
   describe "Repo.delete/1" do
     test "delete a single record" do
@@ -638,31 +638,31 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
   end
 
-  # describe "Repo.delete_all/2" do
-  #   test "delete multiple records" do
-  #     TestRepo.insert(%Person{
-  #                       id: "person:delete_all_1",
-  #                       first_name: "Delete",
-  #                       age: 26,
-  #                       email: "delete_all@test.com",
-  #                     })
-  #     TestRepo.insert(%Person{
-  #                       id: "person:delete_all_2",
-  #                       first_name: "Delete",
-  #                       age: 97,
-  #                       email: "delete_all@test.com",
-  #                     })
+  describe "Repo.delete_all/2" do
+    test "delete multiple records" do
+      TestRepo.insert(%Person{
+                        id: "person:delete_all_1",
+                        first_name: "Delete",
+                        age: 26,
+                        email: "delete_all@test.com",
+                      })
+      TestRepo.insert(%Person{
+                        id: "person:delete_all_2",
+                        first_name: "Delete",
+                        age: 97,
+                        email: "delete_all@test.com",
+                      })
 
-  #     assert nil != TestRepo.get(Person, "person:delete_all_1")
-  #     assert nil != TestRepo.get(Person, "person:delete_all_2")
+      assert nil != TestRepo.get(Person, "person:delete_all_1")
+      assert nil != TestRepo.get(Person, "person:delete_all_2")
 
-  #     result = TestRepo.delete_all((from p in Person, where: p.email == "delete_all@test.com"), query_info_key: "delete_all:test_key")
-  #     assert {2, nil} == result
+      result = TestRepo.delete_all((from p in Person, where: p.email == "delete_all@test.com"), query_info_key: "delete_all:test_key")
+      assert {2, nil} == result
 
-  #     assert nil == TestRepo.get(Person, "person:delete_all_1")
-  #     assert nil == TestRepo.get(Person, "person:delete_all_2")
-  #   end
-  # end
+      assert nil == TestRepo.get(Person, "person:delete_all_1")
+      assert nil == TestRepo.get(Person, "person:delete_all_2")
+    end
+  end
 
 
   defp make_list_of_people_for_batch_insert(total_records) do
