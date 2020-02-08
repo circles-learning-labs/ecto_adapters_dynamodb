@@ -4,10 +4,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   import Ecto.Query
 
   alias Ecto.Adapters.DynamoDB.TestRepo
-  alias Ecto.Adapters.DynamoDB.TestSchema.Person
-  alias Ecto.Adapters.DynamoDB.TestSchema.Address
-  alias Ecto.Adapters.DynamoDB.TestSchema.BookPage
-  alias Ecto.Adapters.DynamoDB.TestSchema.Planet
+  alias Ecto.Adapters.DynamoDB.TestSchema.{Person, Address, BookPage, Planet}
 
   @test_table "test_person"
 

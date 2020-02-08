@@ -1111,7 +1111,7 @@ defmodule Ecto.Adapters.DynamoDB do
     types
     |> Enum.map(fn {field, _type} ->
       Map.get(item, Atom.to_string(field))
-      |> ExAws.Dynamo.Decoder.decode()
+      |> Dynamo.Decoder.decode()
     end)
   end
 
@@ -1163,7 +1163,7 @@ defmodule Ecto.Adapters.DynamoDB do
         # Repo.insert_all can present multiple records at once
         forbidden_insert_on_indexed_field = Enum.reduce(params.records, false, fn (record, acc) ->
            acc || Enum.any?(record, fn {field, val} ->
-            [type] = ExAws.Dynamo.Encoder.encode(val) |> Map.keys
+            [type] = Dynamo.Encoder.encode(val) |> Map.keys
             # Ecto does not convert Empty strings to nil before passing them to Repo.update_all or
             # Repo.insert_all DynamoDB provides an instructive message during an update (forwarded by ExAws),
             # but less so for batch_write_item, so we catch the empty string as well.

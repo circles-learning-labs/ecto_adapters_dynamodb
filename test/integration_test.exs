@@ -28,6 +28,8 @@ defmodule Ecto.Adapters.DynamoDB.Integration.Test do
 
       assert result["TableDescription"]["TableName"] == @ex_aws_dynamo_test_table_name
     end
+
+    # TODO - add tests for Dynamo.Decoder.decode()
   end
   
 end
