@@ -6,8 +6,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   alias Ecto.Adapters.DynamoDB.TestRepo
   alias Ecto.Adapters.DynamoDB.TestSchema.{Person, Address, BookPage, Planet}
 
-  @test_table "test_person"
-
   setup_all do
     TestHelper.setup_all()
 
@@ -37,7 +35,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                          password: "password",
                          __meta__: %Ecto.Schema.Metadata{
                                      context: nil,
-                                     source: @test_table, # again, source is a string, not a tuple
+                                     source: "test_person", # again, source is a string, not a tuple
                                      state: :loaded,
                                      schema: Ecto.Adapters.DynamoDB.TestSchema.Person # this new schema attribute appears in the metadata
                                    },
