@@ -92,43 +92,44 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert Ecto.get_meta(result, :state) == :loaded
     end
 
-    # test "insert a record and get with a hash/range pkey" do
-    #   name = "houseofleaves"
-    #   page1 = %BookPage{
-    #             id: name,
-    #             page_num: 1,
-    #             text: "abc",
-    #           }
-    #   page2 = %BookPage{
-    #             id: name,
-    #             page_num: 2,
-    #             text: "def",
-    #           }
-    #   cs1 = BookPage.changeset(page1)
-    #   cs2 = BookPage.changeset(page2)
-    #   duplicate_page_cs = BookPage.changeset(%BookPage{
-    #                                            id: name,
-    #                                            page_num: 1,
-    #                                            text: "ghi",
-    #                                          })
+    # This doesn't belong in Repo.get testing, it belongs in query testing.
+    test "insert a record and get with a hash/range pkey" do
+      name = "houseofleaves"
+      page1 = %BookPage{
+                id: name,
+                page_num: 1,
+                text: "abc",
+              }
+      page2 = %BookPage{
+                id: name,
+                page_num: 2,
+                text: "def",
+              }
+      cs1 = BookPage.changeset(page1)
+      cs2 = BookPage.changeset(page2)
+      duplicate_page_cs = BookPage.changeset(%BookPage{
+                                               id: name,
+                                               page_num: 1,
+                                               text: "ghi",
+                                             })
 
-    #   {:ok, page1} = TestRepo.insert(cs1)
-    #   {:ok, page2} = TestRepo.insert(cs2)
-    #   {:error, _} = TestRepo.insert(duplicate_page_cs)
+      {:ok, page1} = TestRepo.insert(cs1)
+      {:ok, page2} = TestRepo.insert(cs2)
+      {:error, _} = TestRepo.insert(duplicate_page_cs)
 
-    #   query = from p in BookPage, where: p.id == ^name
-    #   results = query |> TestRepo.all |> Enum.sort_by(&(&1.page_num))
-    #   [res1, res2] = results
+      query = from p in BookPage, where: p.id == ^name
+      results = query |> TestRepo.all |> Enum.sort_by(&(&1.page_num))
+      [res1, res2] = results
 
-    #   assert res1 == page1
-    #   assert res2 == page2
+      assert res1 == page1
+      assert res2 == page2
 
-    #   query1 = from p in BookPage, where: p.id == ^name and p.page_num == 1
-    #   query2 = from p in BookPage, where: p.id == ^name and p.page_num == 2
+      query1 = from p in BookPage, where: p.id == ^name and p.page_num == 1
+      query2 = from p in BookPage, where: p.id == ^name and p.page_num == 2
 
-    #   assert [page1] == TestRepo.all(query1)
-    #   assert [page2] == TestRepo.all(query2)
-    # end
+      assert [page1] == TestRepo.all(query1)
+      assert [page2] == TestRepo.all(query2)
+    end
   end
 
   # describe "Repo.insert_all/2" do

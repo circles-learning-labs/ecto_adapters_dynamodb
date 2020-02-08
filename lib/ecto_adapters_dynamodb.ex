@@ -130,7 +130,7 @@ defmodule Ecto.Adapters.DynamoDB do
   @doc """
   Returns the loaders for a given type.
 
-  Rather than use the Ecto adapter loaders callback, the adapter builds on ExAws' decoding functionality, please see ExAws's `ExAws.Dynamo.decode_item` and the private function, `custom_decode`, in this module, which at this time only loads :utc_datetime and :naive_datetime.
+  Rather than use the Ecto adapter loaders callback, the adapter builds on ExAws' decoding functionality, please see ExAws's `ExAws.Dynamo.Decoder` and the private function, `custom_decode`, in this module, which at this time only loads :utc_datetime and :naive_datetime.
 
   """
   def loaders(_primitive, type), do: [type]
@@ -263,14 +263,14 @@ defmodule Ecto.Adapters.DynamoDB do
 
           cond do
             !result["Count"] and !result["Responses"] ->
-              vals = decode_item(result["Item"], types)
-              {1, [vals]}
+              decoded = decode_item(result["Item"], types)
+              {1, [decoded]}
             true ->
-              # # batch_get_item returns "Responses" rather than "Items"
-              # results_to_decode = if result["Items"], do: result["Items"], else: result["Responses"][table]
+              # batch_get_item returns "Responses" rather than "Items"
+              results_to_decode = if result["Items"], do: result["Items"], else: result["Responses"][table]
 
-              # decoded = Enum.map(results_to_decode, &(decode_item(&1, model, sources, prepared.select)))
-              # {length(decoded), decoded}
+              decoded = Enum.map(results_to_decode, &(decode_item(&1, types)))
+              {length(decoded), decoded}
           end
         end
     end
@@ -1116,7 +1116,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   defp decode_item(item, types) do
     types
-    |> Enum.map(fn {field, type} ->
+    |> Enum.map(fn {field, _type} ->
       Map.get(item, Atom.to_string(field))
       |> ExAws.Dynamo.Decoder.decode()
     end)
