@@ -146,7 +146,11 @@ defmodule TestHelper do
 
     # In order to run migrations programatically, we'll need to start Ecto's migration supervisor
     IO.puts "starting migration supervisor"
-    Ecto.Migration.Supervisor.start_link()
+    # The Ecto.Migration.Supervisor module has been removed, so this definitely no longer works.
+    # Ecto.Migration.Supervisor.start_link()
+
+    # Possibly? See https://github.com/bitwalker/distillery/blob/master/docs/guides/running_migrations.md
+    # Enum.each([:ecto, :ecto_sql], &Application.ensure_all_started/1)
   end
 
   def on_exit() do

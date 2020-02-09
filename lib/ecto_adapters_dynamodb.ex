@@ -51,7 +51,8 @@ defmodule Ecto.Adapters.DynamoDB do
 
     meta = %{
       opts: [timeout: 15000, pool_size: 10],
-      telemetry: {config[:repo], :debug, config[:telemetry_prefix]}
+      telemetry: {config[:repo], :debug, config[:telemetry_prefix]},
+      migration_source: Keyword.get(config, :migration_source, "schema_migrations")
     }
 
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.init", %{"#{inspect __MODULE__}.init-params" => %{config: config}})
