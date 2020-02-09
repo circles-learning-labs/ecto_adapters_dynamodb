@@ -109,7 +109,6 @@ defmodule Ecto.Adapters.DynamoDB do
 #  def rollback(_repo, _value), do:
 #    raise BadFunctionError, message: "#{inspect __MODULE__} does not support transactions."
 
-
   @doc """
   Called to autogenerate a value for id/embed_id/binary_id.
 
@@ -152,7 +151,7 @@ defmodule Ecto.Adapters.DynamoDB do
   # assumes we are getting a UTC date (which does correspond with the
   # timestamps() macro but not necessarily with :naive_datetime in general)
   defp to_iso_string(datetime) do
-    {:ok, (datetime |> Ecto.DateTime.cast! |> Ecto.DateTime.to_iso8601) <> "Z"}
+    {:ok, (datetime |> NaiveDateTime.to_iso8601()) <> "Z"}
   end
 
 
@@ -186,6 +185,10 @@ defmodule Ecto.Adapters.DynamoDB do
   end
   # do: {:cache, {System.unique_integer([:positive]), @conn.delete_all(query)}}
 
+
+  def lock_for_migrations(meta, query, opts, callback) do
+    Ecto.Adapters.SQL.lock_for_migrations(meta, query, opts, nil, callback)
+  end
 
 
   @doc """
@@ -253,17 +256,21 @@ defmodule Ecto.Adapters.DynamoDB do
           {0, []}
         else
           # extract the field names and types from the query_meta.
-          %{select: %{from: {_, {_, _, _, types}}}} = query_meta
+          case query_meta do
+            %{select: %{from: {_, {_, _, _, types}}}} ->
+              cond do
+                !result["Count"] and !result["Responses"] ->
+                  decoded = decode_item(result["Item"], types)
+                  {1, [decoded]}
+                true ->
+                  # batch_get_item returns "Responses" rather than "Items"
+                  results_to_decode = if result["Items"], do: result["Items"], else: result["Responses"][table]
 
-          cond do
-            !result["Count"] and !result["Responses"] ->
-              decoded = decode_item(result["Item"], types)
-              {1, [decoded]}
-            true ->
-              # batch_get_item returns "Responses" rather than "Items"
-              results_to_decode = if result["Items"], do: result["Items"], else: result["Responses"][table]
-
-              decoded = Enum.map(results_to_decode, &(decode_item(&1, types)))
+                  decoded = Enum.map(results_to_decode, &(decode_item(&1, types)))
+                  {length(decoded), decoded}
+              end
+            _ ->
+              decoded = Enum.map(result["Items"], &(decode_item(&1)) )
               {length(decoded), decoded}
           end
         end
@@ -1114,6 +1121,9 @@ defmodule Ecto.Adapters.DynamoDB do
       Map.get(item, Atom.to_string(field))
       |> Dynamo.Decoder.decode()
     end)
+  end
+  defp decode_item(%{"version" => version}) do
+    [version |> Dynamo.Decoder.decode()]
   end
 
   # # This is used slightly differently

@@ -139,7 +139,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
     # We provide a configuration option for migration_table_capacity
     updated_command = maybe_add_schema_migration_table_capacity(repo_meta, command)
-
     execute_ddl(updated_command)
   end
 
@@ -158,14 +157,15 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: create_if_not_exists: table already exists.", %{table_name: table.name})
     end
 
-    :ok
+    {:ok, []}
   end
 
   def execute_ddl({:create, %Ecto.Migration.Table{} = table, field_clauses}) do
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: create table: creating table", %{table_name: table.name})
 
     create_table(table.name, field_clauses, table.options)
-    :ok
+
+    {:ok, []}
   end
 
   def execute_ddl({command, %Ecto.Migration.Index{}}) do
