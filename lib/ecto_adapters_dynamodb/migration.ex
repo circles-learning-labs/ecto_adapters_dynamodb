@@ -176,7 +176,8 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: drop: removing table", %{table_name: table.name})
 
     Dynamo.delete_table(table.name) |> ExAws.request!
-    :ok
+
+    {:ok, []}
   end
 
   def execute_ddl({:drop_if_exists, %Ecto.Migration.Table{} = table}) do
@@ -192,7 +193,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: drop_if_exists (table): table does not exist.", %{table_name: table.name})
     end
 
-    :ok
+    {:ok, []}
   end
 
   def execute_ddl({:alter, %Ecto.Migration.Table{} = table, field_clauses}) do
@@ -291,7 +292,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
                       |> maybe_default_throughput_local(table_info)
 
       case prepared_data[:global_secondary_index_updates] do
-        [] -> nil
+        [] -> {:ok, []}
         _ ->
           result = Dynamo.update_table(table.name, prepared_data) |> ExAws.request
 
@@ -300,7 +301,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
           case result do
             {:ok, _} ->
               ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: table altered successfully.", %{table_name: table.name})
-              :ok
+              {:ok, []}
 
             {:error, {error, _message}} when (error in ["LimitExceededException", "ProvisionedThroughputExceededException", "ThrottlingException"]) ->
               to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
