@@ -1120,49 +1120,51 @@ defmodule Ecto.Adapters.DynamoDB do
 
   defp decode_item(item, types) do
     types
-    |> Enum.map(fn {field, _type} ->
+    |> Enum.map(fn {field, type} ->
       Map.get(item, Atom.to_string(field))
       |> Dynamo.Decoder.decode()
+      |> decode_type(type)
     end)
   end
   defp decode_item(%{"version" => version}) do
     [version |> Dynamo.Decoder.decode()]
   end
 
-  # # This is used slightly differently
-  # # when handling select in custom_decode/2
-  # defp decode_type(type, val) do
-  #   if is_nil val do
-  #     val
-  #   else
-  #     case type do
-  #       :utc_datetime ->
-  #         {:ok, dt, _offset} = DateTime.from_iso8601(val)
-  #         dt
+  # This is used slightly differently
+  # when handling select in custom_decode/2
+  defp decode_type(val, type) do
+    if is_nil val do
+      val
+    else
+      case type do
+        :utc_datetime ->
+          {:ok, dt, _offset} = DateTime.from_iso8601(val)
+          dt
 
-  #       :naive_datetime ->
-  #         NaiveDateTime.from_iso8601!(val)
+        :naive_datetime ->
+          NaiveDateTime.from_iso8601!(val)
 
-  #       {:embed, _} ->
-  #         decode_embed(type, val)
+        {:embed, _} ->
+          decode_embed(val, type)
 
-  #       t when t in [Ecto.Adapters.DynamoDB.DynamoDBSet, MapSet] ->
-  #         MapSet.new(val)
+        t when t in [Ecto.Adapters.DynamoDB.DynamoDBSet, MapSet] ->
+          MapSet.new(val)
 
-  #       _ -> val
-  #     end
-  #   end
-  # end
+        _ -> val
+      end
+    end
+  end
 
-  # defp decode_embed(type, val) do
-  #   case Ecto.Adapters.SQL.load_embed(type, val) do
-  #     {:ok, decoded_value} ->
-  #       decoded_value
-  #     :error ->
-  #       ecto_dynamo_log(:info, "#{inspect __MODULE__}.decode_embed: failed to decode embedded value: #{inspect val}")
-  #       nil
-  #   end
-  # end
+  defp decode_embed(val, type) do
+    case Ecto.Adapters.SQL.load_embed(type, val) do
+      {:ok, decoded_value} ->
+        decoded_value
+      :error ->
+        ecto_dynamo_log(:info, "#{inspect __MODULE__}.decode_embed: failed to decode embedded value: #{inspect val}")
+        nil
+    end
+  end
+
   # We found one instance where DynamoDB's error message could
   # be more instructive - when trying to set an indexed field to something
   # other than a string or number - so we're adding a more helpful message.
