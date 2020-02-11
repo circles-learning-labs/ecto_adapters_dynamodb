@@ -270,7 +270,8 @@ defmodule Ecto.Adapters.DynamoDB do
                   {length(decoded), decoded}
               end
             _ ->
-              decoded = Enum.map(result["Items"], &(decode_item(&1)) )
+              # When running migrations...
+              decoded = Enum.map(result["Items"], &(decode_item(&1)))
               {length(decoded), decoded}
           end
         end
