@@ -1,74 +1,14 @@
 defmodule Ecto.Adapters.DynamoDB.TestSchema.Address do
   use Ecto.Schema
+  @timestamps_opts [type: :utc_datetime]
 
   embedded_schema do
     field :street_number, :integer
     field :street_name, :string
+
+    timestamps()
   end
 end
-
-# defmodule Ecto.Adapters.DynamoDB.TestSchema.TestSchemaMigration do
-#   use Ecto.Schema
-
-#   @primary_key {:version, :integer, []}
-#   schema "test_schema_migrations" do
-#     field :inserted_at, :utc_datetime
-#   end
-# end
-
-# defmodule Ecto.Adapters.DynamoDB.TestSchema.TestSchemaMigration do
-#   # Define a schema that works with the a table, which is schema_migrations by default
-#   @moduledoc false
-#   use Ecto.Schema
-
-#   import Ecto.Query, only: [from: 2]
-
-#   @primary_key {:version, :integer, []}
-#   schema "test_schema_migrations" do
-#     timestamps updated_at: false
-#   end
-
-#   @opts [timeout: :infinity, log: false]
-
-#   def ensure_schema_migrations_table!(repo, prefix) do
-#     adapter = repo.__adapter__
-#     create_migrations_table(adapter, repo, prefix)
-#   end
-
-#   def migrated_versions(repo, prefix) do
-#     from(p in {get_source(repo), __MODULE__}, select: p.version)
-#     |> Map.put(:prefix, prefix)
-#     |> repo.all(@opts)
-#   end
-
-#   def up(repo, version, prefix) do
-#     %__MODULE__{version: version}
-#     |> Ecto.put_meta(prefix: prefix, source: get_source(repo))
-#     |> repo.insert!(@opts)
-#   end
-
-#   def down(repo, version, prefix) do
-#     from(p in {get_source(repo), __MODULE__}, where: p.version == ^version)
-#     |> Map.put(:prefix, prefix)
-#     |> repo.delete_all(@opts)
-#   end
-
-#   def get_source(repo) do
-#     Keyword.get(repo.config, :migration_source, "test_schema_migrations")
-#   end
-
-#   defp create_migrations_table(adapter, repo, prefix) do
-#     table_name = repo |> get_source |> String.to_atom
-#     table = %Ecto.Migration.Table{name: table_name, prefix: prefix}
-
-#     # DDL queries do not log, so we do not need to pass log: false here.
-#     adapter.execute_ddl(repo,
-#       {:create_if_not_exists, table, [
-#         {:add, :version, :bigint, primary_key: true},
-#         {:add, :inserted_at, :naive_datetime, []}]}, @opts)
-#   end
-# end
-
 
 defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
   use Ecto.Schema
@@ -150,3 +90,65 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Planet do
     # on a composite primary key, we'll allow for duplicate ids but enforce unique names.
   end
 end
+
+# defmodule Ecto.Adapters.DynamoDB.TestSchema.TestSchemaMigration do
+#   use Ecto.Schema
+
+#   @primary_key {:version, :integer, []}
+#   schema "test_schema_migrations" do
+#     field :inserted_at, :utc_datetime
+#   end
+# end
+
+# defmodule Ecto.Adapters.DynamoDB.TestSchema.TestSchemaMigration do
+#   # Define a schema that works with the a table, which is schema_migrations by default
+#   @moduledoc false
+#   use Ecto.Schema
+
+#   import Ecto.Query, only: [from: 2]
+
+#   @primary_key {:version, :integer, []}
+#   schema "test_schema_migrations" do
+#     timestamps updated_at: false
+#   end
+
+#   @opts [timeout: :infinity, log: false]
+
+#   def ensure_schema_migrations_table!(repo, prefix) do
+#     adapter = repo.__adapter__
+#     create_migrations_table(adapter, repo, prefix)
+#   end
+
+#   def migrated_versions(repo, prefix) do
+#     from(p in {get_source(repo), __MODULE__}, select: p.version)
+#     |> Map.put(:prefix, prefix)
+#     |> repo.all(@opts)
+#   end
+
+#   def up(repo, version, prefix) do
+#     %__MODULE__{version: version}
+#     |> Ecto.put_meta(prefix: prefix, source: get_source(repo))
+#     |> repo.insert!(@opts)
+#   end
+
+#   def down(repo, version, prefix) do
+#     from(p in {get_source(repo), __MODULE__}, where: p.version == ^version)
+#     |> Map.put(:prefix, prefix)
+#     |> repo.delete_all(@opts)
+#   end
+
+#   def get_source(repo) do
+#     Keyword.get(repo.config, :migration_source, "test_schema_migrations")
+#   end
+
+#   defp create_migrations_table(adapter, repo, prefix) do
+#     table_name = repo |> get_source |> String.to_atom
+#     table = %Ecto.Migration.Table{name: table_name, prefix: prefix}
+
+#     # DDL queries do not log, so we do not need to pass log: false here.
+#     adapter.execute_ddl(repo,
+#       {:create_if_not_exists, table, [
+#         {:add, :version, :bigint, primary_key: true},
+#         {:add, :inserted_at, :naive_datetime, []}]}, @opts)
+#   end
+# end
