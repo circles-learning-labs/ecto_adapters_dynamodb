@@ -16,8 +16,8 @@ defmodule Ecto.Adapters.DynamoDB do
   @behaviour Ecto.Adapter
   @behaviour Ecto.Adapter.Schema
   @behaviour Ecto.Adapter.Queryable
-  #@behaviour Ecto.Adapter.Storage
-  #@behaviour Ecto.Adapter.Migration
+  # @behaviour Ecto.Adapter.Storage
+  # @behaviour Ecto.Adapter.Migration
 
   defmacro __before_compile__(_env) do
     # Nothing to see here, yet...
@@ -151,12 +151,15 @@ defmodule Ecto.Adapters.DynamoDB do
   # assumes we are getting a UTC date (which does correspond with the
   # timestamps() macro but not necessarily with :naive_datetime in general)
   defp to_iso_string(datetime) do
-    case datetime do
-      %NaiveDateTime{} ->
-        {:ok, (datetime |> NaiveDateTime.to_iso8601()) <> "Z"}
-      %DateTime{} ->
-        {:ok, datetime |> DateTime.to_iso8601()}
-    end
+    iso_string =
+      case datetime do
+        %NaiveDateTime{} ->
+          (datetime |> NaiveDateTime.to_iso8601()) <> "Z"
+        %DateTime{} ->
+          datetime |> DateTime.to_iso8601()
+      end
+
+    {:ok, iso_string}
   end
 
 
@@ -170,7 +173,7 @@ defmodule Ecto.Adapters.DynamoDB do
   def prepare(:all, query) do
     # 'preparing' is more a SQL concept - Do we really need to do anything here or just pass the params through?
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.prepare: :all", %{"#{inspect __MODULE__}.prepare-params" => %{query: inspect(query, structs: false)}})
- 
+
     {:nocache, {:all, query}}
   end
 
@@ -263,20 +266,22 @@ defmodule Ecto.Adapters.DynamoDB do
           # extract the field names and types from the query_meta.
           case query_meta do
             %{select: %{from: {_, {_, _, _, types}}}} ->
-              cond do
-                !result["Count"] and !result["Responses"] ->
-                  decoded = decode_item(result["Item"], types)
-                  {1, [decoded]}
-                true ->
-                  # batch_get_item returns "Responses" rather than "Items"
-                  results_to_decode = if result["Items"], do: result["Items"], else: result["Responses"][table]
 
-                  decoded = Enum.map(results_to_decode, &(decode_item(&1, types)))
-                  {length(decoded), decoded}
+              if !result["Count"] and !result["Responses"] do
+                decoded = decode_item(result["Item"], types)
+
+                {1, [decoded]}
+              else
+                # batch_get_item returns "Responses" rather than "Items"
+                results_to_decode = if result["Items"], do: result["Items"], else: result["Responses"][table]
+                decoded = Enum.map(results_to_decode, &(decode_item(&1, types)))
+
+                {length(decoded), decoded}
               end
             _ ->
               # When running migrations...
               decoded = Enum.map(result["Items"], &(decode_item(&1)))
+
               {length(decoded), decoded}
           end
         end
@@ -521,9 +526,6 @@ defmodule Ecto.Adapters.DynamoDB do
     insert_nil_field_option = Keyword.get(opts, :insert_nil_fields, true)
     do_not_insert_nil_fields = insert_nil_field_option == false || Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
 
-    # {_, table} = schema_meta.source
-
-    # schema_meta no longer returns a tuple, just a string
     table = schema_meta.source
 
     model = schema_meta.schema
@@ -618,7 +620,7 @@ defmodule Ecto.Adapters.DynamoDB do
                                  end)
 
     result_body_for_log = %{table => Enum.flat_map(results, fn(res) -> res[unprocessed_items_element][table] || [] end)}
-    
+
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.batch_write: batch_write_attempt result", %{"#{inspect __MODULE__}.insert_all-batch_write" => inspect %{unprocessed_items_element => (if result_body_for_log[table] == [], do: %{}, else: result_body_for_log)}})
 
     {total_processed, nil}
