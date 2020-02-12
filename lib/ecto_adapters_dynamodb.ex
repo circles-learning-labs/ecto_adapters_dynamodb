@@ -152,10 +152,10 @@ defmodule Ecto.Adapters.DynamoDB do
   # timestamps() macro but not necessarily with :naive_datetime in general)
   defp to_iso_string(datetime) do
     case datetime do
-      d = %NaiveDateTime{} ->
-        {:ok, (d |> NaiveDateTime.to_iso8601()) <> "Z"}
-      d = %DateTime{} ->
-        {:ok, (d |> DateTime.to_iso8601())}
+      %NaiveDateTime{} ->
+        {:ok, (datetime |> NaiveDateTime.to_iso8601()) <> "Z"}
+      %DateTime{} ->
+        {:ok, datetime |> DateTime.to_iso8601()}
     end
   end
 
@@ -1142,11 +1142,11 @@ defmodule Ecto.Adapters.DynamoDB do
       val
     else
       case type do
-        :utc_datetime ->
+        t when t in [:utc_datetime_usec, :utc_datetime] ->
           {:ok, dt, _offset} = DateTime.from_iso8601(val)
           dt
 
-        :naive_datetime ->
+        t when t in [:naive_datetime_usec, :naive_datetime] ->
           NaiveDateTime.from_iso8601!(val)
 
         {:embed, _} ->

@@ -15,55 +15,55 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end)
   end
 
-  describe "Repo.insert/1" do
-    test "insert a single record" do
-      {:ok, result} = TestRepo.insert(%Person{
-                                 id: "person-hello",
-                                 first_name: "Hello",
-                                 last_name: "World",
-                                 age: 34,
-                                 email: "hello@world.com",
-                                 password: "password",
-                               })
+  # describe "Repo.insert/1" do
+  #   test "insert a single record" do
+  #     {:ok, result} = TestRepo.insert(%Person{
+  #                                id: "person-hello",
+  #                                first_name: "Hello",
+  #                                last_name: "World",
+  #                                age: 34,
+  #                                email: "hello@world.com",
+  #                                password: "password",
+  #                              })
 
-      assert result == %Ecto.Adapters.DynamoDB.TestSchema.Person{
-                         age: 34,
-                         email: "hello@world.com",
-                         first_name: "Hello",
-                         id: "person-hello",
-                         last_name: "World",
-                         password: "password",
-                         __meta__: %Ecto.Schema.Metadata{
-                                     context: nil,
-                                     source: "test_person", # again, source is a string, not a tuple
-                                     state: :loaded,
-                                     schema: Ecto.Adapters.DynamoDB.TestSchema.Person # this new schema attribute appears in the metadata
-                                   },
-                       }
-    end
+  #     assert result == %Ecto.Adapters.DynamoDB.TestSchema.Person{
+  #                        age: 34,
+  #                        email: "hello@world.com",
+  #                        first_name: "Hello",
+  #                        id: "person-hello",
+  #                        last_name: "World",
+  #                        password: "password",
+  #                        __meta__: %Ecto.Schema.Metadata{
+  #                                    context: nil,
+  #                                    source: "test_person", # again, source is a string, not a tuple
+  #                                    state: :loaded,
+  #                                    schema: Ecto.Adapters.DynamoDB.TestSchema.Person # this new schema attribute appears in the metadata
+  #                                  },
+  #                      }
+  #   end
 
-    test "insert embedded records" do
-      address_list = [
-                       %Address{
-                         street_number: 245,
-                         street_name: "W 17th St"
-                       },
-                       %Address{
-                         street_number: 1385,
-                         street_name: "Broadway"
-                       }
-                     ]
-      {:ok, result} = TestRepo.insert(%Person{
-                                        id: "person:address_test",
-                                        first_name: "Person",
-                                        email: "addr@test.com",
-                                        age: 2,
-                                        addresses: address_list
-                                      })
+  #   test "insert embedded records" do
+  #     address_list = [
+  #                      %Address{
+  #                        street_number: 245,
+  #                        street_name: "W 17th St"
+  #                      },
+  #                      %Address{
+  #                        street_number: 1385,
+  #                        street_name: "Broadway"
+  #                      }
+  #                    ]
+  #     {:ok, result} = TestRepo.insert(%Person{
+  #                                       id: "person:address_test",
+  #                                       first_name: "Person",
+  #                                       email: "addr@test.com",
+  #                                       age: 2,
+  #                                       addresses: address_list
+  #                                     })
 
-      assert length(result.addresses) == 2
-    end
-  end
+  #     assert length(result.addresses) == 2
+  #   end
+  # end
 
   describe "Repo.get/2" do
     test "Repo.get/2 - no matching record" do

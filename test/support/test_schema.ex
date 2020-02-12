@@ -74,7 +74,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
   use Ecto.Schema
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
-  @timestamps_opts [type: :utc_datetime_usec]
+  @timestamps_opts [type: :naive_datetime_usec]
   
   alias Ecto.Adapters.DynamoDB.TestSchema.Address
 
@@ -109,12 +109,13 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.BookPage do
   use Ecto.Schema
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
+  @timestamps_opts [type: :utc_datetime_usec]
 
   schema "test_book_page" do
     field :page_num, :integer
     field :text,     :string
 
-    # timestamps()
+    timestamps()
   end
 
   def changeset(page, params \\ %{}) do
@@ -137,7 +138,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Planet do
     field :name, :string
     field :mass, :integer
 
-    # timestamps()
+    timestamps() # default timestamps_opts is :naive_datetime
   end
 
   def changeset(struct, params \\ %{}) do
