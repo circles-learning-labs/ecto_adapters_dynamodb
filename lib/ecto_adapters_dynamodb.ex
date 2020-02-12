@@ -782,7 +782,7 @@ defmodule Ecto.Adapters.DynamoDB do
   do: if is_binary(s), do: String.to_atom(s), else: s
 
   defp construct_condition_expression([{field, _val}] = _filters),
-  do: "attribute_exists(##{to_string(field)})"
+    do: "attribute_exists(##{to_string(field)})"
 
   defp extract_query_info(result), do: result |> Map.take(["Count", "ScannedCount", "LastEvaluatedKey", "UnprocessedItems", "UnprocessedKeys"])
 
