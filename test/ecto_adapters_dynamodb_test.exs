@@ -61,7 +61,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         __meta__: %Ecto.Schema.Metadata{
           state: :loaded,
           source: "test_person",
-          schema: Ecto.Adapters.DynamoDB.TestSchema.Person
+          schema: Person
         },
         addresses: [],
         age: 40,
@@ -676,6 +676,19 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       {:ok, updated_planet} =
         Ecto.Changeset.change(planet, mass: 0)
         |> TestRepo.update(range_key: {:name, planet.name})
+
+      assert updated_planet == %Planet{
+        __meta__: %Ecto.Schema.Metadata{
+          state: :loaded,
+          source: "test_planet",
+          schema: Planet
+        },
+        id: "neptune",
+        inserted_at: planet.inserted_at,
+        mass: 0,
+        name: "Neptune",
+        updated_at: updated_planet.updated_at
+      }
 
       {:ok, _} =
         TestRepo.delete(%Planet{id: planet.id}, range_key: {:name, planet.name})
