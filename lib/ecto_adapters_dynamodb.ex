@@ -662,45 +662,13 @@ defmodule Ecto.Adapters.DynamoDB do
     |> Map.merge(empty_strings_to_nil)
   end
 
-
-  # In testing, 'filters' contained only the primary key and value
-  # TODO: handle cases of more than one tuple in 'filters'?
-  def delete(%{repo: repo}, schema_meta, filters, opts) do
+  def delete(repo, schema_meta, filters, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.delete", %{"#{inspect __MODULE__}.delete-params" => %{repo: repo, schema_meta: schema_meta, filters: filters, opts: opts}})
 
     table = schema_meta.source
 
-    # We offer the :range_key option for tables with composite primary key
-    # since Ecto will not provide the range_key value needed for the query.
-    # If :range_key is not provided, check if the table has a composite
-    # primary key and query for all the key values
-    updated_filters = case opts[:range_key] do
-      nil ->
-        {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
-        if (length key_list) > 1 do
-          updated_opts = opts ++ [projection_expression: Enum.join(key_list, ", ")]
-          filters_as_strings = for {field, val} <- filters, do: {Atom.to_string(field), {val, :==}}
-          fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, filters_as_strings, updated_opts)
-          items = case fetch_result do
-            %{"Items" => fetch_items} -> fetch_items
-            %{"Item" => item}         -> [item]
-            _                         -> []
-          end
-
-          if items == [], do: raise "__MODULE__.update error: no results found for record: #{inspect filters}"
-          if (length items) > 1, do: raise "__MODULE__.update error: more than one result found for record: #{inspect filters} Please consider using the adapter's :range_key custom inline option (see README)."
-
-          for {field, key_map} <- Map.to_list(hd items) do
-            [{_field_type, val}] = Map.to_list(key_map)
-            {field, val}
-          end
-         else
-          filters
-         end
-
-      range_key ->
-        [range_key | filters]
-    end
+    updated_filters =
+      maybe_update_filters_for_range_key(table, schema_meta, filters, opts, "delete")
 
     attribute_names = construct_expression_attribute_names(keys_to_atoms(filters))
 
@@ -723,37 +691,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     table = schema_meta.source
 
-    # We offer the :range_key option for tables with composite primary key
-    # since Ecto will not provide the range_key value needed for the query.
-    # If :range_key is not provided, check if the table has a composite
-    # primary key and query for all the key values
-    updated_filters = case opts[:range_key] do
-      nil ->
-        {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
-        if (length key_list) > 1 do
-          updated_opts = opts ++ [projection_expression: Enum.join(key_list, ", ")]
-          filters_as_strings = for {field, val} <- filters, do: {Atom.to_string(field), {val, :==}}
-          fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, filters_as_strings, updated_opts)
-          items = case fetch_result do
-            %{"Items" => fetch_items} -> fetch_items
-            %{"Item" => item}         -> [item]
-            _                         -> []
-          end
-
-          if items == [], do: raise "__MODULE__.update error: no results found for record: #{inspect filters}"
-          if (length items) > 1, do: raise "__MODULE__.update error: more than one result found for record: #{inspect filters} Please consider using the adapter's :range_key custom inline option (see README)."
-
-          for {field, key_map} <- Map.to_list(hd items) do
-            [{_field_type, val}] = Map.to_list(key_map)
-            {field, val}
-          end
-         else
-          filters
-         end
-
-      range_key ->
-        [range_key | filters]
-    end
+    updated_filters = maybe_update_filters_for_range_key(table, schema_meta, filters, opts, "update")
 
     update_expression = construct_update_expression(fields, opts)
     # add updated_filters to attribute_ names and values for condition_expression
@@ -775,14 +713,60 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
+
+
+  # Support for tables with a hash+range key.
+  #
+  #  * If the schema has both keys declared (using the `primary_key: true`) the filters are already correct
+  #  * If :range_key is specified with a value it is added to filters
+  #  * If :range_key is not specified, and the table does have a range key, attempt to find it with a DynamoDB query
+  #
+  defp maybe_update_filters_for_range_key(table, schema_meta, filters, opts, action) do
+      with primary_key_length <- length(schema_meta.schema.__schema__(:primary_key)) do
+        case opts[:range_key] do
+          # Use primary keys declared in schema
+          nil when primary_key_length == 2 ->
+            filters
+          nil ->
+            {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
+            if (length key_list) > 1 do
+              updated_opts = opts ++ [projection_expression: Enum.join(key_list, ", ")]
+              filters_as_strings = for {field, val} <- filters, do: {Atom.to_string(field), {val, :==}}
+              fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, filters_as_strings, updated_opts)
+              items = case fetch_result do
+                %{"Items" => fetch_items} -> fetch_items
+                %{"Item" => item}         -> [item]
+                _                         -> []
+              end
+
+              if items == [], do: raise "#{inspect __MODULE__}.#{action} error: no results found for record: #{inspect filters}"
+              if (length items) > 1, do: raise "#{inspect __MODULE__}.#{action} error: more than one result found for record: #{inspect filters} Please consider using the adapter's :range_key custom inline option (see README)."
+
+              for {field, key_map} <- Map.to_list(hd items) do
+                [{_field_type, val}] = Map.to_list(key_map)
+                {field, val}
+              end
+            else
+              filters
+            end
+
+          range_key ->
+            [range_key | filters]
+        end
+      end
+  end
+
   defp keys_to_atoms(list),
   do: for {k, v} <- list, do: {maybe_string_to_atom(k), v}
 
   defp maybe_string_to_atom(s),
   do: if is_binary(s), do: String.to_atom(s), else: s
 
-  defp construct_condition_expression([{field, _val}] = _filters),
-    do: "attribute_exists(##{to_string(field)})"
+  defp construct_condition_expression(filters) when is_list(filters) do
+    Keyword.keys(filters)
+    |> Enum.map(fn field -> "attribute_exists(##{to_string(field)})" end)
+    |> Enum.join(" AND ")
+  end
 
   defp extract_query_info(result), do: result |> Map.take(["Count", "ScannedCount", "LastEvaluatedKey", "UnprocessedItems", "UnprocessedKeys"])
 

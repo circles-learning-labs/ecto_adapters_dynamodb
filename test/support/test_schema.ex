@@ -15,7 +15,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   @timestamps_opts [type: :naive_datetime_usec]
-  
+
   alias Ecto.Adapters.DynamoDB.TestSchema.Address
 
   schema "test_person" do
@@ -41,10 +41,8 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
   end
 end
 
-# This is used to test records that have a hash+range primary key
-# However there's no way to specify this on the Ecto side: we just
-# tell Ecto that the hash key (:id) is the primary key, and that the
-# range key (:page_num) is a required field.
+# This is used to test records that have a hash+range primary key.
+# Use the `primary_key: true` option on the field for the range key.
 defmodule Ecto.Adapters.DynamoDB.TestSchema.BookPage do
   use Ecto.Schema
   @primary_key {:id, :binary_id, autogenerate: true}
@@ -52,7 +50,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.BookPage do
   @timestamps_opts [type: :utc_datetime_usec]
 
   schema "test_book_page" do
-    field :page_num, :integer
+    field :page_num, :integer, primary_key: true
     field :text,     :string
 
     timestamps()

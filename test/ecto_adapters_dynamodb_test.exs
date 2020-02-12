@@ -647,6 +647,41 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
   end
 
+  describe "modifying records with composite primary keys" do
+    test "update a record using a hash and range key" do
+      assert {:ok, book_page} = TestRepo.insert(%BookPage{
+        id: "gatsby",
+        page_num: 1
+      })
+
+      {:ok, _} = BookPage.changeset(book_page, %{text: "Believe"})
+      |> TestRepo.update()
+
+      assert %BookPage{text: "Believe"}  = TestRepo.get_by(BookPage, [id: "gatsby", page_num: 1])
+
+      {:ok, _} = TestRepo.delete(book_page)
+
+      assert nil == TestRepo.get_by(BookPage, [id: "gatsby", page_num: 1])
+    end
+
+    test "update a record using the legacy :range_key option" do
+      assert 1 == length(Planet.__schema__(:primary_key)), "the schema have a single key declared"
+
+      assert {:ok, planet} = TestRepo.insert(%Planet{
+        id: "neptune",
+        name: "Neptune",
+        mass: 123245
+      })
+
+      {:ok, updated_planet} =
+        Ecto.Changeset.change(planet, mass: 0)
+        |> TestRepo.update(range_key: {:name, planet.name})
+
+      {:ok, _} =
+        TestRepo.delete(%Planet{id: planet.id}, range_key: {:name, planet.name})
+    end
+  end
+
 
   defp make_list_of_people_for_batch_insert(total_records) do
     for i <- 0..total_records, i > 0 do
