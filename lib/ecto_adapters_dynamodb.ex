@@ -142,8 +142,8 @@ defmodule Ecto.Adapters.DynamoDB do
 
   We rely on ExAws encoding functionality during insertion and update to properly format types for DynamoDB. Please see ExAws `ExAws.Dynamo.update_item` and `ExAws.Dynamo.put_item` for specifics. Currently, we only modify :utc_datetime and :naive_datetime, appending the UTC offset, "Z", to the datetime string before passing to ExAws.
   """
-  def dumpers(:utc_datetime, datetime), do: [datetime, &to_iso_string/1]
-  def dumpers(:naive_datetime, datetime), do: [datetime, &to_iso_string/1]
+  def dumpers(type, datetime) when type in [:naive_datetime, :naive_datetime_usec, :utc_datetime, :utc_datetime_usec],
+    do: [datetime, &to_iso_string/1]
   def dumpers(_primitive, type), do: [type]
 
   # Add UTC offset
@@ -151,7 +151,12 @@ defmodule Ecto.Adapters.DynamoDB do
   # assumes we are getting a UTC date (which does correspond with the
   # timestamps() macro but not necessarily with :naive_datetime in general)
   defp to_iso_string(datetime) do
-    {:ok, (datetime |> NaiveDateTime.to_iso8601()) <> "Z"}
+    case datetime do
+      d = %NaiveDateTime{} ->
+        {:ok, (d |> NaiveDateTime.to_iso8601()) <> "Z"}
+      d = %DateTime{} ->
+        {:ok, (d |> DateTime.to_iso8601())}
+    end
   end
 
 

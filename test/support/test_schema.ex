@@ -74,7 +74,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
   use Ecto.Schema
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
-  @timestamps_opts [type: :naive_datetime]
+  @timestamps_opts [type: :utc_datetime_usec]
   
   alias Ecto.Adapters.DynamoDB.TestSchema.Address
 
@@ -91,7 +91,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
 
   def changeset(person, params \\ %{}) do
     person
-    |> Ecto.Changeset.cast(params, [:first_name, :last_name, :age, :email, :password, :role])
+    |> Ecto.Changeset.cast(params, [:first_name, :last_name, :age, :email, :password])
     |> Ecto.Changeset.validate_required([:first_name, :last_name])
     |> Ecto.Changeset.unique_constraint(:id)
   end
@@ -113,6 +113,8 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.BookPage do
   schema "test_book_page" do
     field :page_num, :integer
     field :text,     :string
+
+    # timestamps()
   end
 
   def changeset(page, params \\ %{}) do
@@ -134,6 +136,8 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Planet do
   schema "test_planet" do
     field :name, :string
     field :mass, :integer
+
+    # timestamps()
   end
 
   def changeset(struct, params \\ %{}) do
