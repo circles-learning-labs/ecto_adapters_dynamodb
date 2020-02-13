@@ -29,6 +29,8 @@ defmodule Ecto.Adapters.DynamoDB do
   alias ExAws.Dynamo
   alias Ecto.Query.BooleanExpr
 
+  @pool_opts [:timeout, :pool_size]
+
   # Called as a result of
   #
   #       start: {Ecto.Adapters.DynamoDB, :start_link,
@@ -48,10 +50,11 @@ defmodule Ecto.Adapters.DynamoDB do
       start: {__MODULE__, :start_link,
                [{__MODULE__, config}]}
     }
-
+    log = Keyword.get(config, :log, :debug)
+    telemetry_prefix = Keyword.fetch!(config, :telemetry_prefix)
     meta = %{
-      opts: [timeout: 15000, pool_size: 10],
-      telemetry: {config[:repo], :debug, config[:telemetry_prefix]},
+      opts: Keyword.take(config, @pool_opts),
+      telemetry: {config[:repo], log, telemetry_prefix},
       migration_source: Keyword.get(config, :migration_source, "schema_migrations")
     }
 
