@@ -102,15 +102,15 @@ defmodule Ecto.Adapters.DynamoDB do
     Ecto.Adapters.DynamoDB.Migration.execute_ddl(repo, command, options)
   end
 
-  # Required by behaviour Ecto.Adapter - not sure if this is the right approach, but just adapted from Ecto.Adapters.SQL
-  def checkout(meta, opts, fun) do
-    Ecto.Adapters.SQL.checkout(meta, opts, fun)
-  end
+  # # Required by behaviour Ecto.Adapter - not sure if this is the right approach, but just adapted from Ecto.Adapters.SQL
+  # def checkout(meta, opts, fun) do
+  #   Ecto.Adapters.SQL.checkout(meta, opts, fun)
+  # end
 
-  # Required by behaviour Ecto.Queryable - also, adapted from Ecto.Adapters.SQL
-  def stream(adapter_meta, query_meta, query, params, opts) do
-    Ecto.Adapters.SQL.stream(adapter_meta, query_meta, query, params, opts)
-  end
+  # # Required by behaviour Ecto.Queryable - also, adapted from Ecto.Adapters.SQL
+  # def stream(adapter_meta, query_meta, query, params, opts) do
+  #   Ecto.Adapters.SQL.stream(adapter_meta, query_meta, query, params, opts)
+  # end
 
 # moved to transaction.ex in ecto 2.1.4
 #  def in_transaction?(_repo), do: false
