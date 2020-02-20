@@ -109,24 +109,25 @@ defmodule Ecto.Adapters.DynamoDB do
 
   @impl Ecto.Adapter.Migration
   def lock_for_migrations(%{opts: adapter_opts} = _meta, query, _opts, callback) do
+    # TODO - consider adding support for this?
     if Keyword.get(adapter_opts, :migration_lock) do
-      raise "#{inspect __MODULE__}.lock_for_migrations error: #{inspect __MODULE__} does not currently support migration table lock"
+      raise "#{inspect __MODULE__}.lock_for_migrations error: #{inspect __MODULE__} does not currently support migration table lock; please remove the :migration_lock option from your repo configuration or set it to nil"
     else
       callback.(query)
     end
   end
 
-  # # Required by behaviour Ecto.Adapter - not sure if this is the right approach, but just adapted from Ecto.Adapters.SQL
-  # @impl Ecto.Adapter
-  # def checkout(meta, opts, fun) do
-  #   Ecto.Adapters.SQL.checkout(meta, opts, fun)
-  # end
+  @impl Ecto.Adapter
+  def checkout(_meta, _opts, _fun) do
+    # TODO - consider adding support for this?
+    raise "#{inspect __MODULE__}.checkout: #{inspect __MODULE__} does not currently support checkout"
+  end
 
-  # # Required by behaviour Ecto.Queryable - also, adapted from Ecto.Adapters.SQL
-  # @impl Ecto.Adapter.Queryable
-  # def stream(adapter_meta, query_meta, query, params, opts) do
-  #   Ecto.Adapters.SQL.stream(adapter_meta, query_meta, query, params, opts)
-  # end
+  @impl Ecto.Adapter.Queryable
+  def stream(_adapter_meta, _query_meta, _query, _params, _opts) do
+    # TODO - consider adding support for this?
+    raise "#{inspect __MODULE__}.stream: #{inspect __MODULE__} does not currently support stream"
+  end
 
 # moved to transaction.ex in ecto 2.1.4
 #  def in_transaction?(_repo), do: false
