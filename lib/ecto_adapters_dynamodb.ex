@@ -16,8 +16,8 @@ defmodule Ecto.Adapters.DynamoDB do
   @behaviour Ecto.Adapter
   @behaviour Ecto.Adapter.Schema
   @behaviour Ecto.Adapter.Queryable
+  @behaviour Ecto.Adapter.Migration
   # @behaviour Ecto.Adapter.Storage
-  # @behaviour Ecto.Adapter.Migration
 
   @impl Ecto.Adapter
   defmacro __before_compile__(_env) do
@@ -29,7 +29,7 @@ defmodule Ecto.Adapters.DynamoDB do
   alias ExAws.Dynamo
   alias Ecto.Query.BooleanExpr
 
-  @pool_opts [:timeout, :pool_size]
+  @pool_opts [:timeout, :pool_size, :migration_lock]
 
   # Called as a result of
   #
@@ -100,10 +100,21 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
+  @impl Ecto.Adapter.Migration
   def supports_ddl_transaction?, do: false
 
+  @impl Ecto.Adapter.Migration
   def execute_ddl(repo, command, options) do
     Ecto.Adapters.DynamoDB.Migration.execute_ddl(repo, command, options)
+  end
+
+  @impl Ecto.Adapter.Migration
+  def lock_for_migrations(%{opts: adapter_opts} = _meta, query, _opts, callback) do
+    if Keyword.get(adapter_opts, :migration_lock) do
+      raise "#{inspect __MODULE__}.lock_for_migrations error: #{inspect __MODULE__} does not currently support migration table lock"
+    else
+      callback.(query)
+    end
   end
 
   # # Required by behaviour Ecto.Adapter - not sure if this is the right approach, but just adapted from Ecto.Adapters.SQL
@@ -206,11 +217,6 @@ defmodule Ecto.Adapters.DynamoDB do
     {:nocache, {:delete_all, query}}
   end
   # do: {:cache, {System.unique_integer([:positive]), @conn.delete_all(query)}}
-
-
-  def lock_for_migrations(meta, query, opts, callback) do
-    Ecto.Adapters.SQL.lock_for_migrations(meta, query, opts, nil, callback)
-  end
 
 
   @doc """

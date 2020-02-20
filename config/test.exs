@@ -1,8 +1,7 @@
 use Mix.Config
 
 config :ecto_adapters_dynamodb, Ecto.Adapters.DynamoDB.TestRepo,
-  # adapter: Ecto.Adapters.DynamoDB, # Seems we might not need to provide this at the config level, but at the repo level - see test/priv/test_repo.ex, for example.
-  migration_source: "test_schema_migrations", # When running migrations during testing, use this table to track migration history
+  migration_source: "test_schema_migrations",
   # ExAws configuration
   debug_requests: true,
   # Unlike for prod config, we hardcode fake values for local version of DynamoDB
