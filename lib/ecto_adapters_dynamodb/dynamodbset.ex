@@ -44,8 +44,7 @@ defmodule Ecto.Adapters.DynamoDB.DynamoDBSet do
   Dictates how the type should be treated inside embeds
   """
   @impl Ecto.Type
-  def embed_as(MapSet), do: :self
-  def embed_as(_), do: :dump
+  def embed_as(_), do: :self
 
   defp valid?(mapset) do
     Enum.all?(mapset, fn x -> is_number(x) end) or

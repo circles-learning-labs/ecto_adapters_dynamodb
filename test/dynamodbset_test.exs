@@ -43,6 +43,5 @@ defmodule Ecto.Adapters.DynamoDBSet.Test do
 
   test "embed_as/1" do
     assert embed_as(MapSet) == :self
-    assert embed_as(List) == :dump
   end
 end
