@@ -3,7 +3,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
   alias ExAws.Dynamo
 
-  @moduledoc"""
+  @moduledoc """
   Implements Ecto migrations for `create table` and `alter table`.
   
   The functions, `add`, `remove` and `modify` correspond to indexes on the DynamoDB table. Using `add`, the second parameter, field type (which corresponds with the DynamoDB attribute) must be specified. Use the third parameter to specify a primary key not already specified. For a HASH-only primary key, use `primary_key: true` as the third parameter. For a composite primary key (HASH and RANGE), in addition to the `primary_key` specification, set the third parameter on the range key attribute to `range_key: true`. There should be only one primary key (hash or composite) specified per table.

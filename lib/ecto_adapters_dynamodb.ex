@@ -19,9 +19,9 @@ defmodule Ecto.Adapters.DynamoDB do
   # @behaviour Ecto.Adapter.Storage
   # @behaviour Ecto.Adapter.Migration
 
+  @impl Ecto.Adapter
   defmacro __before_compile__(_env) do
     # Nothing to see here, yet...
-
   end
 
   use Bitwise, only_operators: true
@@ -43,7 +43,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   ## Adapter behaviour - defined in lib/ecto/adapter.ex (in the ecto github repository)
-
+  @impl Ecto.Adapter
   def init(config) do
     child = %{
       id: __MODULE__,
@@ -90,6 +90,7 @@ defmodule Ecto.Adapters.DynamoDB do
   @doc """
   Ensure all applications necessary to run the adapter are started.
   """
+  @impl Ecto.Adapter
   def ensure_all_started(repo, type) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.ensure_all_started", %{"#{inspect __MODULE__}.ensure_all_started-params" => %{type: type, repo: repo}})
 
@@ -106,11 +107,13 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   # # Required by behaviour Ecto.Adapter - not sure if this is the right approach, but just adapted from Ecto.Adapters.SQL
+  # @impl Ecto.Adapter
   # def checkout(meta, opts, fun) do
   #   Ecto.Adapters.SQL.checkout(meta, opts, fun)
   # end
 
   # # Required by behaviour Ecto.Queryable - also, adapted from Ecto.Adapters.SQL
+  # @impl Ecto.Adapter.Queryable
   # def stream(adapter_meta, query_meta, query, params, opts) do
   #   Ecto.Adapters.SQL.stream(adapter_meta, query_meta, query, params, opts)
   # end
@@ -135,6 +138,7 @@ defmodule Ecto.Adapters.DynamoDB do
   """
 
   @max_id ((1 <<< 128) - 1) # biggest possible int in 128 bits
+  @impl Ecto.Adapter.Schema
   def autogenerate(:id), do: Enum.random(1..@max_id)
   def autogenerate(:embed_id), do: Ecto.UUID.generate()
   def autogenerate(:binary_id), do: Ecto.UUID.generate()
@@ -143,8 +147,8 @@ defmodule Ecto.Adapters.DynamoDB do
   Returns the loaders for a given type.
 
   Rather than use the Ecto adapter loaders callback, the adapter builds on ExAws' decoding functionality, please see ExAws's `ExAws.Dynamo.Decoder` and the private function, `custom_decode`, in this module, which at this time only loads :utc_datetime and :naive_datetime.
-
   """
+  @impl Ecto.Adapter
   def loaders(_primitive, type), do: [type]
 
 
@@ -154,6 +158,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   We rely on ExAws encoding functionality during insertion and update to properly format types for DynamoDB. Please see ExAws `ExAws.Dynamo.update_item` and `ExAws.Dynamo.put_item` for specifics. Currently, we only modify :utc_datetime and :naive_datetime, appending the UTC offset, "Z", to the datetime string before passing to ExAws.
   """
+  @impl Ecto.Adapter
   def dumpers(type, datetime) when type in [:naive_datetime, :naive_datetime_usec, :utc_datetime, :utc_datetime_usec],
     do: [datetime, &to_iso_string/1]
   def dumpers(_primitive, type), do: [type]
@@ -182,22 +187,19 @@ defmodule Ecto.Adapters.DynamoDB do
   """
   #@callback prepare(atom :: :all | :update_all | :delete_all, query :: Ecto.Query.t) ::
   #          {:cache, prepared} | {:nocache, prepared}
+  @impl Ecto.Adapter.Queryable
   def prepare(:all, query) do
     # 'preparing' is more a SQL concept - Do we really need to do anything here or just pass the params through?
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.prepare: :all", %{"#{inspect __MODULE__}.prepare-params" => %{query: inspect(query, structs: false)}})
 
     {:nocache, {:all, query}}
   end
-
-
   def prepare(:update_all, query) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.prepare: :update_all", %{"#{inspect __MODULE__}.prepare-params" => %{query: inspect(query, structs: false)}})
 
     {:nocache, {:update_all, query}}
   end
   # do: {:cache, {System.unique_integer([:positive]), @conn.update_all(query)}}
-
-
   def prepare(:delete_all, query) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.prepare: :delete_all", %{"#{inspect __MODULE__}.prepare-params" => %{query: inspect(query, structs: false)}})
 
@@ -231,7 +233,7 @@ defmodule Ecto.Adapters.DynamoDB do
   #          query: {:nocache, prepared} |
   #                 {:cached, (prepared -> :ok), cached} |
   #                 {:cache, (cached -> :ok), prepared}
-
+  @impl Ecto.Adapter.Queryable
   def execute(%{repo: repo}, query_meta, {:nocache, {func, prepared}}, params, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.execute", %{"#{inspect __MODULE__}.execute-params" => %{repo: repo, query_meta: query_meta, prepared: prepared, params: params, opts: opts}})
 
@@ -532,6 +534,7 @@ defmodule Ecto.Adapters.DynamoDB do
   #@callback insert(repo, schema_meta, fields, on_conflict, returning, options) ::
   #                  {:ok, fields} | {:invalid, constraints} | no_return
   #  def insert(_,_,_,_,_) do
+  @impl Ecto.Adapter.Schema
   def insert(repo, schema_meta, fields, on_conflict, returning, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.insert", %{"#{inspect __MODULE__}.insert-params" => %{repo: repo, schema_meta: schema_meta, fields: fields, on_conflict: on_conflict, returning: returning, opts: opts}})
 
@@ -581,7 +584,7 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-
+  @impl Ecto.Adapter.Schema
   def insert_all(%{repo: repo}, schema_meta, field_list, rows, on_conflict, return_sources, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.insert_all", %{"#{inspect __MODULE__}.insert_all-params" => %{repo: repo, schema_meta: schema_meta, field_list: field_list, rows: rows, on_conflict: on_conflict, return_sources: return_sources, opts: opts}})
 
@@ -674,6 +677,7 @@ defmodule Ecto.Adapters.DynamoDB do
     |> Map.merge(empty_strings_to_nil)
   end
 
+  @impl Ecto.Adapter.Schema
   def delete(repo, schema_meta, filters, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.delete", %{"#{inspect __MODULE__}.delete-params" => %{repo: repo, schema_meta: schema_meta, filters: filters, opts: opts}})
 
@@ -697,7 +701,7 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-
+  @impl Ecto.Adapter.Schema
   def update(%{repo: repo}, schema_meta, fields, filters, returning, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.update", %{"#{inspect __MODULE__}.update-params" => %{repo: repo, schema_meta: schema_meta, fields: fields, filters: filters, returning: returning, opts: opts}})
 
