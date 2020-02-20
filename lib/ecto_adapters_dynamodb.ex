@@ -17,7 +17,6 @@ defmodule Ecto.Adapters.DynamoDB do
   @behaviour Ecto.Adapter.Schema
   @behaviour Ecto.Adapter.Queryable
   @behaviour Ecto.Adapter.Migration
-  # @behaviour Ecto.Adapter.Storage
 
   @impl Ecto.Adapter
   defmacro __before_compile__(_env) do
