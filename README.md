@@ -1,5 +1,6 @@
 # Ecto.Adapters.DynamoDB
-> https://hex.pm/packages/ecto_adapters_dynamodb
+[![Hex.pm](https://img.shields.io/hexpm/v/ex_aws_dynamo.svg)](https://hex.pm/packages/ecto_adapters_dynamodb)
+[![Build Docs](https://img.shields.io/badge/hexdocs-release-blue.svg)](https://hexdocs.pm/ecto_adapters_dynamodb/Ecto.Adapters.DynamoDB.html)
 
 This is a partial implementation of an Elixir Ecto adapter for Amazon's DynamoDB. It's very much a work in progress, and has plenty of rough edges. It's complete enough that we're actually using it in other projects, so we're opening it up to the community in hopes that others will find it useful as well :-)
 
@@ -165,7 +166,7 @@ Install the [Hex](https://hex.pm/packages/ecto_adapters_dynamodb) package by add
 
 ```elixir
 def deps do
-  [{:ecto_adapters_dynamodb, "~> 1.3"}]
+  [{:ecto_adapters_dynamodb, "~> 2.0.0-alpha.0"}]
 end
 ```
 
@@ -173,7 +174,7 @@ Otherwise, to fetch from GitHub:
 
 ```elixir
 def deps do
-  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "1.2.1"}]
+  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "2.0.0-alpha.0"}]
 end
 ```
 
@@ -193,23 +194,35 @@ A note on `access_key_id` and `secret_access_key`: This can simply be the actual
 
 You may also omit all these ExAws options from the adapter config if you wish to configure ExAws manually (for example if you're using other features from ExAws such as S3, or dynamo_streams).
 
-Include the repo module that's configured for the adapter among the project's Ecto repos.
+**repo module**
+
+Configure your app's repo module to use `Ecto.Adapters.DynamoDB` as its `:adapter`:
+
+```elixir
+defmodule MyApp.Repo do
+  use Ecto.Repo,
+    otp_app: :my_app,
+    adapter: Ecto.Adapters.DynamoDB
+end
+```
 
 **config/config.exs**
 
-```elixir
-  config :my_app, ecto_repos: [MyModule.Repo]
-```
+Include the repo module that's configured for the adapter among the project's Ecto repos:
 
-Include the adapter in the project's applications list.
+```elixir
+config :my_app, ecto_repos: [MyApp.Repo]
+```
 
 **mix.exs**
 
+Include the adapter in the project's applications list:
+
 ```elixir
   def application do
-    [...
-    applications: [..., :ecto_adapters_dynamodb, ...]
-    ...
+    [
+    	applications: [:ecto_adapters_dynamodb]
+    ]
   end
 ```
 
@@ -220,8 +233,7 @@ For development, we use the [local version](http://docs.aws.amazon.com/amazondyn
 **config/dev.exs"**
 
 ```elixir               
-config :my_app, MyModule.Repo,
-  adapter: Ecto.Adapters.DynamoDB,
+config :my_app, MyApp.Repo,
   # ExAws configuration
   access_key_id: "abcd",
   secret_access_key: "1234",
@@ -246,7 +258,7 @@ To reiterate, this is just standard ExAws configuration that we're wrapping up i
 **config/prod.exs**
 
 ```elixir
-config :my_app, MyModule.Repo,
+config :my_app, MyApp.Repo,
   adapter: Ecto.Adapters.DynamoDB,
   # ExAws configuration
   access_key_id: [{:system, "AWS_ACCESS_KEY_ID"}, :instance_role],
@@ -356,8 +368,8 @@ ProvisionedThroughput as `[ReadCapacityUnits, WriteCapacityUnits]`, for the Sche
 The adapter supports a mix of Ecto options and custom inline options; if the Ecto option is not listed here, assume the adapter will ignore it. The following options can be passed during runtime in the Ecto calls. For example, consider a DynamoDB table with a composite index (HASH + RANGE):
 
 ```elixir
-MyModule.Repo.all(
-  (from MyModule.HikingTrip, where: [location_id: "grand_canyon"]),
+MyApp.Repo.all(
+  (from MyApp.HikingTrip, where: [location_id: "grand_canyon"]),
   recursive: false,
   scan_limit: 5
 )
