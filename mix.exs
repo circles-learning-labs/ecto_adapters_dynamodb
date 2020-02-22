@@ -52,8 +52,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   defp deps do
     [
       {:ecto_sql, "~> 3.0"},
-      # {:ex_aws_dynamo, "~> 2.2"},
-      {:ex_aws_dynamo, git: "https://github.com/ex-aws/ex_aws_dynamo", branch: "v3rc"},
+      {:ex_aws_dynamo, "~> 3.0"},
       {:jason, "~> 1.0"},
       {:hackney, "~> 1.6"},
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
