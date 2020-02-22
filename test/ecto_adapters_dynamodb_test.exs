@@ -52,8 +52,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
           first_name: "John",
           last_name: "Lennon",
           age: 40,
-          email: "john@beatles.com",
-          password: "password",
+          email: "john@beatles.com"
         })
       result = TestRepo.get(Person, id)
 
@@ -70,7 +69,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         id: "person-john",
         inserted_at: inserted_record.inserted_at,
         last_name: "Lennon",
-        password: "password",
+        password: nil,
         updated_at: inserted_record.updated_at
       }
     end

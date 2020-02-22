@@ -1134,7 +1134,7 @@ defmodule Ecto.Adapters.DynamoDB do
   defp decode_item(item, types) do
     types
     |> Enum.map(fn {field, type} ->
-      Map.get(item, Atom.to_string(field))
+      Map.get(item, Atom.to_string(field), %{"NULL" => true})
       |> Dynamo.Decoder.decode()
       |> decode_type(type)
     end)
@@ -1223,7 +1223,7 @@ defmodule Ecto.Adapters.DynamoDB do
     colours = Application.get_env(:ecto_adapters_dynamodb, :log_colours)
     d = DateTime.utc_now
     formatted_message = "#{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC [Ecto dynamo #{level}] #{message}"
-    {:ok, log_message} = Poison.encode(%{message: formatted_message, attributes: chisel(attributes, depth)})
+    {:ok, log_message} = Jason.encode(%{message: formatted_message, attributes: chisel(attributes, depth)})
 
     log_path = Application.get_env(:ecto_adapters_dynamodb, :log_path)
     log_levels = Application.get_env(:ecto_adapters_dynamodb, :log_levels) || [:info]

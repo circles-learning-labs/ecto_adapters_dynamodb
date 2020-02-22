@@ -36,7 +36,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
        scan_limit: 100,
        scan_tables: []
      ],
-     applications: [:ex_aws, :hackney, :poison, :ecto_sql]
+     applications: [:ex_aws, :hackney, :ecto_sql]
    ]
   end
 
@@ -52,8 +52,9 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   defp deps do
     [
       {:ecto_sql, "~> 3.0"},
-      {:ex_aws_dynamo, "~> 2.2"},
-      {:poison, "~> 3.0"},
+      # {:ex_aws_dynamo, "~> 2.2"},
+      {:ex_aws_dynamo, git: "https://github.com/ex-aws/ex_aws_dynamo", branch: "v3rc"},
+      {:jason, "~> 1.0"},
       {:hackney, "~> 1.6"},
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
       {:eqc_ex, "~> 1.4.2", only: [:dev, :test], runtime: false},
