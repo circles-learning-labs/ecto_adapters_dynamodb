@@ -166,7 +166,7 @@ Install the [Hex](https://hex.pm/packages/ecto_adapters_dynamodb) package by add
 
 ```elixir
 def deps do
-  [{:ecto_adapters_dynamodb, "~> 2.0.0-alpha.0"}]
+  [{:ecto_adapters_dynamodb, "~> 2.0.0-alpha.1"}]
 end
 ```
 
@@ -174,7 +174,7 @@ Otherwise, to fetch from GitHub:
 
 ```elixir
 def deps do
-  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "2.0.0-alpha.0"}]
+  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "2.0.0-alpha.1"}]
 end
 ```
 
@@ -259,7 +259,6 @@ To reiterate, this is just standard ExAws configuration that we're wrapping up i
 
 ```elixir
 config :my_app, MyApp.Repo,
-  adapter: Ecto.Adapters.DynamoDB,
   # ExAws configuration
   access_key_id: [{:system, "AWS_ACCESS_KEY_ID"}, :instance_role],
   secret_access_key: [{:system, "AWS_SECRET_ACCESS_KEY"}, :instance_role],

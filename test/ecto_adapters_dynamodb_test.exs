@@ -180,12 +180,17 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       ids = [person1.id, person2.id, person3.id]
       sorted_ids = Enum.sort(ids)
-      var_result = TestRepo.all(from p in Person, where: p.id in ^ids)
-                   |> Enum.map(&(&1.id))
-                   |> Enum.sort()
-      hc_result = TestRepo.all(from p in Person, where: p.id in ["person-moe", "person-larry", "person-curly"])
-                  |> Enum.map(&(&1.id))
-                  |> Enum.sort()
+
+      var_result =
+        TestRepo.all(from p in Person,
+          where: p.id in ^ids,
+          select: p.id)
+        |> Enum.sort()
+      hc_result =
+        TestRepo.all(from p in Person,
+          where: p.id in ["person-moe", "person-larry", "person-curly"],
+          select: p.id)
+        |> Enum.sort()
 
       assert var_result == sorted_ids
       assert hc_result == sorted_ids

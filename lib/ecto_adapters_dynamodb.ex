@@ -283,28 +283,37 @@ defmodule Ecto.Adapters.DynamoDB do
           # Empty map means "not found"
           {0, []}
         else
-          # extract the field names and types from the query_meta.
           case query_meta do
             %{select: %{from: {_, {_, _, _, types}}}} ->
-
-              if !result["Count"] and !result["Responses"] do
-                decoded = decode_item(result["Item"], types)
-
-                {1, [decoded]}
-              else
-                # batch_get_item returns "Responses" rather than "Items"
-                results_to_decode = if result["Items"], do: result["Items"], else: result["Responses"][table]
-                decoded = Enum.map(results_to_decode, &(decode_item(&1, types)))
+              handle_type_decode(table, result, types)
+            _ ->
+              if table == migration_source do
+                decoded = Enum.map(result["Items"], &(decode_item(&1)))
 
                 {length(decoded), decoded}
-              end
-            _ ->
-              # When running migrations...
-              decoded = Enum.map(result["Items"], &(decode_item(&1)))
+              else
+                # Queries with a :select clause will not have the types available in the query_meta,
+                # instead construct them from prepared.select
+                types = construct_types_from_select_fields(prepared.select)
 
-              {length(decoded), decoded}
+                handle_type_decode(table, result, types)
+              end
           end
         end
+    end
+  end
+
+  defp handle_type_decode(table, result, types) do
+    if !result["Count"] and !result["Responses"] do
+      decoded = decode_item(result["Item"], types)
+
+      {1, [decoded]}
+    else
+      # batch_get_item returns "Responses" rather than "Items"
+      results_to_decode = if result["Items"], do: result["Items"], else: result["Responses"][table]
+      decoded = Enum.map(results_to_decode, &(decode_item(&1, types)))
+
+      {length(decoded), decoded}
     end
   end
 
@@ -1103,23 +1112,23 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-  # defp extract_select_fields(%Ecto.Query.SelectExpr{expr: expr} = _) do
-  #   case expr do
-  #     {_, _, [0]} ->
-  #       []
+  defp construct_types_from_select_fields(%Ecto.Query.SelectExpr{expr: expr}) do
+    case expr do
+      {_, _, [0]} ->
+        []
 
-  #     {{:., _, [{_, _, _}, field]}, _, _} ->
-  #       [field]
+      {{:., [type: type], [{_, _, _}, field]}, _, _} ->
+        [{field, type}]
 
-  #     {:{}, _, clauses} ->
-  #       for {{_, _, [{_, _, _}, field]}, _, _} <- clauses, do: field
-  #   end
-  # end
+      clauses = [_ | _] ->
+        for {{_, [type: type], [{_, _, _}, field]}, _, _} <- clauses, do: {field, type}
+    end
+  end
 
   # # Decodes maps and datetime, seemingly unhandled by ExAws Dynamo decoder
   # # (timestamps() corresponds with :naive_datetime)
   # defp custom_decode(item, model, select) do
-  #   selected_fields = extract_select_fields(select)
+  #   selected_fields = construct_types_from_select_fields(select)
 
   #   case selected_fields do
   #     [] ->
