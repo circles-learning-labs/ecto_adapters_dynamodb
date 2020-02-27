@@ -243,7 +243,7 @@ defmodule Ecto.Adapters.DynamoDB do
   def execute(%{repo: repo}, query_meta, {:nocache, {func, prepared}}, params, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.execute", %{"#{inspect __MODULE__}.execute-params" => %{repo: repo, query_meta: query_meta, prepared: prepared, params: params, opts: opts}})
 
-    {table, _model} = prepared.from.source # table and model are now nested under .from.source
+    {table, model} = prepared.from.source # table and model are now nested under .from.source
     validate_where_clauses!(prepared)
     lookup_fields = extract_lookup_fields(prepared.wheres, params, [])
 
@@ -285,7 +285,8 @@ defmodule Ecto.Adapters.DynamoDB do
         else
           case query_meta do
             %{select: %{from: {_, {_, _, _, types}}}} ->
-              handle_type_decode(table, result, types)
+              fields = types_to_source_fields(model, types)
+              handle_type_decode(table, result, fields)
             _ ->
               if table == migration_source do
                 decoded = Enum.map(result["Items"], &(decode_item(&1)))
@@ -315,6 +316,13 @@ defmodule Ecto.Adapters.DynamoDB do
 
       {length(decoded), decoded}
     end
+  end
+
+  defp types_to_source_fields(model, types) do
+    types
+    |> Enum.into([], fn {field, type} ->
+      {model.__schema__(:field_source, field), type}
+    end)
   end
 
   # delete_all allows for the recursive option, scanning through multiple pages

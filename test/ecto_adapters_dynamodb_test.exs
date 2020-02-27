@@ -74,6 +74,20 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       }
     end
 
+    test "insert a record that uses a source mapped field" do
+      {:ok, record} =
+        TestRepo.insert(%Person{
+          id: "person-ringo",
+          age: 50,
+          email: "ringo@beatles.com",
+          first_name: "Ringo",
+          country: "England"
+        })
+
+      ringo = TestRepo.get(Person, record.id)
+      assert ringo.country == "England"
+    end
+
     # This doesn't belong in Repo.get testing, it belongs in query testing.
     test "insert a record and get with a hash/range pkey" do
       name = "houseofleaves"

@@ -24,6 +24,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
     field :age,        :integer
     field :email,      :string
     field :password,   :string
+    field :country,    :string, source: :data1
     embeds_many :addresses, Address
 
     timestamps()
