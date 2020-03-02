@@ -76,13 +76,14 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Planet do
   schema "test_planet" do
     field :name, :string
     field :mass, :integer
+    field :moons, Ecto.Adapters.DynamoDB.DynamoDBSet
 
     timestamps() # default timestamps_opts is :naive_datetime
   end
 
   def changeset(struct, params \\ %{}) do
     struct
-    |> Ecto.Changeset.cast(params, [:name])
+    |> Ecto.Changeset.cast(params, [:name, :moons])
     |> Ecto.Changeset.validate_required([:id, :name])
     |> Ecto.Changeset.unique_constraint(:name)
     # In order to use the test_planet table for testing fragment queries

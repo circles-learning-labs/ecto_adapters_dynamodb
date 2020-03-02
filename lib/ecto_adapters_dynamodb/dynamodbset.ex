@@ -1,6 +1,6 @@
 defmodule Ecto.Adapters.DynamoDB.DynamoDBSet do
   @moduledoc """
-  An Ecto type for handling MapSet, corresponding with DynamoDB's **set** type. Since ExAws already encodes and decodes MapSet, we only handle casting and validation here.
+  An Ecto type for handling MapSet, corresponding with DynamoDB's **set** types. Since ExAws already encodes and decodes MapSet, we only handle casting and validation here.
   """
 
   @behaviour Ecto.Type

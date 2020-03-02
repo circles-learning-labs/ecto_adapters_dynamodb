@@ -401,6 +401,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         id: "planet",
         name: "Jupiter",
         mass: 6537292902,
+        moons: MapSet.new(["Io", "Europa", "Ganymede"])
       }
       planet2 = %{
         id: "planet",

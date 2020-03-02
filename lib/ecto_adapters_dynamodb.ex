@@ -157,7 +157,7 @@ defmodule Ecto.Adapters.DynamoDB do
   @doc """
   Returns the loaders for a given type.
 
-  Rather than use the Ecto adapter loaders callback, the adapter builds on ExAws' decoding functionality, please see ExAws's `ExAws.Dynamo.Decoder` and the private function, `custom_decode`, in this module, which at this time only loads :utc_datetime and :naive_datetime.
+  Rather than use the Ecto adapter loaders callback, the adapter builds on ExAws' decoding functionality, please see ExAws's `ExAws.Dynamo.Decoder`, in this module, which at this time only loads :utc_datetime and :naive_datetime.
   """
   @impl Ecto.Adapter
   def loaders(_primitive, type), do: [type]
@@ -1133,21 +1133,6 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  # # Decodes maps and datetime, seemingly unhandled by ExAws Dynamo decoder
-  # # (timestamps() corresponds with :naive_datetime)
-  # defp custom_decode(item, model, select) do
-  #   selected_fields = construct_types_from_select_fields(select)
-
-  #   case selected_fields do
-  #     [] ->
-  #       [Enum.reduce(model.__schema__(:fields), item, fn (field, acc) ->
-  #         Map.update!(acc, field, fn val -> decode_type(model.__schema__(:type, field), val) end)
-  #       end)]
-  #     fields ->
-  #       for field <- fields, do: decode_type(model.__schema__(:type, field), Map.get(item, field))
-  #   end
-  # end
-
   defp decode_item(item, types) do
     types
     |> Enum.map(fn {field, type} ->
@@ -1160,8 +1145,8 @@ defmodule Ecto.Adapters.DynamoDB do
     [version |> Dynamo.Decoder.decode()]
   end
 
-  # This is used slightly differently
-  # when handling select in custom_decode/2
+
+  # Decodes datetime, seemingly unhandled by ExAws Dynamo decoder
   defp decode_type(val, type) do
     if is_nil val do
       val
@@ -1176,9 +1161,6 @@ defmodule Ecto.Adapters.DynamoDB do
 
         {:embed, _} ->
           decode_embed(val, type)
-
-        t when t in [Ecto.Adapters.DynamoDB.DynamoDBSet, MapSet] ->
-          MapSet.new(val)
 
         _ -> val
       end
