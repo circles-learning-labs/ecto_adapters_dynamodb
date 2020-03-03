@@ -53,7 +53,8 @@ defmodule Ecto.Adapters.DynamoDB do
     telemetry_prefix = Keyword.fetch!(config, :telemetry_prefix)
     meta = %{
       opts: Keyword.take(config, @pool_opts),
-      telemetry: {config[:repo], log, telemetry_prefix}
+      telemetry: {config[:repo], log, telemetry_prefix},
+      migration_source: Keyword.get(config, :migration_source, "schema_migrations")
     }
 
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.init", %{"#{inspect __MODULE__}.init-params" => %{config: config}})
@@ -239,7 +240,7 @@ defmodule Ecto.Adapters.DynamoDB do
   #                 {:cached, (prepared -> :ok), cached} |
   #                 {:cache, (cached -> :ok), prepared}
   @impl Ecto.Adapter.Queryable
-  def execute(%{repo: repo}, query_meta, {:nocache, {func, prepared}}, params, opts) do
+  def execute(%{repo: repo, migration_source: migration_source}, query_meta, {:nocache, {func, prepared}}, params, opts) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.execute", %{"#{inspect __MODULE__}.execute-params" => %{repo: repo, query_meta: query_meta, prepared: prepared, params: params, opts: opts}})
 
     {table, model} = prepared.from.source # table and model are now nested under .from.source
@@ -248,10 +249,6 @@ defmodule Ecto.Adapters.DynamoDB do
 
     limit_option = opts[:scan_limit]
     scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
-
-    # Ecto migration does not know to specify 'scan: true' to retrieve the persisted migration versions
-    # from line 34, file "deps/ecto/lib/ecto/migration/schema_migration.ex"
-    migration_source = Keyword.get(repo.config, :migration_source, "schema_migrations")
     updated_opts = if table == migration_source do
       ecto_dynamo_log(:debug, "#{inspect __MODULE__}.execute: table name corresponds with migration source: #{inspect migration_source}. Setting options for recursive scan.", %{})
 

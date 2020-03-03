@@ -134,11 +134,11 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     raise ArgumentError, message: "Ecto.Adapters.Dynamodb does not support SQL statements in `execute`"
   end
 
-  def execute_ddl(%{repo: repo}, command, options) do
+  def execute_ddl(%{repo: repo, migration_source: migration_source}, command, options) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.execute_ddl", %{"#{inspect __MODULE__}.execute_ddl-params" => %{repo: repo, command: command, options: options}})
 
     # We provide a configuration option for migration_table_capacity
-    updated_command = maybe_add_schema_migration_table_capacity(repo, command)
+    updated_command = maybe_add_schema_migration_table_capacity(migration_source, command)
     execute_ddl(updated_command)
   end
 
@@ -227,9 +227,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
 
   # We provide a configuration option for migration_table_capacity
-  defp maybe_add_schema_migration_table_capacity(repo, {:create_if_not_exists, %Ecto.Migration.Table{} = table, field_clauses} = command) do
-    migration_source = repo.config[:migration_source]
-
+  defp maybe_add_schema_migration_table_capacity(migration_source, {:create_if_not_exists, %Ecto.Migration.Table{} = table, field_clauses} = command) do
     if to_string(table.name) == migration_source do
       migration_table_capacity = Application.get_env(:ecto_adapters_dynamodb, :migration_table_capacity) || [1,1]
       updated_table_options = case table.options do
