@@ -53,8 +53,7 @@ defmodule Ecto.Adapters.DynamoDB do
     telemetry_prefix = Keyword.fetch!(config, :telemetry_prefix)
     meta = %{
       opts: Keyword.take(config, @pool_opts),
-      telemetry: {config[:repo], log, telemetry_prefix},
-      migration_source: Keyword.get(config, :migration_source, "schema_migrations")
+      telemetry: {config[:repo], log, telemetry_prefix}
     }
 
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.init", %{"#{inspect __MODULE__}.init-params" => %{config: config}})
