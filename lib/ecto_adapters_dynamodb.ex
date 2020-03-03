@@ -252,7 +252,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     # Ecto migration does not know to specify 'scan: true' to retrieve the persisted migration versions
     # from line 34, file "deps/ecto/lib/ecto/migration/schema_migration.ex"
-    migration_source = Keyword.fetch!(repo.config, :migration_source)
+    migration_source = Keyword.get(repo.config, :migration_source, "schema_migrations")
     updated_opts = if table == migration_source do
       ecto_dynamo_log(:debug, "#{inspect __MODULE__}.execute: table name corresponds with migration source: #{inspect migration_source}. Setting options for recursive scan.", %{})
 
