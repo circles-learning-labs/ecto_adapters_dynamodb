@@ -62,30 +62,6 @@ defmodule Ecto.Adapters.DynamoDB do
     {:ok, child, meta}
   end
 
-    # @doc """
-    # Returns the childspec that starts the adapter process.
-    # """
-    # def child_spec(repo, opts) do
-    #   # TODO: need something here...
-    #   # * Pull dynamo db connection options from config
-    #   # * Start dynamo connector/aws libraries
-    #   # we'll return our own start_link for now, but I don't think we actually need
-    #   # an app here, we only need to ensure that our dependencies such as aws libs are started.
-    #   #
-
-    #  [:debug_requests, :access_key_id, :secret_access_key, :region, :dynamodb] |> Enum.map(fn key ->
-    #    if opts[key] != nil, do: Application.put_env(:ex_aws, key, opts[key])
-    #  end)
-
-    #   import Supervisor.Spec
-    #   child_spec = worker(__MODULE__, [repo, opts])
-
-    #   ecto_dynamo_log(:debug, "#{inspect __MODULE__}.child_spec", %{"#{inspect __MODULE__}.child_spec-params" => %{repo: repo, child_spec: child_spec, opts: opts}})
-
-    #   child_spec
-    # end
-
-
   @doc """
   Ensure all applications necessary to run the adapter are started.
   """
