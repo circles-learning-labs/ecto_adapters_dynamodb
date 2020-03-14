@@ -166,7 +166,7 @@ Install the [Hex](https://hex.pm/packages/ecto_adapters_dynamodb) package by add
 
 ```elixir
 def deps do
-  [{:ecto_adapters_dynamodb, "~> 2.0.0-alpha.3"}]
+  [{:ecto_adapters_dynamodb, "~> 2.0.0-alpha.4"}]
 end
 ```
 
@@ -174,7 +174,7 @@ Otherwise, to fetch from GitHub:
 
 ```elixir
 def deps do
-  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "2.0.0-alpha.3"}]
+  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "2.0.0-alpha.4"}]
 end
 ```
 
