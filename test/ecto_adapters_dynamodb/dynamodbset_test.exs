@@ -1,4 +1,4 @@
-defmodule Ecto.Adapters.DynamoDBSet.Test do
+defmodule Ecto.Adapters.DynamoDB.DynamoDBSet.Test do
   @moduledoc """
   Unit tests for Ecto.Adapters.DynamoDB.DynamoDBSet
   """
@@ -7,11 +7,11 @@ defmodule Ecto.Adapters.DynamoDBSet.Test do
 
   import Ecto.Adapters.DynamoDB.DynamoDBSet
 
-  test "type/0" do
+  test "type" do
     assert type() == MapSet
   end
 
-  test "cast/1" do
+  test "cast" do
     valid_mapset = MapSet.new([1, 2, 3])
     invalid_mapset = MapSet.new([1, 2, :foo])
 
@@ -20,19 +20,19 @@ defmodule Ecto.Adapters.DynamoDBSet.Test do
     assert cast(%{foo: :bar}) == :error
   end
 
-  test "load/1" do
+  test "load" do
     mapset = MapSet.new([1, 2, 3])
 
     assert load(mapset) == {:ok, mapset}
   end
 
-  test "dump/1" do
+  test "dump" do
     mapset = MapSet.new([1, 2, 3])
 
     assert dump(mapset) == {:ok, mapset}
   end
 
-  test "equal?/2" do
+  test "equal?" do
     mapset_a = MapSet.new([1, 2, 3])
     mapset_b = MapSet.new([1, 2, 3])
     mapset_c = MapSet.new([:a, :b, :c])
@@ -41,7 +41,7 @@ defmodule Ecto.Adapters.DynamoDBSet.Test do
     refute equal?(mapset_b, mapset_c)
   end
 
-  test "embed_as/1" do
+  test "embed_as" do
     assert embed_as(MapSet) == :self
   end
 end

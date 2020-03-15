@@ -2,6 +2,7 @@ defmodule Ecto.Adapters.DynamoDB.Integration.Jason.Test do
   @moduledoc """
   Integration tests for Jason.
   """
+
   use ExUnit.Case
 
   test "encode" do

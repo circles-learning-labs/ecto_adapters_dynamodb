@@ -2,7 +2,9 @@ defmodule Ecto.Adapters.DynamoDB.Integration.ExAws.Dynamo.Test do
   @moduledoc """
   Integration tests for ExAws.Dynamo.
   """
+
   use ExUnit.Case
+
   alias ExAws.Dynamo
 
   @ex_aws_dynamo_test_table_name "ex_aws_dynamo_test_table"
