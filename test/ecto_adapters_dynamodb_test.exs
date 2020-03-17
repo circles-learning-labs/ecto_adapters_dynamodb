@@ -24,6 +24,11 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert result == nil
   end
 
+  test "query - empty list param" do
+    result = TestRepo.all(from p in Person, where: p.id in [])
+    assert result == []
+  end
+
   test "insert and get - embedded records, source-mapped field" do
     {:ok, insert_result} = TestRepo.insert(%Person{
                         id: "person:address_test",
@@ -58,26 +63,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert get_result == insert_result
   end
 
-  test "insert_all - single and multiple records" do
-    # single
-    total_records = 1
-    people = make_list_of_people_for_batch_insert(total_records)
-    result = TestRepo.insert_all(Person, people)
-
-    assert result == {total_records, nil}
-
-    # multiple
-    # DynamoDB has a constraint on the call to BatchWriteItem, where attempts to insert more than
-    # 25 records will be rejected. We allow the user to call insert_all() for more than 25 records
-    # by breaking up the requests into blocks of 25.
-    # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
-    total_records = 55
-    people = make_list_of_people_for_batch_insert(total_records)
-    result = TestRepo.insert_all(Person, people)
-
-    assert result == {total_records, nil}
-  end
-
   test "update" do
     TestRepo.insert(%Person{
                       id: "person-update",
@@ -94,8 +79,30 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert result.last_name == "Tested"
   end
 
+  describe "insert_all and query" do
+    test "insert_all - single and multiple records" do
+      # single
+      total_records = 1
+      people = make_list_of_people_for_batch_insert(total_records)
+      result = TestRepo.insert_all(Person, people)
+
+      assert result == {total_records, nil}
+
+      # multiple
+      # DynamoDB has a constraint on the call to BatchWriteItem, where attempts to insert more than
+      # 25 records will be rejected. We allow the user to call insert_all() for more than 25 records
+      # by breaking up the requests into blocks of 25.
+      # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
+      total_records = 55
+      people = make_list_of_people_for_batch_insert(total_records)
+      result = TestRepo.insert_all(Person, people)
+
+      assert result == {total_records, nil}
+    end
+  end
+
   describe "update_all and query" do
-    test "update_all, hash primary key query with hard-coded params" do
+    test "update_all - hash primary key query with hard-coded params" do
       person1 = %{
                   id: "person-george",
                   first_name: "George",
@@ -122,7 +129,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert result == [nil, nil]
     end
 
-    test "update_all, composite primary key query with pinned variable params" do
+    test "update_all - composite primary key query with pinned variable params" do
       page1 = %{
                 id: "page:test-3",
                 page_num: 1,
@@ -147,6 +154,19 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert result == ["Call me Ishmael...", "Call me Ishmael..."]
     end
+  end
+
+  test "delete" do
+    {:ok, person} = TestRepo.insert(%Person{
+                 id: "person:delete",
+                 first_name: "Delete",
+                 age: 37,
+                 email: "delete@test.com",
+               })
+
+    TestRepo.delete(person)
+
+    assert TestRepo.get(Person, person.id) == nil
   end
 
   # describe "Repo.get/2" do
@@ -193,11 +213,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
 
   # describe "Repo.all" do
-  #   test "batch-get multiple records when querying for an empty list" do
-  #     result = TestRepo.all(from p in Person, where: p.id in [])
-  #     assert result == []
-  #   end
-
   #   test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and a variable list of primary hash keys" do
   #     person1 = %{
   #                 id: "person-moe",
@@ -550,22 +565,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   #     result = TestRepo.all(q, index: "age_first_name")
 
   #     assert length(result) == 2
-  #   end
-  # end
-
-  # describe "Repo.delete/1" do
-  #   test "delete a single record" do
-  #     id = "person:delete"
-  #     {:ok, _} = TestRepo.insert(%Person{
-  #                  id: id,
-  #                  first_name: "Delete",
-  #                  age: 37,
-  #                  email: "delete_all@test.com",
-  #                })
-  #                |> elem(1)
-  #                |> TestRepo.delete()
-
-  #     assert TestRepo.get(Person, id) == nil
   #   end
   # end
 
