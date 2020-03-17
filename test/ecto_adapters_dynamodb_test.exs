@@ -19,44 +19,133 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   end
 
 
-  test "Repo.get/2 - no matching record" do
+  test "get - no matching record" do
     result = TestRepo.get(Person, "person-faketestperson")
     assert result == nil
   end
 
-  describe "insert and get" do
-    test "insert and get - embedded records, source-mapped field" do
-      {:ok, insert_result} = TestRepo.insert(%Person{
-                          id: "person:address_test",
-                          first_name: "Ringo",
-                          last_name: "Starr",
-                          email: "ringo@test.com",
-                          age: 76,
-                          country: "England",
-                          addresses: [
-                             %Address{
-                               street_number: 245,
-                               street_name: "W 17th St"
-                             },
-                             %Address{
-                               street_number: 1385,
-                               street_name: "Broadway"
-                             }
-                           ]
-                        })
+  test "insert and get - embedded records, source-mapped field" do
+    {:ok, insert_result} = TestRepo.insert(%Person{
+                        id: "person:address_test",
+                        first_name: "Ringo",
+                        last_name: "Starr",
+                        email: "ringo@test.com",
+                        age: 76,
+                        country: "England",
+                        addresses: [
+                           %Address{
+                             street_number: 245,
+                             street_name: "W 17th St"
+                           },
+                           %Address{
+                             street_number: 1385,
+                             street_name: "Broadway"
+                           }
+                         ]
+                      })
 
-      assert length(insert_result.addresses) == 2
-      assert get_datetime_type(insert_result.inserted_at) == :naive_datetime_usec
-      assert get_datetime_type((insert_result.addresses |> Enum.at(0)).updated_at) == :utc_datetime
-      assert insert_result.country == "England"
-      assert insert_result.__meta__ == %Ecto.Schema.Metadata{
-                                          state: :loaded,
-                                          source: "test_person",
-                                          schema: Person
-                                        }
+    assert length(insert_result.addresses) == 2
+    assert get_datetime_type(insert_result.inserted_at) == :naive_datetime_usec
+    assert get_datetime_type((insert_result.addresses |> Enum.at(0)).updated_at) == :utc_datetime
+    assert insert_result.country == "England"
+    assert insert_result.__meta__ == %Ecto.Schema.Metadata{
+                                        state: :loaded,
+                                        source: "test_person",
+                                        schema: Person
+                                      }
 
-      get_result = TestRepo.get(Person, insert_result.id)
-      assert get_result == insert_result
+    get_result = TestRepo.get(Person, insert_result.id)
+    assert get_result == insert_result
+  end
+
+  test "insert_all - single and multiple records" do
+    # single
+    total_records = 1
+    people = make_list_of_people_for_batch_insert(total_records)
+    result = TestRepo.insert_all(Person, people)
+
+    assert result == {total_records, nil}
+
+    # multiple
+    # DynamoDB has a constraint on the call to BatchWriteItem, where attempts to insert more than
+    # 25 records will be rejected. We allow the user to call insert_all() for more than 25 records
+    # by breaking up the requests into blocks of 25.
+    # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
+    total_records = 55
+    people = make_list_of_people_for_batch_insert(total_records)
+    result = TestRepo.insert_all(Person, people)
+
+    assert result == {total_records, nil}
+  end
+
+  test "update" do
+    TestRepo.insert(%Person{
+                      id: "person-update",
+                      first_name: "Update",
+                      last_name: "Test",
+                      age: 12,
+                      email: "update@test.com",
+                    })
+    {:ok, result} = TestRepo.get(Person, "person-update")
+                    |> Ecto.Changeset.change([first_name: "Updated", last_name: "Tested"])
+                    |> TestRepo.update()
+
+    assert result.first_name == "Updated"
+    assert result.last_name == "Tested"
+  end
+
+  describe "update_all and query" do
+    test "update_all, hash primary key query with hard-coded params" do
+      person1 = %{
+                  id: "person-george",
+                  first_name: "George",
+                  last_name: "Washington",
+                  age: 70,
+                  email: "george@washington.com"
+                }
+      person2 = %{
+                  id: "person-thomas",
+                  first_name: "Thomas",
+                  last_name: "Jefferson",
+                  age: 27,
+                  email: "thomas@jefferson.com"
+                }
+
+      TestRepo.insert_all(Person, [person1, person2])
+
+      from(p in Person, where: p.id in ["person-george", "person-thomas"])
+      |> TestRepo.update_all(set: [last_name: nil])
+
+      result = from(p in Person, where: p.id in ["person-george", "person-thomas"], select: p.last_name)
+              |> TestRepo.all()
+
+      assert result == [nil, nil]
+    end
+
+    test "update_all, composite primary key query with pinned variable params" do
+      page1 = %{
+                id: "page:test-3",
+                page_num: 1,
+                text: "abc",
+              }
+      page2 = %{
+                id: "page:test-4",
+                page_num: 2,
+                text: "def",
+              }
+
+      TestRepo.insert_all(BookPage, [page1, page2])
+
+      ids = [page1.id, page2.id]
+      pages = [1, 2]
+
+      from(bp in BookPage, where: bp.id in ^ids and bp.page_num in ^pages)
+      |> TestRepo.update_all(set: [text: "Call me Ishmael..."])
+
+      result = from(bp in BookPage, where: bp.id in ^ids and bp.page_num in ^pages, select: bp.text)
+               |> TestRepo.all()
+
+      assert result == ["Call me Ishmael...", "Call me Ishmael..."]
     end
   end
 
@@ -101,35 +190,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   #   end
   # end
 
-  # describe "Repo.insert_all/2" do
-  #   test "batch-insert single and multiple records" do
-  #     # single
-  #     total_records = 1
-  #     people = make_list_of_people_for_batch_insert(total_records)
-  #     result = TestRepo.insert_all(Person, people)
 
-  #     assert result == {total_records, nil}
-
-  #     # multiple
-  #     total_records = 5
-  #     people = make_list_of_people_for_batch_insert(total_records)
-  #     result = TestRepo.insert_all(Person, people)
-
-  #     assert result == {total_records, nil}
-  #   end
-
-  #   # DynamoDB has a constraint on the call to BatchWriteItem, where attempts to insert more than
-  #   # 25 records will be rejected. We allow the user to call insert_all() for more than 25 records
-  #   # by breaking up the requests into blocks of 25.
-  #   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
-  #   test "batch-insert multiple records, exceeding BatchWriteItem limit by 30 records" do
-  #     total_records = 55
-  #     people = make_list_of_people_for_batch_insert(total_records)
-  #     result = TestRepo.insert_all(Person, people)
-
-  #     assert result == {total_records, nil}
-  #   end
-  # end
 
   # describe "Repo.all" do
   #   test "batch-get multiple records when querying for an empty list" do
@@ -489,111 +550,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   #     result = TestRepo.all(q, index: "age_first_name")
 
   #     assert length(result) == 2
-  #   end
-  # end
-
-  # describe "Repo.update/1" do
-  #   test "update two fields on a record" do
-  #     TestRepo.insert(%Person{
-  #                       id: "person-update",
-  #                       first_name: "Update",
-  #                       last_name: "Test",
-  #                       age: 12,
-  #                       email: "update@test.com",
-  #                       password: "password",
-  #                     })
-  #     {:ok, result} = TestRepo.get(Person, "person-update")
-  #                     |> Ecto.Changeset.change([first_name: "Updated", last_name: "Tested"])
-  #                     |> TestRepo.update()
-
-  #     assert result.first_name == "Updated"
-  #     assert result.last_name == "Tested"
-  #   end
-  # end
-
-  # describe "Repo.update_all/3" do
-  #   test "update fields on multiple records based on a primary hash key query" do
-  #     person1 = %{
-  #                 id: "person-george",
-  #                 first_name: "George",
-  #                 last_name: "Washington",
-  #                 age: 70,
-  #                 email: "george@washington.com",
-  #                 password: "password",
-  #               }
-  #     person2 = %{
-  #                 id: "person-thomas",
-  #                 first_name: "Thomas",
-  #                 last_name: "Jefferson",
-  #                 age: 27,
-  #                 email: "thomas@jefferson.com",
-  #                 password: "password",
-  #               }
-  #     person3 = %{
-  #                 id: "person-warren",
-  #                 first_name: "Warren",
-  #                 last_name: "Harding",
-  #                 age: 71,
-  #                 email: "warren@harding.com",
-  #                 password: "password",
-  #               }
-
-  #     ids = [person1.id, person2.id, person3.id]
-  #     TestRepo.insert_all(Person, [person1, person2, person3])
-
-  #     # Note that we test queries with both hard-coded and variable lists, as these are handled differently.
-  #     hc_query = from p in Person, where: p.id in ["person-george", "person-thomas", "person-warren"]
-  #     var_query = from p in Person, where: p.id in ^ids
-
-  #     TestRepo.update_all(hc_query, set: [last_name: nil])
-  #     TestRepo.update_all(var_query, set: [password: nil])
-
-  #     result = TestRepo.all(from p in Person, where: p.id in ^ids)
-  #              |> Enum.map(fn(item) -> [item.last_name, item.password] end)
-
-  #     assert result == [[nil, nil], [nil, nil], [nil, nil]]
-
-  #     TestRepo.update_all(hc_query, set: [first_name: "Joey", age: 12])
-  #     TestRepo.update_all(var_query, set: [password: "cheese", last_name: "Smith"])
-
-  #     result = TestRepo.all(from p in Person, where: p.id in ^ids)
-  #              |> Enum.map(fn(item) -> [item.first_name, item.last_name, item.age, item.password] end)
-
-  #     assert result == [["Joey", "Smith", 12, "cheese"], ["Joey", "Smith", 12, "cheese"], ["Joey", "Smith", 12, "cheese"]]
-  #   end
-
-  #   test "update fields on multiple records based on a primary composite key query" do
-  #     page1 = %{
-  #               id: "page:test-3",
-  #               page_num: 1,
-  #               text: "abc",
-  #             }
-  #     page2 = %{
-  #               id: "page:test-4",
-  #               page_num: 2,
-  #               text: "def",
-  #             }
-
-  #     TestRepo.insert_all(BookPage, [page1, page2])
-  #     ids = [page1.id, page2.id]
-  #     pages = [1, 2]
-
-  #     hc_query = from bp in BookPage, where: bp.id in ["page:test-3", "page:test-4"] and bp.page_num in [1, 2]
-  #     var_query = from bp in BookPage, where: bp.id in ^ids and bp.page_num in ^pages
-
-  #     TestRepo.update_all(hc_query, set: [text: "Call me Ishmael..."])
-
-  #     hc_result = TestRepo.all(hc_query)
-  #                 |> Enum.map(fn(item) -> item.text end)
-
-  #     assert hc_result == ["Call me Ishmael...", "Call me Ishmael..."]
-
-  #     TestRepo.update_all(var_query, set: [text: "... or just Joe would be fine."])
-
-  #     var_result = TestRepo.all(var_query)
-  #                  |> Enum.map(fn(item) -> item.text end)
-
-  #     assert var_result == ["... or just Joe would be fine.", "... or just Joe would be fine."]
   #   end
   # end
 
