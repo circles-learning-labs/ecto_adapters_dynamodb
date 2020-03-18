@@ -31,23 +31,23 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
   test "insert and get - embedded records, source-mapped field" do
     {:ok, insert_result} = TestRepo.insert(%Person{
-                        id: "person:address_test",
-                        first_name: "Ringo",
-                        last_name: "Starr",
-                        email: "ringo@test.com",
-                        age: 76,
-                        country: "England",
-                        addresses: [
-                           %Address{
-                             street_number: 245,
-                             street_name: "W 17th St"
-                           },
-                           %Address{
-                             street_number: 1385,
-                             street_name: "Broadway"
-                           }
-                         ]
-                      })
+                             id: "person:address_test",
+                             first_name: "Ringo",
+                             last_name: "Starr",
+                             email: "ringo@test.com",
+                             age: 76,
+                             country: "England",
+                             addresses: [
+                               %Address{
+                                 street_number: 245,
+                                 street_name: "W 17th St"
+                               },
+                               %Address{
+                                 street_number: 1385,
+                                 street_name: "Broadway"
+                               }
+                             ]
+                           })
 
     assert length(insert_result.addresses) == 2
     assert get_datetime_type(insert_result.inserted_at) == :naive_datetime_usec
@@ -79,26 +79,24 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert result.last_name == "Tested"
   end
 
-  describe "insert_all and query" do
-    test "insert_all - single and multiple records" do
-      # single
-      total_records = 1
-      people = make_list_of_people_for_batch_insert(total_records)
-      result = TestRepo.insert_all(Person, people)
+  test "insert_all" do
+    # single
+    total_records = 1
+    people = make_list_of_people_for_batch_insert(total_records)
+    result = TestRepo.insert_all(Person, people)
 
-      assert result == {total_records, nil}
+    assert result == {total_records, nil}
 
-      # multiple
-      # DynamoDB has a constraint on the call to BatchWriteItem, where attempts to insert more than
-      # 25 records will be rejected. We allow the user to call insert_all() for more than 25 records
-      # by breaking up the requests into blocks of 25.
-      # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
-      total_records = 55
-      people = make_list_of_people_for_batch_insert(total_records)
-      result = TestRepo.insert_all(Person, people)
+    # multiple
+    # DynamoDB has a constraint on the call to BatchWriteItem, where attempts to insert more than
+    # 25 records will be rejected. We allow the user to call insert_all() for more than 25 records
+    # by breaking up the requests into blocks of 25.
+    # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
+    total_records = 55
+    people = make_list_of_people_for_batch_insert(total_records)
+    result = TestRepo.insert_all(Person, people)
 
-      assert result == {total_records, nil}
-    end
+    assert result == {total_records, nil}
   end
 
   describe "update_all and query" do
@@ -167,6 +165,27 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     TestRepo.delete(person)
 
     assert TestRepo.get(Person, person.id) == nil
+  end
+
+  test "delete_all" do
+    person_1 = %{
+                 id: "person:delete_all_1",
+                 first_name: "Delete",
+                 age: 26,
+                 email: "delete_all@test.com",
+               }
+    person_2 = %{
+                 id: "person:delete_all_2",
+                 first_name: "Delete",
+                 age: 97,
+                 email: "delete_all@test.com",
+               }
+
+    TestRepo.insert_all(Person, [person_1, person_2])
+
+    result = TestRepo.delete_all((from p in Person, where: p.id in ^[person_1.id, person_2.id]))
+
+    assert {2, nil} == result
   end
 
   # describe "Repo.get/2" do
@@ -565,32 +584,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   #     result = TestRepo.all(q, index: "age_first_name")
 
   #     assert length(result) == 2
-  #   end
-  # end
-
-  # describe "Repo.delete_all/2" do
-  #   test "delete multiple records" do
-  #     TestRepo.insert(%Person{
-  #                       id: "person:delete_all_1",
-  #                       first_name: "Delete",
-  #                       age: 26,
-  #                       email: "delete_all@test.com",
-  #                     })
-  #     TestRepo.insert(%Person{
-  #                       id: "person:delete_all_2",
-  #                       first_name: "Delete",
-  #                       age: 97,
-  #                       email: "delete_all@test.com",
-  #                     })
-
-  #     assert nil != TestRepo.get(Person, "person:delete_all_1")
-  #     assert nil != TestRepo.get(Person, "person:delete_all_2")
-
-  #     result = TestRepo.delete_all((from p in Person, where: p.email == "delete_all@test.com"), query_info_key: "delete_all:test_key")
-  #     assert {2, nil} == result
-
-  #     assert nil == TestRepo.get(Person, "person:delete_all_1")
-  #     assert nil == TestRepo.get(Person, "person:delete_all_2")
   #   end
   # end
 
