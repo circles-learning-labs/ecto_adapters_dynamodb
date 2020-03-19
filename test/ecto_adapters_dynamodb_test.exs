@@ -29,38 +29,52 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert result == []
   end
 
-  test "insert and get - embedded records, source-mapped field" do
-    {:ok, insert_result} = TestRepo.insert(%Person{
-                             id: "person:address_test",
-                             first_name: "Ringo",
-                             last_name: "Starr",
-                             email: "ringo@test.com",
-                             age: 76,
-                             country: "England",
-                             addresses: [
-                               %Address{
-                                 street_number: 245,
-                                 street_name: "W 17th St"
-                               },
-                               %Address{
-                                 street_number: 1385,
-                                 street_name: "Broadway"
-                               }
-                             ]
-                           })
+  describe "insert and get" do
+    test "embedded records, source-mapped field, naive_datetime_usec and utc_datetime" do
+      {:ok, insert_result} = TestRepo.insert(%Person{
+                               id: "person:address_test",
+                               first_name: "Ringo",
+                               last_name: "Starr",
+                               email: "ringo@test.com",
+                               age: 76,
+                               country: "England",
+                               addresses: [
+                                 %Address{
+                                   street_number: 245,
+                                   street_name: "W 17th St"
+                                 },
+                                 %Address{
+                                   street_number: 1385,
+                                   street_name: "Broadway"
+                                 }
+                               ]
+                             })
 
-    assert length(insert_result.addresses) == 2
-    assert get_datetime_type(insert_result.inserted_at) == :naive_datetime_usec
-    assert get_datetime_type((insert_result.addresses |> Enum.at(0)).updated_at) == :utc_datetime
-    assert insert_result.country == "England"
-    assert insert_result.__meta__ == %Ecto.Schema.Metadata{
-                                        state: :loaded,
-                                        source: "test_person",
-                                        schema: Person
-                                      }
+      assert length(insert_result.addresses) == 2
+      assert get_datetime_type(insert_result.inserted_at) == :naive_datetime_usec
+      assert get_datetime_type((insert_result.addresses |> Enum.at(0)).updated_at) == :utc_datetime
+      assert insert_result.country == "England"
+      assert insert_result.__meta__ == %Ecto.Schema.Metadata{
+                                          state: :loaded,
+                                          source: "test_person",
+                                          schema: Person
+                                        }
 
-    get_result = TestRepo.get(Person, insert_result.id)
-    assert get_result == insert_result
+      get_result = TestRepo.get(Person, insert_result.id)
+      assert get_result == insert_result
+    end
+
+    test "naive_datetime" do
+      TestRepo.insert(%Planet{
+        id: "planet-venus",
+        name: "Venus",
+        mass: 123
+      })
+
+      result = TestRepo.get(Planet, "planet-venus")
+
+      assert get_datetime_type(result.inserted_at) == :naive_datetime
+    end
   end
 
   test "update" do
@@ -188,46 +202,87 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert {2, nil} == result
   end
 
-  # describe "Repo.get/2" do
-  #   # This doesn't belong in Repo.get testing, it belongs in query testing.
-  #   test "insert a record and get with a hash/range pkey" do
-  #     name = "houseofleaves"
-  #     page1 = %BookPage{
-  #               id: name,
-  #               page_num: 1,
-  #               text: "abc",
-  #             }
-  #     page2 = %BookPage{
-  #               id: name,
-  #               page_num: 2,
-  #               text: "def",
-  #             }
-  #     cs1 = BookPage.changeset(page1)
-  #     cs2 = BookPage.changeset(page2)
-  #     duplicate_page_cs = BookPage.changeset(%BookPage{
-  #                                              id: name,
-  #                                              page_num: 1,
-  #                                              text: "ghi",
-  #                                            })
+  describe "query" do
+    test "get records with composite primary keys" do
+      name = "houseofleaves"
+      page_1 = %BookPage{
+                id: name,
+                page_num: 1,
+                text: "abc",
+              }
+      page_2 = %BookPage{
+                id: name,
+                page_num: 2,
+                text: "def",
+              }
+      duplicate_page = %BookPage{
+                         id: name,
+                         page_num: 1,
+                         text: "ghi",
+                       }
+      cs_1 = BookPage.changeset(page_1)
+      cs_2 = BookPage.changeset(page_2)
+      duplicate_page_cs = BookPage.changeset(duplicate_page)
 
-  #     {:ok, page1} = TestRepo.insert(cs1)
-  #     {:ok, page2} = TestRepo.insert(cs2)
-  #     {:error, _} = TestRepo.insert(duplicate_page_cs)
+      {:ok, page1} = TestRepo.insert(cs_1)
+      {:ok, page2} = TestRepo.insert(cs_2)
 
-  #     query = from p in BookPage, where: p.id == ^name
-  #     results = query |> TestRepo.all |> Enum.sort_by(&(&1.page_num))
-  #     [res1, res2] = results
+      duplicate_primary_key_error =
+        %Ecto.Changeset{
+          action: :insert,
+          changes: %{
+            id: "houseofleaves",
+            page_num: 1,
+            text: "ghi"
+          },
+          empty_values: [""],
+          errors: [id: {"has already been taken", [constraint: :unique, constraint_name: "test_book_page_id_index"]}],
+          filters: %{},
+          prepare: [],
+          repo_opts: [],
+          valid?: false,
+          validations: [],
+          constraints: [%{constraint: "test_book_page_id_index", error_message: "has already been taken", error_type: :unique, field: :id, match: :exact, type: :unique}],
+          data: %Ecto.Adapters.DynamoDB.TestSchema.BookPage{
+            __meta__: %Ecto.Schema.Metadata{
+              state: :built,
+              source: "test_book_page",
+              schema: Ecto.Adapters.DynamoDB.TestSchema.BookPage
+            },
+            inserted_at: nil,
+            updated_at: nil,
+            id: "houseofleaves",
+            page_num: 1,
+            text: "ghi"
+          },
+          params: %{},
+          repo: Ecto.Adapters.DynamoDB.TestRepo,
+          required: [:page_num],
+          types: %{
+            id: :binary_id,
+            inserted_at: :utc_datetime_usec,
+            page_num: :integer,
+            text: :string,
+            updated_at: :utc_datetime_usec
+          }
+        }
 
-  #     assert res1 == page1
-  #     assert res2 == page2
+      assert TestRepo.insert(duplicate_page_cs) == {:error, duplicate_primary_key_error}
 
-  #     query1 = from p in BookPage, where: p.id == ^name and p.page_num == 1
-  #     query2 = from p in BookPage, where: p.id == ^name and p.page_num == 2
+      query = from p in BookPage, where: p.id == ^name
+      results = query |> TestRepo.all |> Enum.sort_by(&(&1.page_num))
+      [res1, res2] = results
 
-  #     assert [page1] == TestRepo.all(query1)
-  #     assert [page2] == TestRepo.all(query2)
-  #   end
-  # end
+      assert res1 == page1
+      assert res2 == page2
+
+      query1 = from p in BookPage, where: p.id == ^name and p.page_num == 1
+      query2 = from p in BookPage, where: p.id == ^name and p.page_num == 2
+
+      assert [page1] == TestRepo.all(query1)
+      assert [page2] == TestRepo.all(query2)
+    end    
+  end
 
 
 
