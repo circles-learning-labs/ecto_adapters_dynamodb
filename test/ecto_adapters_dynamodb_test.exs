@@ -273,6 +273,25 @@ defmodule Ecto.Adapters.DynamoDB.Test do
              |> TestRepo.all() == [page_2]
     end
 
+    test "multi-condition primary key/global secondary index" do
+      person = %Person{
+                  id: "person:jamesholden",
+                  first_name: "James",
+                  last_name: "Holden",
+                  age: 18,
+                  email: "jholden@expanse.com",
+                }
+
+      TestRepo.insert(person)
+
+      assert from(p in Person,
+               where: p.id == "person:jamesholden"
+                 and p.email == "jholden@expanse.com",
+               select: p.id)
+             |> TestRepo.all()
+             |> Enum.at(0) == person.id
+    end
+
     test "'all... in...' query, hard-coded and a variable list of primary hash keys" do
       person1 = %{
                   id: "person-moe",
@@ -371,16 +390,14 @@ defmodule Ecto.Adapters.DynamoDB.Test do
              |> Enum.sort() == sorted_ids
       assert from(p in Person,
                where: p.email in ^emails
-                 and p.age > 69)
-             |> TestRepo.all()
-             |> Enum.at(0)
-             |> Map.get(:id) == person_2.id
+                 and p.age > 69,
+               select: p.id)
+             |> TestRepo.all() == [person_2.id]
       assert from(p in Person,
                where: p.email in ["jerry@test.com", "bob@test.com"]
-                 and p.age < 69)
-             |> TestRepo.all()
-             |> Enum.at(0)
-             |> Map.get(:id) == person_1.id
+                 and p.age < 69,
+               select: p.id)
+             |> TestRepo.all() == [person_1.id]
     end
 
     test "query secondary index, :index option provided to resolve ambiguous index choice" do
@@ -416,6 +433,29 @@ defmodule Ecto.Adapters.DynamoDB.Test do
              |> length() == 2
     end
 
+    test "composite primary key, using a 'begins_with' fragment on the range key" do
+      name_fragment = "J"
+      planet_1 = %{
+        id: "planet",
+        name: "Jupiter",
+        mass: 6537292902,
+        moons: MapSet.new(["Io", "Europa", "Ganymede"])
+      }
+      planet_2 = %{
+        id: "planet",
+        name: "Pluto",
+        mass: 3465,
+      }
+
+      TestRepo.insert_all(Planet, [planet_1, planet_2])
+
+      assert from(p in Planet,
+               where: p.id == "planet"
+                 and fragment("begins_with(?, ?)", p.name, ^name_fragment),
+               select: p.moons)
+             |> TestRepo.all() == [planet_1.moons]
+    end
+
     test "global secondary index with a composite key, using a 'begins_with' fragment on the range key" do
       email_fragment = "m"
       person_1 = %{
@@ -437,10 +477,91 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert from(p in Person,
                where: p.first_name == "Michael"
-                 and fragment("begins_with(?, ?)", p.email, ^email_fragment))
+                 and fragment("begins_with(?, ?)", p.email, ^email_fragment),
+               select: p.id)
+             |> TestRepo.all() == [person_1.id]
+    end
+
+    test "'all... in...' query on a composite global secondary index" do
+      person1 = %{
+        id: "person:frank",
+        first_name: "Frank",
+        last_name: "Sinatra",
+        age: 45,
+        email: "frank_sinatra@test.com"
+      } 
+      person2 = %{
+        id: "person:dean",
+        first_name: "Dean",
+        last_name: "Martin",
+        age: 70,
+        email: "dean_martin@test.com"
+      }
+
+      TestRepo.insert_all(Person, [person1, person2])
+
+      first_names = [person1.first_name, person2.first_name]
+
+      assert from(p in Person,
+               where: p.first_name in ^first_names
+                 and p.age < 50,
+               select: p.id)
+             |> TestRepo.all() == ["person:frank"]
+    end
+
+    test "partial primary key and hash-only secondary indexes, 'in' and '==' operations" do
+      planet_1 = %{
+        id: "planet-mercury",
+        name: "Mercury",
+        mass: 153
+      }
+      planet_2 = %{
+        id: "planet-saturn",
+        name: "Saturn",
+        mass: 409282891
+      }
+
+      TestRepo.insert_all(Planet, [planet_1, planet_2])
+
+      assert from(p in Planet,
+               where: p.name in ^[planet_1.name, planet_2.name])
+             |> TestRepo.all() ==
+             from(p in Planet,
+               where: p.id in ^[planet_1.id, planet_2.id])
              |> TestRepo.all()
-             |> Enum.at(0)
-             |> Map.get(:id) == person_1.id
+      assert from(p in Planet,
+               where: p.name == ^planet_1.name)
+             |> TestRepo.all() ==
+             from(p in Planet,
+               where: p.id == ^planet_1.id)
+             |> TestRepo.all()
+    end
+
+    test "get multiple records on a partial secondary index composite key (hash only)" do
+      person1 = %{
+        id: "person:wayne_shorter",
+        first_name: "Wayne",
+        last_name: "Shorter",
+        age: 75,
+        email: "wayne_shorter@test.com"
+      }
+      person2 = %{
+        id: "person:wayne_campbell",
+        first_name: "Wayne",
+        last_name: "Campbell",
+        age: 36,
+        email: "wayne_campbell@test.com"
+      }
+
+      TestRepo.insert_all(Person, [person1, person2])
+
+      sorted_ids = Enum.sort([person1.id, person2.id])
+
+      assert from(p in Person,
+               where: p.first_name == "Wayne",
+               select: p.id)
+             |> TestRepo.all()
+             |> Enum.sort() == sorted_ids
     end
 
     # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than 100 records will be rejected.
@@ -460,178 +581,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert length(result) == total_records
     end
   end
-
-  # describe "Repo.all" do
-  #   test "batch-get multiple records with an 'all... in...' query on a composite global secondary index (hash and range keys) when querying for a hard-coded and variable list" do
-  #     person1 = %{
-  #       id: "person:frank",
-  #       first_name: "Frank",
-  #       last_name: "Sinatra",
-  #       age: 45,
-  #       email: "frank_sinatra@test.com",
-  #     } 
-  #     person2 = %{
-  #       id: "person:dean",
-  #       first_name: "Dean",
-  #       last_name: "Martin",
-  #       age: 70,
-  #       email: "dean_martin@test.com",
-  #     }
-
-  #     TestRepo.insert_all(Person, [person1, person2])
-
-  #     first_names = [person1.first_name, person2.first_name]
-  #     sorted_ids = Enum.sort([person1.id, person2.id])
-  #     var_result = TestRepo.all(from p in Person, where: p.first_name in ^first_names and p.age < 50)
-  #                  |> Enum.map(&(&1.id))
-  #     hc_result = TestRepo.all(from p in Person, where: p.first_name in ["Frank", "Dean"] and p.age > 40)
-  #                 |> Enum.map(&(&1.id))
-  #                 |> Enum.sort()
-
-  #     assert var_result == ["person:frank"]
-  #     assert hc_result == sorted_ids
-  #   end
-
-  #   test "batch-get multiple records on a partial secondary index composite key (hash only)" do
-  #     person1 = %{
-  #       id: "person:wayne_shorter",
-  #       first_name: "Wayne",
-  #       last_name: "Shorter",
-  #       age: 75,
-  #       email: "wayne_shorter@test.com",
-  #     }
-  #     person2 = %{
-  #       id: "person:wayne_campbell",
-  #       first_name: "Wayne",
-  #       last_name: "Campbell",
-  #       age: 36,
-  #       email: "wayne_campbell@test.com"
-  #     }
-
-  #     TestRepo.insert_all(Person, [person1, person2])
-
-  #     sorted_ids = Enum.sort([person1.id, person2.id])
-  #     result = TestRepo.all(from p in Person, where: p.first_name == "Wayne")
-  #              |> Enum.map(&(&1.id))
-  #              |> Enum.sort()
-
-  #     assert result == sorted_ids
-  #   end
-
-  #   test "batch-insert and query all on a hash key global secondary index" do
-  #     person1 = %{
-  #                 id: "person-tomtest",
-  #                 first_name: "Tom",
-  #                 last_name: "Jones",
-  #                 age: 70,
-  #                 email: "jones@test.com",
-  #                 password: "password",
-  #               }
-  #     person2 = %{
-  #                 id: "person-caseytest",
-  #                 first_name: "Casey",
-  #                 last_name: "Jones",
-  #                 age: 114,
-  #                 email: "jones@test.com",
-  #                 password: "password",
-  #               }
-  #     person3 = %{
-  #                 id: "person-jamestest",
-  #                 first_name: "James",
-  #                 last_name: "Jones",
-  #                 age: 71,
-  #                 email: "jones@test.com",
-  #                 password: "password",
-  #               }
-
-  #     TestRepo.insert_all(Person, [person1, person2, person3])
-  #     result = TestRepo.all(from p in Person, where: p.email == "jones@test.com")
-
-  #     assert length(result) == 3
-  #   end
-
-  #   test "query all on a multi-condition primary key/global secondary index" do
-  #     TestRepo.insert(%Person{
-  #                       id: "person:jamesholden",
-  #                       first_name: "James",
-  #                       last_name: "Holden",
-  #                       age: 18,
-  #                       email: "jholden@expanse.com",
-  #                     })
-  #     result = TestRepo.all(from p in Person, where: p.id == "person:jamesholden" and p.email == "jholden@expanse.com")
-
-  #     assert Enum.at(result, 0).first_name == "James"
-  #     assert Enum.at(result, 0).last_name == "Holden"
-  #   end
-
-  #   test "query all on a composite primary key, using a 'begins_with' fragment on the range key" do
-  #     planet1 = %{
-  #       id: "planet",
-  #       name: "Jupiter",
-  #       mass: 6537292902,
-  #       moons: MapSet.new(["Io", "Europa", "Ganymede"])
-  #     }
-  #     planet2 = %{
-  #       id: "planet",
-  #       name: "Pluto",
-  #       mass: 3465,
-  #     }
-
-  #     TestRepo.insert_all(Planet, [planet1, planet2])
-  #     name_frag = "J"
-
-  #     q = from(p in Planet, where: p.id == "planet" and fragment("begins_with(?, ?)", p.name, ^name_frag))
-
-  #     result = TestRepo.all(q)
-
-  #     assert length(result) == 1
-  #   end
-
-  #   test "query all on a partial primary composite index using 'in' and '==' operations" do
-  #     planet1 = %{
-  #       id: "planet-earth",
-  #       name: "Earth",
-  #       mass: 476,
-  #     }
-  #     planet2 = %{
-  #       id: "planet-mars",
-  #       name: "Mars",
-  #       mass: 425,
-  #     }
-
-  #     TestRepo.insert_all(Planet, [planet1, planet2])
-  #     ids = ["planet-earth", "planet-mars"]
-  #     in_q = from(p in Planet, where: p.id in ^ids)
-  #     equals_q = from(p in Planet, where: p.id == "planet-earth")
-  #     in_result = TestRepo.all(in_q)
-  #     equals_result = TestRepo.all(equals_q)
-
-  #     assert length(in_result) == 2
-  #     assert length(equals_result) == 1
-  #   end
-
-  #   test "query all on a partial secondary index using 'in' and '==' operations" do
-  #     planet1 = %{
-  #       id: "planet-mercury",
-  #       name: "Mercury",
-  #       mass: 153,
-  #     }
-  #     planet2 = %{
-  #       id: "planet-saturn",
-  #       name: "Saturn",
-  #       mass: 409282891,
-  #     }
-
-  #     TestRepo.insert_all(Planet, [planet1, planet2])
-  #     in_q = from(p in Planet, where: p.name in ["Mercury", "Saturn"])
-  #     equals_q = from(p in Planet, where: p.name == "Mercury")
-  #     in_result = TestRepo.all(in_q)
-  #     equals_result = TestRepo.all(equals_q)
-
-  #     assert length(in_result) == 2
-  #     assert length(equals_result) == 1
-  #   end
-  # end
 
   defp make_list_of_people_for_batch_insert(total_records) do
     for i <- 0..total_records, i > 0 do
