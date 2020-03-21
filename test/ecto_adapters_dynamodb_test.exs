@@ -29,52 +29,38 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert result == []
   end
 
-  describe "insert and get" do
-    test "embedded records, source-mapped field, naive_datetime_usec and utc_datetime" do
-      {:ok, insert_result} = TestRepo.insert(%Person{
-                               id: "person:address_test",
-                               first_name: "Ringo",
-                               last_name: "Starr",
-                               email: "ringo@test.com",
-                               age: 76,
-                               country: "England",
-                               addresses: [
-                                 %Address{
-                                   street_number: 245,
-                                   street_name: "W 17th St"
-                                 },
-                                 %Address{
-                                   street_number: 1385,
-                                   street_name: "Broadway"
-                                 }
-                               ]
-                             })
+  test "insert and get - embedded records, source-mapped field, naive_datetime_usec and utc_datetime" do
+    {:ok, insert_result} = TestRepo.insert(%Person{
+                             id: "person:address_test",
+                             first_name: "Ringo",
+                             last_name: "Starr",
+                             email: "ringo@test.com",
+                             age: 76,
+                             country: "England",
+                             addresses: [
+                               %Address{
+                                 street_number: 245,
+                                 street_name: "W 17th St"
+                               },
+                               %Address{
+                                 street_number: 1385,
+                                 street_name: "Broadway"
+                               }
+                             ]
+                           })
 
-      assert length(insert_result.addresses) == 2
-      assert get_datetime_type(insert_result.inserted_at) == :naive_datetime_usec
-      assert get_datetime_type((insert_result.addresses |> Enum.at(0)).updated_at) == :utc_datetime
-      assert insert_result.country == "England"
-      assert insert_result.__meta__ == %Ecto.Schema.Metadata{
-                                          state: :loaded,
-                                          source: "test_person",
-                                          schema: Person
-                                        }
+    assert length(insert_result.addresses) == 2
+    assert get_datetime_type(insert_result.inserted_at) == :naive_datetime_usec
+    assert get_datetime_type((insert_result.addresses |> Enum.at(0)).updated_at) == :utc_datetime
+    assert insert_result.country == "England"
+    assert insert_result.__meta__ == %Ecto.Schema.Metadata{
+                                        state: :loaded,
+                                        source: "test_person",
+                                        schema: Person
+                                      }
 
-      get_result = TestRepo.get(Person, insert_result.id)
-      assert get_result == insert_result
-    end
-
-    test "naive_datetime" do
-      TestRepo.insert(%Planet{
-        id: "planet-venus",
-        name: "Venus",
-        mass: 123
-      })
-
-      result = TestRepo.get(Planet, "planet-venus")
-
-      assert get_datetime_type(result.inserted_at) == :naive_datetime
-    end
+    get_result = TestRepo.get(Person, insert_result.id)
+    assert get_result == insert_result
   end
 
   test "update" do
@@ -202,6 +188,49 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert {2, nil} == result
   end
 
+  describe "update, get_by" do
+    test "update and get_by record using a hash and range key, utc_datetime_usec" do
+      assert {:ok, book_page} = TestRepo.insert(%BookPage{
+        id: "gatsby",
+        page_num: 1
+      })
+
+      {:ok, _} = BookPage.changeset(book_page, %{text: "Believe"})
+      |> TestRepo.update()
+
+      result = TestRepo.get_by(BookPage, [id: "gatsby", page_num: 1])
+
+      assert %BookPage{text: "Believe"} = result
+      assert get_datetime_type(result.inserted_at) == :utc_datetime_usec
+    end
+
+    test "update a record using the legacy :range_key option, naive_datetime" do
+      assert 1 == length(Planet.__schema__(:primary_key)), "the schema have a single key declared"
+      assert {:ok, planet} = TestRepo.insert(%Planet{
+        id: "neptune",
+        name: "Neptune",
+        mass: 123245
+      })
+      assert get_datetime_type(planet.inserted_at) == :naive_datetime
+
+      {:ok, updated_planet} =
+        Ecto.Changeset.change(planet, mass: 0)
+        |> TestRepo.update(range_key: {:name, planet.name})
+
+      assert %Planet{
+        __meta__: %Ecto.Schema.Metadata{
+          state: :loaded,
+          source: "test_planet",
+          schema: Planet
+        },
+        mass: 0
+      } = updated_planet
+
+      {:ok, _} =
+        TestRepo.delete(%Planet{id: planet.id}, range_key: {:name, planet.name})
+    end  
+  end
+
   describe "query" do
     test "get records with composite primary keys" do
       name = "houseofleaves"
@@ -227,47 +256,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       {:ok, page1} = TestRepo.insert(cs_1)
       {:ok, page2} = TestRepo.insert(cs_2)
 
-      duplicate_primary_key_error =
-        %Ecto.Changeset{
-          action: :insert,
-          changes: %{
-            id: "houseofleaves",
-            page_num: 1,
-            text: "ghi"
-          },
-          empty_values: [""],
-          errors: [id: {"has already been taken", [constraint: :unique, constraint_name: "test_book_page_id_index"]}],
-          filters: %{},
-          prepare: [],
-          repo_opts: [],
-          valid?: false,
-          validations: [],
-          constraints: [%{constraint: "test_book_page_id_index", error_message: "has already been taken", error_type: :unique, field: :id, match: :exact, type: :unique}],
-          data: %Ecto.Adapters.DynamoDB.TestSchema.BookPage{
-            __meta__: %Ecto.Schema.Metadata{
-              state: :built,
-              source: "test_book_page",
-              schema: Ecto.Adapters.DynamoDB.TestSchema.BookPage
-            },
-            inserted_at: nil,
-            updated_at: nil,
-            id: "houseofleaves",
-            page_num: 1,
-            text: "ghi"
-          },
-          params: %{},
-          repo: Ecto.Adapters.DynamoDB.TestRepo,
-          required: [:page_num],
-          types: %{
-            id: :binary_id,
-            inserted_at: :utc_datetime_usec,
-            page_num: :integer,
-            text: :string,
-            updated_at: :utc_datetime_usec
-          }
-        }
-
-      assert TestRepo.insert(duplicate_page_cs) == {:error, duplicate_primary_key_error}
+      assert TestRepo.insert(duplicate_page_cs) |> elem(0) == :error
 
       query = from p in BookPage, where: p.id == ^name
       results = query |> TestRepo.all |> Enum.sort_by(&(&1.page_num))
@@ -281,58 +270,46 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert [page1] == TestRepo.all(query1)
       assert [page2] == TestRepo.all(query2)
-    end    
+    end
+
+    test "'all... in...' query, hard-coded and a variable list of primary hash keys" do
+      person1 = %{
+                  id: "person-moe",
+                  first_name: "Moe",
+                  last_name: "Howard",
+                  age: 75,
+                  email: "moe@stooges.com"
+                }
+      person2 = %{
+                  id: "person-larry",
+                  first_name: "Larry",
+                  last_name: "Fine",
+                  age: 72,
+                  email: "larry@stooges.com"
+                }
+
+      TestRepo.insert_all(Person, [person1, person2])
+
+      ids = [person1.id, person2.id]
+      sorted_ids = Enum.sort(ids)
+
+      var_result =
+        TestRepo.all(from p in Person,
+          where: p.id in ^ids,
+          select: p.id)
+        |> Enum.sort()
+      hc_result =
+        TestRepo.all(from p in Person,
+          where: p.id in ["person-moe", "person-larry"],
+          select: p.id)
+        |> Enum.sort()
+
+      assert var_result == sorted_ids
+      assert hc_result == sorted_ids
+    end
   end
 
-
-
   # describe "Repo.all" do
-  #   test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and a variable list of primary hash keys" do
-  #     person1 = %{
-  #                 id: "person-moe",
-  #                 first_name: "Moe",
-  #                 last_name: "Howard",
-  #                 age: 75,
-  #                 email: "moe@stooges.com",
-  #                 password: "password",
-  #               }
-  #     person2 = %{
-  #                 id: "person-larry",
-  #                 first_name: "Larry",
-  #                 last_name: "Fine",
-  #                 age: 72,
-  #                 email: "larry@stooges.com",
-  #                 password: "password",
-  #               }
-  #     person3 = %{
-  #                 id: "person-curly",
-  #                 first_name: "Curly",
-  #                 last_name: "Howard",
-  #                 age: 74,
-  #                 email: "curly@stooges.com",
-  #                 password: "password",
-  #               }
-
-  #     TestRepo.insert_all(Person, [person1, person2, person3])
-
-  #     ids = [person1.id, person2.id, person3.id]
-  #     sorted_ids = Enum.sort(ids)
-
-  #     var_result =
-  #       TestRepo.all(from p in Person,
-  #         where: p.id in ^ids,
-  #         select: p.id)
-  #       |> Enum.sort()
-  #     hc_result =
-  #       TestRepo.all(from p in Person,
-  #         where: p.id in ["person-moe", "person-larry", "person-curly"],
-  #         select: p.id)
-  #       |> Enum.sort()
-
-  #     assert var_result == sorted_ids
-  #     assert hc_result == sorted_ids
-  #   end
-
   #   test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and a variable lists of composite primary keys" do
   #     page1 = %{
   #               id: "page:test-1",
@@ -473,6 +450,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   #     assert length(result) == total_records
   #   end
 
+  ### MAY BE REDUNDANT
   #   test "batch-insert and query all on a hash key global secondary index" do
   #     person1 = %{
   #                 id: "person-tomtest",
@@ -641,55 +619,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   #     assert length(result) == 2
   #   end
   # end
-
-  # describe "modifying records with composite primary keys" do
-  #   test "update a record using a hash and range key" do
-  #     assert {:ok, book_page} = TestRepo.insert(%BookPage{
-  #       id: "gatsby",
-  #       page_num: 1
-  #     })
-
-  #     {:ok, _} = BookPage.changeset(book_page, %{text: "Believe"})
-  #     |> TestRepo.update()
-
-  #     assert %BookPage{text: "Believe"}  = TestRepo.get_by(BookPage, [id: "gatsby", page_num: 1])
-
-  #     {:ok, _} = TestRepo.delete(book_page)
-
-  #     assert nil == TestRepo.get_by(BookPage, [id: "gatsby", page_num: 1])
-  #   end
-
-  #   test "update a record using the legacy :range_key option" do
-  #     assert 1 == length(Planet.__schema__(:primary_key)), "the schema have a single key declared"
-
-  #     assert {:ok, planet} = TestRepo.insert(%Planet{
-  #       id: "neptune",
-  #       name: "Neptune",
-  #       mass: 123245
-  #     })
-
-  #     {:ok, updated_planet} =
-  #       Ecto.Changeset.change(planet, mass: 0)
-  #       |> TestRepo.update(range_key: {:name, planet.name})
-
-  #     assert updated_planet == %Planet{
-  #       __meta__: %Ecto.Schema.Metadata{
-  #         state: :loaded,
-  #         source: "test_planet",
-  #         schema: Planet
-  #       },
-  #       id: "neptune",
-  #       inserted_at: planet.inserted_at,
-  #       mass: 0,
-  #       name: "Neptune",
-  #       updated_at: updated_planet.updated_at
-  #     }
-
-  #     {:ok, _} =
-  #       TestRepo.delete(%Planet{id: planet.id}, range_key: {:name, planet.name})
-  #   end
-  # end
-
 
   defp make_list_of_people_for_batch_insert(total_records) do
     for i <- 0..total_records, i > 0 do
