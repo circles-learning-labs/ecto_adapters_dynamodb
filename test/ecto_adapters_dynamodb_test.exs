@@ -232,7 +232,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   end
 
   describe "query" do
-    test "get records with composite primary keys" do
+    test "query on composite primary key, hash and hash + range" do
       name = "houseofleaves"
       page_1 = %BookPage{
                 id: name,
@@ -249,27 +249,28 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                          page_num: 1,
                          text: "ghi",
                        }
-      cs_1 = BookPage.changeset(page_1)
-      cs_2 = BookPage.changeset(page_2)
-      duplicate_page_cs = BookPage.changeset(duplicate_page)
+      {:ok, page_1} = BookPage.changeset(page_1) |> TestRepo.insert()
+      {:ok, page_2} = BookPage.changeset(page_2) |> TestRepo.insert()
 
-      {:ok, page1} = TestRepo.insert(cs_1)
-      {:ok, page2} = TestRepo.insert(cs_2)
+      assert BookPage.changeset(duplicate_page)
+             |> TestRepo.insert()
+             |> elem(0) == :error
 
-      assert TestRepo.insert(duplicate_page_cs) |> elem(0) == :error
+      [hash_res_1, hash_res_2] =
+        from(p in BookPage, where: p.id == ^name)
+        |> TestRepo.all
+        |> Enum.sort_by(&(&1.page_num))
 
-      query = from p in BookPage, where: p.id == ^name
-      results = query |> TestRepo.all |> Enum.sort_by(&(&1.page_num))
-      [res1, res2] = results
-
-      assert res1 == page1
-      assert res2 == page2
-
-      query1 = from p in BookPage, where: p.id == ^name and p.page_num == 1
-      query2 = from p in BookPage, where: p.id == ^name and p.page_num == 2
-
-      assert [page1] == TestRepo.all(query1)
-      assert [page2] == TestRepo.all(query2)
+      assert hash_res_1 == page_1
+      assert hash_res_2 == page_2
+      assert from(p in BookPage,
+               where: p.id == "houseofleaves"
+               and p.page_num == 1)
+               |> TestRepo.all() == [page_1]
+      assert from(p in BookPage,
+               where: p.id == ^page_2.id
+               and p.page_num == ^page_2.page_num)
+             |> TestRepo.all() == [page_2]
     end
 
     test "'all... in...' query, hard-coded and a variable list of primary hash keys" do
@@ -293,91 +294,114 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       ids = [person1.id, person2.id]
       sorted_ids = Enum.sort(ids)
 
-      var_result =
-        TestRepo.all(from p in Person,
-          where: p.id in ^ids,
-          select: p.id)
-        |> Enum.sort()
-      hc_result =
-        TestRepo.all(from p in Person,
-          where: p.id in ["person-moe", "person-larry"],
-          select: p.id)
-        |> Enum.sort()
+      assert from(p in Person,
+               where: p.id in ^ids,
+               select: p.id)
+             |> TestRepo.all()
+             |> Enum.sort() == sorted_ids
+      assert from(p in Person,
+               where: p.id in ["person-moe", "person-larry"],
+               select: p.id)
+             |> TestRepo.all()
+             |> Enum.sort() == sorted_ids
+    end
 
-      assert var_result == sorted_ids
-      assert hc_result == sorted_ids
+    test "'all... in...' query, hard-coded and a variable lists of composite primary keys" do
+      page_1 = %{
+                id: "page:test-1",
+                page_num: 1,
+                text: "abc",
+              }
+      page_2 = %{
+                id: "page:test-2",
+                page_num: 2,
+                text: "def",
+              }
+
+      TestRepo.insert_all(BookPage, [page_1, page_2])
+
+      ids = [page_1.id, page_2.id]
+      pages = [1, 2]
+      sorted_ids = Enum.sort(ids)
+
+      assert from(bp in BookPage,
+              where: bp.id in ^ids
+                and bp.page_num in ^pages)
+             |> TestRepo.all()
+             |> Enum.map(&(&1.id))
+             |> Enum.sort() == sorted_ids
+      assert from(bp in BookPage,
+               where: bp.id in ["page:test-1", "page:test-2"]
+                 and bp.page_num in [1, 2])
+             |> TestRepo.all()
+             |> Enum.map(&(&1.id))
+             |> Enum.sort() == sorted_ids
+    end
+
+    test "'all... in...' query on a hash key global secondary index, hard-coded and variable list, range condition" do
+      person_1 = %{
+        id: "person-jerrytest",
+        first_name: "Jerry",
+        last_name: "Garcia",
+        age: 55,
+        email: "jerry@test.com"
+      }
+      person_2 = %{
+        id: "person-bobtest",
+        first_name: "Bob",
+        last_name: "Weir",
+        age: 70,
+        email: "bob@test.com"
+      }
+
+      emails = [person_1.email, person_2.email]
+      sorted_ids = Enum.sort([person_1.id, person_2.id])
+
+      TestRepo.insert_all(Person, [person_1, person_2])
+
+      assert from(p in Person,
+               where: p.email in ^emails,
+               select: p.id)
+             |> TestRepo.all()
+             |> Enum.sort() == sorted_ids
+      assert from(p in Person,
+               where: p.email in ["jerry@test.com", "bob@test.com"],
+               select: p.id)
+             |> TestRepo.all()
+             |> Enum.sort() == sorted_ids
+      assert from(p in Person,
+               where: p.email in ^emails
+                 and p.age > 69)
+             |> TestRepo.all()
+             |> Enum.at(0)
+             |> Map.get(:id) == person_2.id
+      assert from(p in Person,
+               where: p.email in ["jerry@test.com", "bob@test.com"]
+                 and p.age < 69)
+             |> TestRepo.all()
+             |> Enum.at(0)
+             |> Map.get(:id) == person_1.id
+    end
+
+    # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than 100 records will be rejected.
+    # We allow the user to call all() for more than 100 records by breaking up the requests into blocks of 100.
+    # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
+    test "exceed BatchGetItem limit by 10 records" do
+      total_records = 110
+      people_to_insert = make_list_of_people_for_batch_insert(total_records)
+      person_ids = for person <- people_to_insert, do: person.id
+
+      TestRepo.insert_all(Person, people_to_insert)
+
+      result = from(p in Person,
+                 where: p.id in ^person_ids)
+               |> TestRepo.all()
+
+      assert length(result) == total_records
     end
   end
 
   # describe "Repo.all" do
-  #   test "batch-get multiple records with an 'all... in...' query when querying for a hard-coded and a variable lists of composite primary keys" do
-  #     page1 = %{
-  #               id: "page:test-1",
-  #               page_num: 1,
-  #               text: "abc",
-  #             }
-  #     page2 = %{
-  #               id: "page:test-2",
-  #               page_num: 2,
-  #               text: "def",
-  #             }
-
-  #     TestRepo.insert_all(BookPage, [page1, page2])
-  #     ids = [page1.id, page2.id]
-  #     pages = [1, 2]
-
-  #     var_result = TestRepo.all(from bp in BookPage, where: bp.id in ^ids and bp.page_num in ^pages)
-  #                  |> Enum.map(&(&1.id))
-  #                  |> Enum.sort()
-  #     hc_result = TestRepo.all(from bp in BookPage, where: bp.id in ["page:test-1", "page:test-2"] and bp.page_num in [1, 2])
-  #                 |> Enum.map(&(&1.id))
-  #                 |> Enum.sort()
-
-  #     sorted_ids = Enum.sort(ids)
-
-  #     assert var_result == sorted_ids
-  #     assert hc_result == sorted_ids
-  #   end
-
-  #   test "batch-get multiple records with an 'all... in...' query on a hash key-only global secondary index when querying for a hard-coded and variable list" do
-  #     person1 = %{
-  #       id: "person-jerrytest",
-  #       first_name: "Jerry",
-  #       last_name: "Garcia",
-  #       age: 55,
-  #       email: "jerry@test.com",
-  #       password: "password",
-  #     } 
-  #     person2 = %{
-  #       id: "person-bobtest",
-  #       first_name: "Bob",
-  #       last_name: "Weir",
-  #       age: 70,
-  #       email: "bob@test.com",
-  #       password: "password"
-  #     }
-
-  #     TestRepo.insert_all(Person, [person1, person2])
-
-  #     emails = [person1.email, person2.email]
-  #     sorted_ids = Enum.sort([person1.id, person2.id])
-  #     var_result = TestRepo.all(from p in Person, where: p.email in ^emails)
-  #                  |> Enum.map(&(&1.id))
-  #                  |> Enum.sort()
-  #     hc_result = TestRepo.all(from p in Person, where: p.email in ["jerry@test.com", "bob@test.com"])
-  #                 |> Enum.map(&(&1.id))
-  #                 |> Enum.sort()
-
-  #     assert var_result == sorted_ids
-  #     assert hc_result == sorted_ids
-
-  #     [var_multi_cond_result] = TestRepo.all(from p in Person, where: p.email in ^emails and p.age > 69)
-  #     [hc_multi_cond_result] = TestRepo.all(from p in Person, where: p.email in ["jerry@test.com", "bob@test.com"] and p.age < 69)
-
-  #     assert var_multi_cond_result.id == "person-bobtest"
-  #     assert hc_multi_cond_result.id == "person-jerrytest"
-  #   end
-
   #   test "batch-get multiple records with an 'all... in...' query on a composite global secondary index (hash and range keys) when querying for a hard-coded and variable list" do
   #     person1 = %{
   #       id: "person:frank",
@@ -432,22 +456,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   #              |> Enum.sort()
 
   #     assert result == sorted_ids
-  #   end
-
-  #   # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than
-  #   # 100 records will be rejected. We allow the user to call all() for more than 100 records
-  #   # by breaking up the requests into blocks of 100.
-  #   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
-  #   test "batch-get multiple records, exceeding BatchGetItem limit by 10 records" do
-  #     total_records = 110
-  #     people_to_insert = make_list_of_people_for_batch_insert(total_records) # create a list of people records
-  #     person_ids = for person <- people_to_insert, do: person.id # hang on to the ids separately
-
-  #     TestRepo.insert_all(Person, people_to_insert)
-  #     result = TestRepo.all(from p in Person, where: p.id in ^person_ids)
-  #              |> Enum.map(&(&1.id))
-
-  #     assert length(result) == total_records
   #   end
 
   ### MAY BE REDUNDANT
