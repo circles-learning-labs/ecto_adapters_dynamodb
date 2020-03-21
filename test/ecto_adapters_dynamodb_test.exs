@@ -383,6 +383,66 @@ defmodule Ecto.Adapters.DynamoDB.Test do
              |> Map.get(:id) == person_1.id
     end
 
+    test "query secondary index, :index option provided to resolve ambiguous index choice" do
+      person1 = %{
+                  id: "person-methuselah-baby",
+                  first_name: "Methuselah",
+                  last_name: "Baby",
+                  age: 0,
+                  email: "newborn_baby@test.com",
+                }
+      person2 = %{
+                  id: "person-methuselah-jones",
+                  first_name: "Methuselah",
+                  last_name: "Jones",
+                  age: 969,
+                  email: "methuselah@test.com",
+                }
+
+      TestRepo.insert_all(Person, [person1, person2])
+
+      # based on the query, it won't be clear to the adapter whether to choose the first_name_age
+      # or age_first_name index - pass the :index option to make sure it queries correctly.
+      query = from(p in Person,
+                 where: p.first_name == "Methuselah"
+                   and p.age in [0, 969])
+
+      assert_raise ArgumentError, "Ecto.Adapters.DynamoDB.Query.get_matching_secondary_index/3 error: :index option does not match existing secondary index names. Did you mean age_first_name?", fn ->
+        query
+        |> TestRepo.all(index: "age_first_nam")
+      end
+      assert query
+             |> TestRepo.all(index: "age_first_name")
+             |> length() == 2
+    end
+
+    test "global secondary index with a composite key, using a 'begins_with' fragment on the range key" do
+      email_fragment = "m"
+      person_1 = %{
+                  id: "person-michael-jordan",
+                  first_name: "Michael",
+                  last_name: "Jordan",
+                  age: 52,
+                  email: "mjordan@test.com"
+                }
+      person_2 = %{
+                  id: "person-michael-macdonald",
+                  first_name: "Michael",
+                  last_name: "MacDonald",
+                  age: 74,
+                  email: "singin_dude@test.com"
+                }
+
+      TestRepo.insert_all(Person, [person_1, person_2])
+
+      assert from(p in Person,
+               where: p.first_name == "Michael"
+                 and fragment("begins_with(?, ?)", p.email, ^email_fragment))
+             |> TestRepo.all()
+             |> Enum.at(0)
+             |> Map.get(:id) == person_1.id
+    end
+
     # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than 100 records will be rejected.
     # We allow the user to call all() for more than 100 records by breaking up the requests into blocks of 100.
     # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
@@ -458,7 +518,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   #     assert result == sorted_ids
   #   end
 
-  ### MAY BE REDUNDANT
   #   test "batch-insert and query all on a hash key global secondary index" do
   #     person1 = %{
   #                 id: "person-tomtest",
@@ -571,60 +630,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
   #     assert length(in_result) == 2
   #     assert length(equals_result) == 1
-  #   end
-
-  #   test "query all on global secondary index with a composite key, using a 'begins_with' fragment on the range key" do
-  #     person1 = %{
-  #                 id: "person-michael-jordan",
-  #                 first_name: "Michael",
-  #                 last_name: "Jordan",
-  #                 age: 52,
-  #                 email: "mjordan@test.com",
-  #                 password: "password",
-  #               }
-  #     person2 = %{
-  #                 id: "person-michael-macdonald",
-  #                 first_name: "Michael",
-  #                 last_name: "MacDonald",
-  #                 age: 74,
-  #                 email: "singin_dude@test.com",
-  #                 password: "password",
-  #               }
-
-  #     TestRepo.insert_all(Person, [person1, person2])
-  #     email_frag = "m"
-  #     q = from(p in Person, where: p.first_name == "Michael" and fragment("begins_with(?, ?)", p.email, ^email_frag))
-
-  #     result = TestRepo.all(q)
-
-  #     assert length(result) == 1
-  #   end
-
-  #   test "query all on a global secondary index where an :index option has been provided to resolve an ambiguous index choice" do
-  #     person1 = %{
-  #                 id: "person-methuselah-baby",
-  #                 first_name: "Methuselah",
-  #                 last_name: "Baby",
-  #                 age: 0,
-  #                 email: "newborn_baby@test.com",
-  #                 password: "password",
-  #               }
-  #     person2 = %{
-  #                 id: "person-methuselah-jones",
-  #                 first_name: "Methuselah",
-  #                 last_name: "Jones",
-  #                 age: 969,
-  #                 email: "methuselah@test.com",
-  #                 password: "password",
-  #               }
-
-  #     TestRepo.insert_all(Person, [person1, person2])
-
-  #     q = from(p in Person, where: p.first_name == "Methuselah" and p.age in [0, 969])
-  #     # based on the query, it won't be clear to the adapter whether to choose the first_name_age or age_first_name index - pass the :index option to make sure it queries correctly.
-  #     result = TestRepo.all(q, index: "age_first_name")
-
-  #     assert length(result) == 2
   #   end
   # end
 
