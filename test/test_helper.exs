@@ -21,7 +21,7 @@ defmodule TestHelper do
     Dynamo.delete_table("test_book_page") |> ExAws.request()
     Dynamo.delete_table("test_planet") |> ExAws.request()
 
-    IO.puts "creating test person table"
+    IO.puts "creating test_person table"
     # Only need to define types for indexed fields:
     key_definitions = %{id: :string, email: :string, first_name: :string, age: :number}
     indexes = [
@@ -108,11 +108,11 @@ defmodule TestHelper do
     ]
     Dynamo.create_table("test_person", [id: :hash], key_definitions, 100, 100, indexes, []) |> ExAws.request!
 
-    IO.puts "creating test book page table"
+    IO.puts "creating test_book_page table"
     key_definitions = %{id: :string, page_num: :number}
     Dynamo.create_table("test_book_page", [id: :hash, page_num: :range], key_definitions, 100, 100, [], []) |> ExAws.request!
 
-    IO.puts "creating test planet table"
+    IO.puts "creating test_planet table"
     key_definitions = %{id: :string, name: :string, mass: :number}
     indexes = [
       %{
@@ -136,6 +136,9 @@ defmodule TestHelper do
     ]
     Dynamo.create_table("test_planet", [id: :hash, name: :range], key_definitions, 100, 100, indexes, []) |> ExAws.request!
 
+    IO.puts "creating test_fruit table"
+    Dynamo.create_table("test_fruit", [id: :hash], %{id: :string}, 100, 100, [], []) |> ExAws.request!
+
     :ok
   end
   def setup_all(:migration) do
@@ -150,6 +153,7 @@ defmodule TestHelper do
     Dynamo.delete_table("test_person") |> ExAws.request()
     Dynamo.delete_table("test_book_page") |> ExAws.request()
     Dynamo.delete_table("test_planet") |> ExAws.request()
+    Dynamo.delete_table("test_fruit") |> ExAws.request()
   end
   def on_exit(:migration) do
     IO.puts "deleting migration test tables"

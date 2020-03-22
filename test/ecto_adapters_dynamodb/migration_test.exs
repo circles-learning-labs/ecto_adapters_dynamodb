@@ -8,11 +8,13 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
   The order of tests in this file MUST match the order of execution of the files in test/priv/test_repo/migrations
   """
+
   # When the "down" tests are run at the end, suppress the "redefining modules" warnings.
   # https://stackoverflow.com/questions/36926388/how-can-i-avoid-the-warning-redefining-module-foo-when-running-exunit-tests-m
   Code.compiler_options(ignore_module_conflict: true)
 
   use ExUnit.Case
+
   alias Ecto.Adapters.DynamoDB.TestRepo
 
   @migration_path Path.expand("test/priv/test_repo/migrations")

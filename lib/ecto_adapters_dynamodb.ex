@@ -1,18 +1,7 @@
 defmodule Ecto.Adapters.DynamoDB do
   @moduledoc """
-  Ecto adapter for Amazon DynamoDB
-
-  Currently for a fairly limited subset of Ecto, enough for basic operations.
+  Ecto adapter for Amazon DynamoDB.
   """
-
-  #NOTE: in ecto, Repo.get[!] ends up calling:
-    #-> querable.get
-    #-> queryable.one
-    #-> queryable.all
-    #-> queryable.execute
-    #-> adapter.execute (possibly prepare somewhere in their too? trace.)
-
-
   @behaviour Ecto.Adapter
   @behaviour Ecto.Adapter.Schema
   @behaviour Ecto.Adapter.Queryable
@@ -30,18 +19,11 @@ defmodule Ecto.Adapters.DynamoDB do
 
   @pool_opts [:timeout, :pool_size, :migration_lock]
 
-  # Called as a result of
-  #
-  #       start: {Ecto.Adapters.DynamoDB, :start_link,
-  #             [{Ecto.Adapters.DynamoDB.Protocol, config}]}
-  #
-  # in init/1 below
   def start_link({_module, config}) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.start_link", %{"#{inspect __MODULE__}.start_link-params" => %{config: config}})
     Agent.start_link fn -> [] end
   end
 
-  ## Adapter behaviour - defined in lib/ecto/adapter.ex (in the ecto github repository)
   @impl Ecto.Adapter
   def init(config) do
     child = %{
@@ -85,7 +67,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   @impl Ecto.Adapter.Migration
   def lock_for_migrations(%{opts: adapter_opts} = _meta, query, _opts, callback) do
-    # TODO - consider adding support for this?
+    # TODO - consider adding support for this? See https://github.com/circles-learning-labs/ecto_adapters_dynamodb/issues/34
     if Keyword.get(adapter_opts, :migration_lock) do
       raise "#{inspect __MODULE__}.lock_for_migrations error: #{inspect __MODULE__} does not currently support migration table lock; please remove the :migration_lock option from your repo configuration or set it to nil"
     else
@@ -95,21 +77,15 @@ defmodule Ecto.Adapters.DynamoDB do
 
   @impl Ecto.Adapter
   def checkout(_meta, _opts, _fun) do
-    # TODO - consider adding support for this?
+    # TODO - consider adding support for this? See https://github.com/circles-learning-labs/ecto_adapters_dynamodb/issues/33
     raise "#{inspect __MODULE__}.checkout: #{inspect __MODULE__} does not currently support checkout"
   end
 
   @impl Ecto.Adapter.Queryable
   def stream(_adapter_meta, _query_meta, _query, _params, _opts) do
-    # TODO - consider adding support for this?
+    # TODO - consider adding support for this? See https://github.com/circles-learning-labs/ecto_adapters_dynamodb/issues/32
     raise "#{inspect __MODULE__}.stream: #{inspect __MODULE__} does not currently support stream"
   end
-
-# moved to transaction.ex in ecto 2.1.4
-#  def in_transaction?(_repo), do: false
-#
-#  def rollback(_repo, _value), do:
-#    raise BadFunctionError, message: "#{inspect __MODULE__} does not support transactions."
 
   @doc """
   Called to autogenerate a value for id/embed_id/binary_id.
@@ -138,8 +114,6 @@ defmodule Ecto.Adapters.DynamoDB do
   @impl Ecto.Adapter
   def loaders(_primitive, type), do: [type]
 
-
-
   @doc """
   Returns the dumpers for a given type.
 
@@ -166,7 +140,6 @@ defmodule Ecto.Adapters.DynamoDB do
     {:ok, iso_string}
   end
 
-
   @doc """
   Commands invoked to prepare a query for `all`, `update_all` and `delete_all`.
 
@@ -186,14 +159,11 @@ defmodule Ecto.Adapters.DynamoDB do
 
     {:nocache, {:update_all, query}}
   end
-  # do: {:cache, {System.unique_integer([:positive]), @conn.update_all(query)}}
   def prepare(:delete_all, query) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.prepare: :delete_all", %{"#{inspect __MODULE__}.prepare-params" => %{query: inspect(query, structs: false)}})
 
     {:nocache, {:delete_all, query}}
   end
-  # do: {:cache, {System.unique_integer([:positive]), @conn.delete_all(query)}}
-
 
   @doc """
   Executes a previously prepared query.
@@ -725,7 +695,6 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
 
-
   # Support for tables with a hash+range key.
   #
   #  * If the schema has both keys declared (using the `primary_key: true`) the filters are already correct
@@ -819,7 +788,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp construct_expression_attribute_values(fields, opts) do
-    remove_rather_than_set_to_null = opts[:remove_nil_fields] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
+    remove_rather_than_set_to_null = opts[:remove_nil_fields] || opts[:remove_nil_fields_on_update] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
 
     # If the value is nil and the :remove_nil_fields option is set,
     # we're removing this attribute, not updating it, so filter out any such fields:
@@ -845,8 +814,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   # DynamoDB throws an error if we pass in an empty list for attribute values,
-  # so we have to implement this stupid little helper function to avoid hurting
-  # its feelings:
+  # so we have to implement this stupid little helper function to avoid hurting its feelings:
   defp maybe_add_attribute_values(options, []) do
     options
   end
@@ -868,8 +836,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   # The update callback supplies fields in the paramaters
-  # whereas update_all includes a more complicated updates
-  # structure
+  # whereas update_all includes a more complicated updates structure
   defp construct_update_expression(fields, opts) do
     set_statement = construct_set_statement(fields, opts)
     rem_statement = construct_remove_statement(fields, opts)
@@ -879,7 +846,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # fields::[{:field, val}]
   defp construct_set_statement(fields, opts) do
-    remove_rather_than_set_to_null = opts[:remove_nil_fields] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
+    remove_rather_than_set_to_null = opts[:remove_nil_fields] || opts[:remove_nil_fields_on_update] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
 
     set_clauses = for {key, val} <- fields, not (is_nil(val) and remove_rather_than_set_to_null) do
       key_str = Atom.to_string(key)
@@ -905,7 +872,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp construct_remove_statement(fields, opts) do
-    remove_rather_than_set_to_null = opts[:remove_nil_fields] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
+    remove_rather_than_set_to_null = opts[:remove_nil_fields] || opts[:remove_nil_fields_on_update] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
 
     remove_clauses =
       if remove_rather_than_set_to_null do
