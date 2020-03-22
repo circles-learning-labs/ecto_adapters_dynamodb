@@ -788,7 +788,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp construct_expression_attribute_values(fields, opts) do
-    remove_rather_than_set_to_null = opts[:remove_nil_fields] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
+    remove_rather_than_set_to_null = opts[:remove_nil_fields] || opts[:remove_nil_fields_on_update] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
 
     # If the value is nil and the :remove_nil_fields option is set,
     # we're removing this attribute, not updating it, so filter out any such fields:
@@ -846,7 +846,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # fields::[{:field, val}]
   defp construct_set_statement(fields, opts) do
-    remove_rather_than_set_to_null = opts[:remove_nil_fields] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
+    remove_rather_than_set_to_null = opts[:remove_nil_fields] || opts[:remove_nil_fields_on_update] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
 
     set_clauses = for {key, val} <- fields, not (is_nil(val) and remove_rather_than_set_to_null) do
       key_str = Atom.to_string(key)
@@ -872,7 +872,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp construct_remove_statement(fields, opts) do
-    remove_rather_than_set_to_null = opts[:remove_nil_fields] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
+    remove_rather_than_set_to_null = opts[:remove_nil_fields] || opts[:remove_nil_fields_on_update] || Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
 
     remove_clauses =
       if remove_rather_than_set_to_null do

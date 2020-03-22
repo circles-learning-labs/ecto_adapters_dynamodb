@@ -64,7 +64,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert get_result == insert_result
     end
 
-    test "insert_nil_fields option" do
+    test ":insert_nil_fields option" do
       planet_1 = %Planet{
         name: "Earth",
         mass: 1
@@ -84,20 +84,40 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
   end
 
-  test "update" do
-    TestRepo.insert(%Person{
-                      id: "person-update",
-                      first_name: "Update",
-                      last_name: "Test",
-                      age: 12,
-                      email: "update@test.com",
-                    })
-    {:ok, result} = TestRepo.get(Person, "person-update")
-                    |> Ecto.Changeset.change([first_name: "Updated", last_name: "Tested"])
-                    |> TestRepo.update()
+  describe "update" do
+    test "update a single record" do
+      TestRepo.insert(%Person{
+                        id: "person-update",
+                        first_name: "Update",
+                        last_name: "Test",
+                        age: 12,
+                        email: "update@test.com",
+                      })
+      {:ok, result} = TestRepo.get(Person, "person-update")
+                      |> Ecto.Changeset.change([first_name: "Updated", last_name: "Tested"])
+                      |> TestRepo.update()
 
-    assert result.first_name == "Updated"
-    assert result.last_name == "Tested"
+      assert result.first_name == "Updated"
+      assert result.last_name == "Tested"
+    end
+
+    test ":remove_nil_fields_on_update option" do
+      {:ok, person} =
+        TestRepo.insert(%Person{
+                          first_name: "Prince",
+                          last_name: "Rodgers",
+                          age: 40,
+                          email: "prince@test.com"
+                        })
+
+      person
+      |> Ecto.Changeset.change([country: "USA", last_name: nil])
+      |> TestRepo.update(remove_nil_fields_on_update: true)
+
+      %{"Item" => result} = ExAws.Dynamo.get_item("test_person", %{id: person.id}) |> ExAws.request!
+
+      refute Map.has_key?(result, "last_name")
+    end
   end
 
   test "insert_all" do
