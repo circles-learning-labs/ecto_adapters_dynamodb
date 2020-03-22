@@ -8,7 +8,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   import Ecto.Query
 
   alias Ecto.Adapters.DynamoDB.TestRepo
-  alias Ecto.Adapters.DynamoDB.TestSchema.{Person, Address, BookPage, Planet}
+  alias Ecto.Adapters.DynamoDB.TestSchema.{Person, Address, BookPage, Planet, Fruit}
 
   setup_all do
     TestHelper.setup_all()
@@ -29,38 +29,59 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     assert result == []
   end
 
-  test "insert and get - embedded records, source-mapped field, naive_datetime_usec and utc_datetime" do
-    {:ok, insert_result} = TestRepo.insert(%Person{
-                             id: "person:address_test",
-                             first_name: "Ringo",
-                             last_name: "Starr",
-                             email: "ringo@test.com",
-                             age: 76,
-                             country: "England",
-                             addresses: [
-                               %Address{
-                                 street_number: 245,
-                                 street_name: "W 17th St"
-                               },
-                               %Address{
-                                 street_number: 1385,
-                                 street_name: "Broadway"
-                               }
-                             ]
-                           })
+  describe "insert" do
+    test "embedded records, source-mapped field, naive_datetime_usec and utc_datetime" do
+      {:ok, insert_result} = TestRepo.insert(%Person{
+                               id: "person:address_test",
+                               first_name: "Ringo",
+                               last_name: "Starr",
+                               email: "ringo@test.com",
+                               age: 76,
+                               country: "England",
+                               addresses: [
+                                 %Address{
+                                   street_number: 245,
+                                   street_name: "W 17th St"
+                                 },
+                                 %Address{
+                                   street_number: 1385,
+                                   street_name: "Broadway"
+                                 }
+                               ]
+                             })
 
-    assert length(insert_result.addresses) == 2
-    assert get_datetime_type(insert_result.inserted_at) == :naive_datetime_usec
-    assert get_datetime_type((insert_result.addresses |> Enum.at(0)).updated_at) == :utc_datetime
-    assert insert_result.country == "England"
-    assert insert_result.__meta__ == %Ecto.Schema.Metadata{
-                                        state: :loaded,
-                                        source: "test_person",
-                                        schema: Person
-                                      }
+      assert length(insert_result.addresses) == 2
+      assert get_datetime_type(insert_result.inserted_at) == :naive_datetime_usec
+      assert get_datetime_type((insert_result.addresses |> Enum.at(0)).updated_at) == :utc_datetime
+      assert insert_result.country == "England"
+      assert insert_result.__meta__ == %Ecto.Schema.Metadata{
+                                          state: :loaded,
+                                          source: "test_person",
+                                          schema: Person
+                                        }
 
-    get_result = TestRepo.get(Person, insert_result.id)
-    assert get_result == insert_result
+      get_result = TestRepo.get(Person, insert_result.id)
+      assert get_result == insert_result
+    end
+
+    test "insert_nil_fields option" do
+      planet_1 = %Planet{
+        name: "Earth",
+        mass: 1
+      }
+      planet_2 = %Planet{
+        name: "Venus",
+        mass: 2
+      }
+
+      {:ok, earth} = TestRepo.insert(planet_1, insert_nil_fields: false)
+      {:ok, venus} = TestRepo.insert(planet_2)
+      %{"Item" => earth_result} = ExAws.Dynamo.get_item("test_planet", %{id: earth.id, name: earth.name}) |> ExAws.request!
+      %{"Item" => venus_result} = ExAws.Dynamo.get_item("test_planet", %{id: venus.id, name: venus.name}) |> ExAws.request!
+
+      refute Map.has_key?(earth_result, "moons")
+      assert Map.has_key?(venus_result, "moons")
+    end
   end
 
   test "update" do
@@ -579,6 +600,19 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                |> TestRepo.all()
 
       assert length(result) == total_records
+    end
+
+    test "scan query option" do
+      fruit_1 = %{name: "apple"}
+      fruit_2 = %{name: "orange"}
+
+      TestRepo.insert_all(Fruit, [fruit_1, fruit_2])
+
+      assert_raise ArgumentError, "Ecto.Adapters.DynamoDB.Query.maybe_scan/3 error: :scan option or configuration have not been specified, and could not confirm the table, \"test_fruit\", as listed for scan or caching in the application's configuration. Please see README file for details.", fn ->
+        TestRepo.all(Fruit)
+      end
+      assert TestRepo.all(Fruit, scan: true)
+             |> length() == 2
     end
   end
 

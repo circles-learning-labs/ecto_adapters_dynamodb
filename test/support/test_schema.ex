@@ -89,3 +89,20 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Planet do
     # on a composite primary key, we'll allow for duplicate ids but enforce unique names.
   end
 end
+
+defmodule Ecto.Adapters.DynamoDB.TestSchema.Fruit do
+  use Ecto.Schema
+  @primary_key {:id, :binary_id, autogenerate: true}
+
+  schema "test_fruit" do
+    field :name, :string
+
+    timestamps()
+  end
+
+  def changeset(struct, params \\ %{}) do
+    struct
+    |> Ecto.Changeset.cast(params, [:name])
+    |> Ecto.Changeset.validate_required([:id, :name])
+  end
+end
