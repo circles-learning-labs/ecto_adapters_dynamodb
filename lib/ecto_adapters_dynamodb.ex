@@ -19,6 +19,10 @@ defmodule Ecto.Adapters.DynamoDB do
 
   @pool_opts [:timeout, :pool_size, :migration_lock]
 
+  # DynamoDB will reject attempts to batch write more than 25 records at once
+  # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
+  @batch_write_item_limit 25
+
   def start_link({_module, config}) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.start_link", %{"#{inspect __MODULE__}.start_link-params" => %{config: config}})
     Agent.start_link fn -> [] end
@@ -328,11 +332,21 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  # returns unprocessed_items
+  # Returns unprocessed_items
+  # Similarly to a batch insert, batch delete is also restricted by DDB's batch write limit of 25 records - these requests will be chunked as well.
   defp batch_delete(table, prepared_data) do
-    batch_write_attempt = Dynamo.batch_write_item(%{table => prepared_data}) |> ExAws.request |> handle_error!(%{table: table, records: []})
+    Enum.chunk_every(prepared_data, @batch_write_item_limit)
+    |> Enum.reduce(%{}, fn batch, unprocessed_items ->
+      batch_write_attempt = Dynamo.batch_write_item(%{table => batch})
+                            |> ExAws.request
+                            |> handle_error!(%{table: table, records: []})
 
-    batch_write_attempt["UnprocessedItems"]
+      case batch_write_attempt do
+        %{"UnprocessedItems" => %{^table => items}} ->
+          Map.update(unprocessed_items, table, items, &(&1 ++ items))
+        _ -> unprocessed_items
+      end
+    end)
   end
 
   defp update_all(table, lookup_fields, opts, updates, params) do
@@ -576,8 +590,7 @@ defmodule Ecto.Adapters.DynamoDB do
   # batch_write/3 will break the list into chunks of 25 items and insert each separately.
   defp batch_write(table, prepared_fields, opts) do
     unprocessed_items_element = "UnprocessedItems"
-    batch_write_item_limit = 25
-    grouped_records = Enum.chunk_every(prepared_fields, batch_write_item_limit)
+    grouped_records = Enum.chunk_every(prepared_fields, @batch_write_item_limit)
     num_batches = length grouped_records
 
     # Break the prepared_fields into chunks of at most 25 elements to be batch inserted, accumulating

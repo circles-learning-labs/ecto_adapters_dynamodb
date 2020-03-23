@@ -224,7 +224,8 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
     TestRepo.insert_all(Person, [person_1, person_2])
 
-    result = TestRepo.delete_all((from p in Person, where: p.id in ^[person_1.id, person_2.id]))
+    result = from(p in Person, where: p.id in ^[person_1.id, person_2.id])
+             |> TestRepo.delete_all()
 
     assert {2, nil} == result
   end
@@ -605,23 +606,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
              |> Enum.sort() == sorted_ids
     end
 
-    # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than 100 records will be rejected.
-    # We allow the user to call all() for more than 100 records by breaking up the requests into blocks of 100.
-    # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
-    test "exceed BatchGetItem limit by 10 records" do
-      total_records = 110
-      people_to_insert = make_list_of_people_for_batch_insert(total_records)
-      person_ids = for person <- people_to_insert, do: person.id
-
-      TestRepo.insert_all(Person, people_to_insert)
-
-      result = from(p in Person,
-                 where: p.id in ^person_ids)
-               |> TestRepo.all()
-
-      assert length(result) == total_records
-    end
-
     test "scan query option" do
       fruit_1 = %{name: "apple"}
       fruit_2 = %{name: "orange"}
@@ -634,6 +618,32 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert TestRepo.all(Fruit, scan: true)
              |> length() == 2
     end
+  end
+
+  # DynamoDB has a constraint on the call to BatchGetItem, where attempts to retrieve more than 100 records will be rejected.
+  # We allow the user to call all() for more than 100 records by breaking up the requests into blocks of 100.
+  # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
+  # Similarly, calls to BatchWriteItem (which affects insert_all and delete_all operations)
+  # are restricted to 25 records per call - so those should be similarly batched.
+  test "exceed BatchGetItem and BatchWriteItem limits" do
+    total_records = 110
+    people_to_insert = make_list_of_people_for_batch_insert(total_records)
+    person_ids = for person <- people_to_insert, do: person.id
+
+    TestRepo.insert_all(Person, people_to_insert)
+
+    assert from(p in Person,
+             where: p.id in ^person_ids)
+             |> TestRepo.all()
+             |> length() == total_records
+
+    assert from(p in Person, where: p.id in ^person_ids)
+           |> TestRepo.delete_all() == {total_records, nil}
+
+    assert from(p in Person,
+             where: p.id in ^person_ids)
+             |> TestRepo.all()
+             |> length() == 0
   end
 
   defp make_list_of_people_for_batch_insert(total_records) do
