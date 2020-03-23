@@ -638,6 +638,9 @@ defmodule Ecto.Adapters.DynamoDB.Test do
              |> length() == total_records
 
     assert from(p in Person, where: p.id in ^person_ids)
+           |> TestRepo.update_all(set: [last_name: "Foobar"]) == {total_records, []}
+
+    assert from(p in Person, where: p.id in ^person_ids)
            |> TestRepo.delete_all() == {total_records, nil}
 
     assert from(p in Person,
