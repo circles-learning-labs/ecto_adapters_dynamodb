@@ -332,6 +332,13 @@ defmodule Ecto.Adapters.DynamoDB.Test do
              |> TestRepo.all()
              |> Enum.at(0) == person.id
 
+      assert from(p in Person,
+              where: p.id == "person:jamesholden"
+                and p.email == "wrong@test.com"
+                or p.age == 18,
+              select: p.id)
+             |> TestRepo.one() == person.id
+
       refute from(p in Person,
               where: p.id == "person:jamesholden"
                 and p.email == "jholden@expanse.com"
