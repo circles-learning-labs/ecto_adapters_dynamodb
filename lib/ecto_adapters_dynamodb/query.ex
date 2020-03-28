@@ -108,13 +108,22 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     results
   end
 
-  # If a primary key query has additional search clauses, we may need to use a Dynamo query instead of get_item in order to apply filters.
+  # If a primary key query has additional search clauses that are not reflected by the indexes,
+  # we may need to use a Dynamo query instead of get_item in order to apply filters.
   defp should_query?(indexes, [and: search_clauses]) do
-    search_fields = Enum.map(search_clauses, fn {field, _} -> field end)
+    search_fields = extract_search_fields(search_clauses)
 
     MapSet.new(indexes) != MapSet.new(search_fields)
   end
   defp should_query?(_indexes, _search), do: false
+
+  defp extract_search_fields(search_clauses),
+    do: search_clauses |> extract_search_fields([])
+  defp extract_search_fields([], search_fields), do: search_fields
+  defp extract_search_fields([{:and, deeper_clauses} | rest], search_fields),
+    do: extract_search_fields(deeper_clauses ++ rest, search_fields)
+  defp extract_search_fields([{field, _} | rest], search_fields),
+    do: extract_search_fields(rest, [field | search_fields])
 
   # In the case of a partial query on a composite key secondary index, the value of index in get_item/2 will be a three-element tuple, ex. {:secondary_partial, "person_id_entity", ["person_id"]}.
   # Otherwise, we can expect it to be a two-element tuple.

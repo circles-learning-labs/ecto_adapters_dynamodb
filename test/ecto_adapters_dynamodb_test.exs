@@ -334,6 +334,12 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       refute from(p in Person,
               where: p.id == "person:jamesholden"
+                and p.email == "jholden@expanse.com"
+                and is_nil(p.updated_at))
+             |> TestRepo.one()
+
+      refute from(p in Person,
+              where: p.id == "person:jamesholden"
                 and is_nil(p.updated_at))
              |> TestRepo.one()
     end
