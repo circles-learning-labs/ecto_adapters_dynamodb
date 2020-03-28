@@ -41,6 +41,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
           end
       parsed -> parsed
     end
+    do_fetch_recursive = fn(qry) ->
+      fetch_recursive(&ExAws.Dynamo.query/2, table, qry, parse_recursive_option(:query, opts), %{})
+    end
 
     results = case parsed_index do
       # primary key based lookup uses the efficient 'get_item' operation
@@ -66,9 +69,14 @@ defmodule Ecto.Adapters.DynamoDB.Query do
             |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
           end)
         else
-          # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
-          query = construct_search(index, search, opts)
-          ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
+          if should_query?(indexes, search) do
+            construct_search({nil, indexes}, search, opts)
+            |> do_fetch_recursive.()
+          else
+            # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
+            query = construct_search(index, search, opts)
+            ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
+          end
         end
 
       # secondary index based lookups need the query functionality. 
@@ -78,10 +86,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#query/2
 
         query = construct_search(index, search, opts)
-
-        do_fetch_recursive = fn(qry) ->
-          fetch_recursive(&ExAws.Dynamo.query/2, table, qry, parse_recursive_option(:query, opts), %{})
-        end
 
         if op == :in do
           responses_element = "Responses"
@@ -101,8 +105,16 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         maybe_scan(table, search, opts)
     end
 
-    filter(results, search) # index may have had more fields than the index did, thus results need to be trimmed.
+    results
   end
+
+  # If a primary key query has additional search clauses, we may need to use a Dynamo query instead of get_item in order to apply filters.
+  defp should_query?(indexes, [and: search_clauses]) do
+    search_fields = Enum.map(search_clauses, fn {field, _} -> field end)
+
+    MapSet.new(indexes) != MapSet.new(search_fields)
+  end
+  defp should_query?(_indexes, _search), do: false
 
   # In the case of a partial query on a composite key secondary index, the value of index in get_item/2 will be a three-element tuple, ex. {:secondary_partial, "person_id_entity", ["person_id"]}.
   # Otherwise, we can expect it to be a two-element tuple.
@@ -342,15 +354,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
     %{table => [keys: keys] ++ take_opts}
   end
-
-
-  # TODO: Given the search criteria, filter out other results that were caught in the
-  # index read. TODO: Can we do this on the server side dynamo query instead?
-  # see: http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-FilterExpression
-  # note, this doesn't save us read capacity, but DOES reduce the result set and parsing over the wire.
-  @spec filter(dynamo_response, search) :: dynamo_response
-  def filter(results, _search), do: results
-
 
 
   @doc """
