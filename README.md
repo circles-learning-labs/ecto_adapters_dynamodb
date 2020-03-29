@@ -201,21 +201,9 @@ In order to make sure your local version of DynamoDB is up to date with the curr
 
 ### Configuration
 
-Configuring a repository to use the DynamoDB ecto adapter is pretty similar to most other Ecto adapters. Set the `adapter` option in your app's Repo configuration file to 'Ecto.Adapters.DynamoDB'.
+Configuring a repository to use the DynamoDB ecto adapter is pretty similar to most other Ecto adapters - you'll set the `adapter` option in your app's Repo configuration file to `Ecto.Adapters.DynamoDB`, and then set the required (or optional) values in a keyword list in the appropriate application configuration files for your repo.
 
-```
-defmodule MyApp.Repo do
-  use Ecto.Repo,
-    otp_app: :my_app,
-    adapter: Ecto.Adapters.DynamoDB
-end
-```
-
-## REVISED TO HERE
-
-and then set the required (or optional) values in a keyword list in the appropriate application configuration files under the
-
-These are **different** from the normal Ecto options. For example, in DynamoDB you don't have `username`, `password`, or `database` options - you'll need to delete these lines. Instead you'll add Amazon `access_key_id`, `secret_access_key`, `region`, and the optional `dynamodb` `host` and `scheme` options if you're not running against the default live Amazon instances (for example, running the local Amazon dev version of DynamoDB for testing and development).
+These values are **different** from the normal Ecto options. For example, in DynamoDB you don't have `username`, `password`, or `database` options - you'll need to delete these lines. Instead you'll add Amazon `access_key_id`, `secret_access_key`, `region`, and the optional `dynamodb` `host` and `scheme` options if you're not running against the default live Amazon instances (for example, running the local Amazon dev version of DynamoDB for testing and development).
 
 All these options are quietly passed through to ExAws. See [ExAws Getting Started](https://hexdocs.pm/ex_aws/ExAws.html#module-getting-started) for more information on these options.
 
@@ -248,16 +236,16 @@ config :my_app, ecto_repos: [MyApp.Repo]
 Include the adapter in the project's applications list:
 
 ```elixir
-  def application do
-    [
-    	applications: [:ecto_adapters_dynamodb]
-    ]
-  end
+def application do
+  [
+	applications: [:ecto_adapters_dynamodb]
+  ]
+end
 ```
 
 #### Configuring a Development Environment against a local instance of Dynamo
 
-For development, we use the [local version](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) of DynamoDB, and some dummy variable assignments. Note that the access key/secret here are hardcoded in to the config, and that we set a `dynamo` key that overrides the connection parameters from the defaults for AWS. We point it to l`ocalhost:8000` - the default for a local DynamoDB test server.
+For development, we use the [local version](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) of DynamoDB, and some dummy variable assignments. Note that the access key/secret here are hardcoded in to the config, and that we set a `dynamo` key that overrides the connection parameters from the defaults for AWS. We point it to `localhost:8000` - the default for a local DynamoDB test server.
 
 **config/dev.exs"**
 
@@ -278,9 +266,9 @@ config :my_app, MyApp.Repo,
 
 #### Configuring a Production environment using Dynamo running on AWS
 
-For a production setup, it's much simpler. No need to specify the host/ports for dynamo, as it will default to the appriopriate AWS service in the region selected.
+For a production setup, it's much simpler. No need to specify the `host`/`port` for `dynamodb`, as it will default to the appriopriate AWS service in the region selected.
 
-In this example configration we do not hard code the secret or access key. These following settings tell ExAws to first attempt to pull the secret and access key from environment variables labelled `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. If it cannot find those environment variables, it will attempt to fall back on AWS role based authentication (This only applies if this instance is running in an appropriately configured amazon instance.)
+In this example configration we do not hard code the secret or access key. These following settings tell ExAws to first attempt to pull the secret and access key from environment variables labelled `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. If it cannot find those environment variables, it will attempt to fall back on AWS role-based authentication (this only applies if this instance is running in an appropriately configured Amazon instance).
 
 To reiterate, this is just standard ExAws configuration that we're wrapping up in our adapter config. Please consult the ExAws docs for further information.
 
@@ -300,18 +288,19 @@ The following are adapter options that apply to the Ecto adapter, and are NOT re
 
 ```elixir
 config :ecto_adapters_dynamodb,
+  dynamodb_local: true,
   insert_nil_fields: false,
   remove_nil_fields_on_update: true,
   cached_tables: ["colour"]
 ```
 
-The above snippet will (1) set the adapter to ignore fields that are set to `nil` in the changeset, inserting the record without those attributes, (2) set the adapter to remove attributes in a record during an update where those fields are set to `nil` in the changeset, and (3) cache scan results from the "colour" table, providing the cached result in subsequent calls. More details for each of those options follow.
+The above snippet will (1) notify the adapter that you are running it against a local dev instance of DynamoDB, (2) set the adapter to ignore fields that are set to `nil` in the changeset, inserting the record without those attributes, (3) set the adapter to remove attributes in a record during an update where those fields are set to `nil` in the changeset, and (4) cache scan results from the "colour" table, providing the cached result in subsequent calls. More details for each of those options follow.
 
 #### Production DynamoDB vs. local development DynamoDB
 
 **:dynamodb_local** :: boolean, *default:* `false`
 
-Indicate whether you are running against production (default) or local DynamoDB. The local development version of DynamoDB is not a true replica of the software used in production, and some local behaviours require special handling - in some scenarios for instance, production DynamoDB will raise an error whereas the local version will just hang until it times out. We recommend setting this config value to `true` in any environment you will be running against local DynamoDB.
+Indicate whether you are running against production (default) or local DynamoDB. The local development version of DynamoDB is not a true replica of the software used in production, and some local behaviours require special handling - in some scenarios for instance, production DynamoDB will raise an error whereas the local version will just hang until it times out. We **strongly** recommend setting this config value to `true` in any environment you will be running against local DynamoDB.
 
 Here's an illustration of a situation where this will be useful:
 
@@ -345,11 +334,11 @@ Determines if, during **Repo.update** or **Repo.update_all**, fields in the chan
 
 #### Logging Configuration
 
-The adapter's logging options are configured during compile time, and can be altered in the application's configuration files ("config/config.exs", "config/dev.exs", "config/test.exs" and "config/test.exs"). To enable logging in colour, the `MIX_ENV` environment variable must be explicitly exported as `dev` during compilation.
+The adapter's logging options are configured during compile time, and can be altered in the application's configuration files (`config/config.exs`, `config/dev.exs`, `config/test.exs` and `config/test.exs`). To enable logging in colour, the `MIX_ENV` environment variable must be explicitly exported as `dev` during compilation.
 
 We provide a few informational log lines, such as which adapter call is being processed, as well as the table, lookup fields, and options detected. Configure an optional log path to have the messages recorded on file.
 
-**:log_levels** :: [log-level-atom], *default:* `[:info]`, *log-level-atom can be :info and/or :debug*
+**:log_levels** :: `[:info, :debug]`, *default:* `[:info]`
 
 **:log_colours** :: %{log-level-atom: IO.ANSI-colour-atom}, *default:* `info: :green, debug: :normal`
 
@@ -393,7 +382,7 @@ ProvisionedThroughput as `[ReadCapacityUnits, WriteCapacityUnits]`, for the Sche
 
 ## Inline Options
 
-The adapter supports a mix of Ecto options and custom inline options; if the Ecto option is not listed here, assume the adapter will ignore it. The following options can be passed during runtime in the Ecto calls. For example, consider a DynamoDB table with a composite index (HASH + RANGE):
+The adapter supports a mix of Ecto options and custom inline options; if the Ecto option is not listed here, assume the adapter will ignore it. The following options can be passed during runtime in the Ecto calls. For example, consider a DynamoDB table with a composite index (HASH+RANGE):
 
 ```elixir
 MyApp.Repo.all(
@@ -407,7 +396,7 @@ will retrieve the first five results from the record set for the indexed HASH, "
 
 ### Supported Ecto Options
 
-**:on_conflict** :: :raise | :nothing | :replace_all, *default:* :raise
+**:on_conflict** :: `:raise | :nothing | :replace_all`, *default:* `:raise`
 
 By default, the adapter will provide the condition expression, `attribute_not_exists(PARTITION_KEY_ATTRIBUTE)` with the DynamoDB query, failing to insert if the record already exists. To perform an unconditional insert, possibly overwriting an existing record, provide the option `on_conflict: :replace_all` in the insert query. If `on_conflict: :nothing` is provided, a struct will be returned, although the record will not be inserted if there is a preexisting record with the same primary key.
 
@@ -415,22 +404,23 @@ By default, the adapter will provide the condition expression, `attribute_not_ex
 
 #### **Inline Options:** *Repo.update*, *Repo.delete*
 
-**:range_key** :: {attribute_name_atom, value}, *default:* none
+**:range_key** :: `{attribute_name_atom, value}`, *default:* none
 
 If the DynamoDB table queried has a composite primary key, an update or delete query must supply both the `HASH` and the `RANGE` parts of the key. We assume that your Ecto model schema will correlate its primary id with DynamoDB's `HASH` part of the key. However, since Ecto will normally only supply the adapter with the primary id along with the changeset, we offer the `range_key` option to avoid an extra query to retrieve the complete key. The adapter will attempt to query the table for the complete key if the **:range_key** option is not supplied.
 
 #### **Inline Options:** *Repo.update_all*
 
-**:add / :delete** :: [{field_atom, MapSet}], *default:* none
+**:add / :delete** :: `[{field_atom, MapSet}]`, *default:* none
 
 Ecto does not currently support `:push` and `:pull` on fields that are not `:array` type. To perform DynamoDB's **add** and **delete** on sets, pass the action, field, and value as an option.
 
-**:prepend_to_list** :: [field_atom], *default:* none
+**:prepend_to_list** :: `[field_atom]`, *default:* none
 
-To prepend a value during a :push action, include the field in this option.
-For example: `Repo.update_all((from Country, where: [name: "New Zealand"]), [push: [tags: "adventure"]], prepend_to_list: [:tags])`
+To prepend a value during a `:push` action, include the field in this option. For example:
 
-**:pull_indexes** :: [{field_atom, [integer]}], *default:* none
+`Repo.update_all((from Country, where: [name: "New Zealand"]), [push: [tags: "adventure"]], prepend_to_list: [:tags])`
+
+**:pull_indexes** :: `[{field_atom, [integer]}]`, *default:* none
 
 To remove an element in a DynamoDB list, we must supply the list index of the element/s. Include them in this option. If `:pull_indexes` is not specified, the adapter will attempt to find and remove all the occurrences of the value in the `:pull` keyword in the corresponding list field.
 
@@ -456,7 +446,7 @@ defmodule Model do
   
   schema "model" do
     ...
-    field :set,  Ecto.Adapters.DynamoDB.DynamoDBSet
+    field :set, Ecto.Adapters.DynamoDB.DynamoDBSet
     ...
 ```
 
