@@ -78,8 +78,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
               # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
               query = construct_search(index, search, opts)
               ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
-            _ ->
-              construct_search({nil, indexes}, search, opts)
+            non_indexed_filters ->
+              construct_search({nil, indexes}, search, Keyword.put(opts, :non_indexed_filters, non_indexed_filters))
               |> do_fetch_recursive.()
           end
         end
@@ -155,7 +155,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   def construct_search({index_name, index_fields}, search, opts) do
     # Construct a DynamoDB FilterExpression (since it cannot be provided blank but may be,
     # we merge it with the full query)
-    {filter_expression_tuple, expression_attribute_names, expression_attribute_values} = construct_filter_expression(search, index_fields)
+    {filter_expression_tuple, expression_attribute_names, expression_attribute_values} = construct_filter_expression(search, index_fields, opts)
 
     updated_ops = construct_opts(:query, opts)
 
@@ -222,10 +222,10 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
 
   # returns a tuple: {filter_expression_tuple, expression_attribute_names, expression_attribute_values}
-  @spec construct_filter_expression(search, [String.t]) :: {[filter_expression: String.t], map, keyword}
-  defp construct_filter_expression(search, index_fields) do
+  @spec construct_filter_expression(search, [String.t], keyword) :: {[filter_expression: String.t], map, keyword}
+  defp construct_filter_expression(search, index_fields, opts \\ []) do
     # We can only construct a FilterExpression on attributes not in key-conditions.
-    non_indexed_filters = collect_non_indexed_search(search, index_fields, [])
+    non_indexed_filters = Keyword.get(opts, :non_indexed_filters, collect_non_indexed_search(search, index_fields, []))
 
     case non_indexed_filters do
       [] -> {[], %{}, []}
