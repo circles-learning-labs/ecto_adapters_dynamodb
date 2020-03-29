@@ -71,16 +71,13 @@ defmodule Ecto.Adapters.DynamoDB.Query do
             |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
           end)
         else
-          # If a primary key query has additional search clauses that are not reflected by the indexes,
-          # we may need to use a Dynamo query instead of get_item in order to apply filters.
-          case collect_non_indexed_search(search, indexes, []) do
-            [] ->
-              # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
-              query = construct_search(index, search, opts)
-              ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
-            non_indexed_filters ->
-              construct_search({nil, indexes}, search, Keyword.put(opts, :non_indexed_filters, non_indexed_filters))
-              |> do_fetch_recursive.()
+          if should_query?(indexes, search) do
+            construct_search({nil, indexes}, search, opts)
+            |> do_fetch_recursive.()
+          else
+            # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
+            query = construct_search(index, search, opts)
+            ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
           end
         end
 
@@ -111,6 +108,17 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
 
     results
+  end
+
+  # If a primary key query has additional search clauses that are not reflected by the indexes,
+  # we may need to use a Dynamo query instead of get_item in order to apply filters.
+  defp should_query?(_indexes, []), do: false
+  defp should_query?(indexes, [{logical_op, search_clauses}]) when logical_op in @logical_ops,
+    do: should_query?(indexes, search_clauses)
+  defp should_query?(indexes, [{field, _} | rest]) do
+    if field not in indexes,
+      do: true,
+      else: should_query?(indexes, rest)
   end
 
   # In the case of a partial query on a composite key secondary index, the value of index in get_item/2 will be a three-element tuple, ex. {:secondary_partial, "person_id_entity", ["person_id"]}.
@@ -155,7 +163,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   def construct_search({index_name, index_fields}, search, opts) do
     # Construct a DynamoDB FilterExpression (since it cannot be provided blank but may be,
     # we merge it with the full query)
-    {filter_expression_tuple, expression_attribute_names, expression_attribute_values} = construct_filter_expression(search, index_fields, opts)
+    {filter_expression_tuple, expression_attribute_names, expression_attribute_values} = construct_filter_expression(search, index_fields)
 
     updated_ops = construct_opts(:query, opts)
 
@@ -222,10 +230,10 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
 
   # returns a tuple: {filter_expression_tuple, expression_attribute_names, expression_attribute_values}
-  @spec construct_filter_expression(search, [String.t], keyword) :: {[filter_expression: String.t], map, keyword}
-  defp construct_filter_expression(search, index_fields, opts \\ []) do
+  @spec construct_filter_expression(search, [String.t]) :: {[filter_expression: String.t], map, keyword}
+  defp construct_filter_expression(search, index_fields) do
     # We can only construct a FilterExpression on attributes not in key-conditions.
-    non_indexed_filters = Keyword.get(opts, :non_indexed_filters, collect_non_indexed_search(search, index_fields, []))
+    non_indexed_filters = collect_non_indexed_search(search, index_fields, [])
 
     case non_indexed_filters do
       [] -> {[], %{}, []}
