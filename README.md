@@ -81,10 +81,6 @@ This is one of those things that are technically possible, but would result in v
 
 That said, for very simple joins that match a limited number of keys where all the relevant fields are indexed, joins could probably be emulated pretty reasonably. We'd entertain the notion of accepting a patch for this, if anyone wants to go to the trouble, and if the code contains some reasonable safeguards to avoid executing big, expensive joins by accident. It would be tricky though, and it's certainly not a priority for us right now.
 
-#### Transactions
-
-DynamoDB and [ExAws.Dynamo](https://github.com/ex-aws/ex_aws_dynamo) support transactions, but they have not yet been implemented in this adapter. We will probably try to implement transactions at some point, but it's not a high priority - if you would like to make a valuable contribution to this project, you could help us to resolve [this issue](https://github.com/circles-learning-labs/ecto_adapters_dynamodb/issues/12).
-
 #### Limited sorting
 
 DynamoDB can ONLY return sorted results if there is a matching HASH+RANGE index where the desired sort key is the RANGE portion of the index. In this case we support the **:scan_index_forward** [option](http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html) as a parameter to Repo queries. However, writing queries like `SELECT * FROM person ORDER BY last_name LIMIT 50` may not be practical; we'd have to retrieve every record from the table to do this. (See also *DynamoDB LIMIT & Paging* below.)
@@ -125,6 +121,10 @@ Please note: Ecto migration calls `Repo.all()` on the *schema_migrations* table,
 ### Unimplemented Features
 
 While the previous section listed limitations that we're unlikely to work around due to philosophical differences between DynamoDB as a key/value store vs an SQL relational database, there are some features that we just haven't implemented yet. Feel free to help out if any of these are important to you!
+
+#### Transactions
+
+DynamoDB and [ExAws.Dynamo](https://github.com/ex-aws/ex_aws_dynamo) support transactions, but they have not yet been implemented in this adapter. We will probably try to implement transactions at some point, but it's not a high priority for us - if you would like to make a valuable contribution to this project, you could help us to resolve [this issue](https://github.com/circles-learning-labs/ecto_adapters_dynamodb/issues/12).
 
 #### Adapter.Storage
 
