@@ -113,12 +113,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   # If a primary key query has additional search clauses that are not reflected by the indexes,
   # we may need to use a Dynamo query instead of get_item in order to apply filters.
   defp should_query?(_indexes, []), do: false
-  defp should_query?(indexes, [{logical_op, search_clauses}]) when logical_op in @logical_ops,
-    do: should_query?(indexes, search_clauses)
-  defp should_query?(indexes, [{field, _} | rest]) do
+  defp should_query?(indexes, [{logical_op, search_clauses} | additional_search_clauses]) when logical_op in @logical_ops,
+    do: should_query?(indexes, search_clauses ++ additional_search_clauses)
+  defp should_query?(indexes, [{field, _} | search_clauses]) do
     if field not in indexes,
       do: true,
-      else: should_query?(indexes, rest)
+      else: should_query?(indexes, search_clauses)
   end
 
   # In the case of a partial query on a composite key secondary index, the value of index in get_item/2 will be a three-element tuple, ex. {:secondary_partial, "person_id_entity", ["person_id"]}.
