@@ -71,13 +71,16 @@ defmodule Ecto.Adapters.DynamoDB.Query do
             |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
           end)
         else
-          if should_query?(indexes, search) do
-            construct_search({nil, indexes}, search, opts)
-            |> do_fetch_recursive.()
-          else
-            # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
-            query = construct_search(index, search, opts)
-            ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
+          # If a primary key query has additional search clauses that are not reflected by the indexes,
+          # we may need to use a Dynamo query instead of get_item in order to apply filters.
+          case collect_non_indexed_search(search, indexes, []) do
+            [] ->
+              # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
+              query = construct_search(index, search, opts)
+              ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
+            _ ->
+              construct_search({nil, indexes}, search, opts)
+              |> do_fetch_recursive.()
           end
         end
 
@@ -109,23 +112,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
     results
   end
-
-  # If a primary key query has additional search clauses that are not reflected by the indexes,
-  # we may need to use a Dynamo query instead of get_item in order to apply filters.
-  defp should_query?(indexes, [{logical_op, search_clauses}]) when logical_op in @logical_ops do
-    search_clauses
-    |> extract_search_fields
-    |> MapSet.new() != MapSet.new(indexes)
-  end
-  defp should_query?(_indexes, _search), do: false
-
-  def extract_search_fields(search_clauses),
-    do: search_clauses |> extract_search_fields([])
-  defp extract_search_fields([], search_fields), do: search_fields
-  defp extract_search_fields([{logical_op, deeper_clauses} | rest], search_fields) when logical_op in @logical_ops,
-    do: extract_search_fields(deeper_clauses ++ rest, search_fields)
-  defp extract_search_fields([{field, _} | rest], search_fields),
-    do: extract_search_fields(rest, [field | search_fields])
 
   # In the case of a partial query on a composite key secondary index, the value of index in get_item/2 will be a three-element tuple, ex. {:secondary_partial, "person_id_entity", ["person_id"]}.
   # Otherwise, we can expect it to be a two-element tuple.
