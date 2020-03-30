@@ -6,6 +6,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   import Ecto.Adapters.DynamoDB.Info
 
+  @logical_ops [:and, :or]
+
   @typep key :: String.t
   @typep table_name :: String.t
   @typep query_op :: :== | :> | :< |:>= | :<= | :is_nil | :between | :begins_with | :in
@@ -41,6 +43,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
           end
       parsed -> parsed
     end
+    do_fetch_recursive = fn(qry) ->
+      fetch_recursive(&ExAws.Dynamo.query/2, table, qry, parse_recursive_option(:query, opts), %{})
+    end
 
     results = case parsed_index do
       # primary key based lookup uses the efficient 'get_item' operation
@@ -66,9 +71,14 @@ defmodule Ecto.Adapters.DynamoDB.Query do
             |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
           end)
         else
-          # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
-          query = construct_search(index, search, opts)
-          ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
+          if should_query?(indexes, search) do
+            construct_search({nil, indexes}, search, opts)
+            |> do_fetch_recursive.()
+          else
+            # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
+            query = construct_search(index, search, opts)
+            ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
+          end
         end
 
       # secondary index based lookups need the query functionality. 
@@ -78,10 +88,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#query/2
 
         query = construct_search(index, search, opts)
-
-        do_fetch_recursive = fn(qry) ->
-          fetch_recursive(&ExAws.Dynamo.query/2, table, qry, parse_recursive_option(:query, opts), %{})
-        end
 
         if op == :in do
           responses_element = "Responses"
@@ -101,7 +107,18 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         maybe_scan(table, search, opts)
     end
 
-    filter(results, search) # index may have had more fields than the index did, thus results need to be trimmed.
+    results
+  end
+
+  # If a primary key query has additional search clauses that are not reflected by the indexes,
+  # we may need to use a Dynamo query instead of get_item in order to apply filters.
+  defp should_query?(_indexes, []), do: false
+  defp should_query?(indexes, [{logical_op, search_clauses} | additional_search_clauses]) when logical_op in @logical_ops,
+    do: should_query?(indexes, search_clauses) or should_query?(indexes, additional_search_clauses)
+  defp should_query?(indexes, [{field, _} | search_clauses]) do
+    if field not in indexes,
+      do: true,
+      else: should_query?(indexes, search_clauses)
   end
 
   # In the case of a partial query on a composite key secondary index, the value of index in get_item/2 will be a three-element tuple, ex. {:secondary_partial, "person_id_entity", ["person_id"]}.
@@ -237,12 +254,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp collect_non_indexed_search([], _index_fields, acc), do: acc
   defp collect_non_indexed_search([search_clause | search_clauses], index_fields, acc) do
     case search_clause do
-      {field, {_val, _op}} = complete_tuple when not(field in [:and, :or]) ->
+      {field, {_val, _op}} = complete_tuple when not(field in @logical_ops) ->
         if Enum.member?(index_fields, field),
         do: collect_non_indexed_search(search_clauses, index_fields, acc),
         else: collect_non_indexed_search(search_clauses, index_fields, [complete_tuple | acc])
 
-      {logical_op, deeper_clauses} when logical_op in [:and, :or] ->
+      {logical_op, deeper_clauses} when logical_op in @logical_ops ->
         filtered_clauses = collect_non_indexed_search(deeper_clauses, index_fields, [])
         # don't keep empty logical_op groups
         if filtered_clauses == [],
@@ -342,15 +359,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
     %{table => [keys: keys] ++ take_opts}
   end
-
-
-  # TODO: Given the search criteria, filter out other results that were caught in the
-  # index read. TODO: Can we do this on the server side dynamo query instead?
-  # see: http://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html#DDB-Query-request-FilterExpression
-  # note, this doesn't save us read capacity, but DOES reduce the result set and parsing over the wire.
-  @spec filter(dynamo_response, search) :: dynamo_response
-  def filter(results, _search), do: results
-
 
 
   @doc """
@@ -532,9 +540,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp deep_find_key([], _), do: nil
   defp deep_find_key([clause | clauses], key) do
     case clause do
-      {field, {val, op}} when not(field in [:and, :or]) ->
+      {field, {val, op}} when not(field in @logical_ops) ->
         if field == key, do: {val, op}, else: deep_find_key(clauses, key)
-      {logical_op, deeper_clauses} when logical_op in [:and, :or] ->
+      {logical_op, deeper_clauses} when logical_op in @logical_ops ->
         found = deep_find_key(deeper_clauses, key)
         if found != nil, do: found, else: deep_find_key(clauses, key)
     end
