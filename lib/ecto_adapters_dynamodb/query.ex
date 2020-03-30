@@ -114,7 +114,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   # we may need to use a Dynamo query instead of get_item in order to apply filters.
   defp should_query?(_indexes, []), do: false
   defp should_query?(indexes, [{logical_op, search_clauses} | additional_search_clauses]) when logical_op in @logical_ops,
-    do: should_query?(indexes, search_clauses ++ additional_search_clauses)
+    do: should_query?(indexes, search_clauses) or should_query?(indexes, additional_search_clauses)
   defp should_query?(indexes, [{field, _} | search_clauses]) do
     if field not in indexes,
       do: true,
