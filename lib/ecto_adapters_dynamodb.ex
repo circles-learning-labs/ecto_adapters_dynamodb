@@ -6,6 +6,7 @@ defmodule Ecto.Adapters.DynamoDB do
   @behaviour Ecto.Adapter.Schema
   @behaviour Ecto.Adapter.Queryable
   @behaviour Ecto.Adapter.Migration
+  @behaviour Ecto.Adapter.Storage
 
   @impl Ecto.Adapter
   defmacro __before_compile__(_env) do
@@ -707,6 +708,14 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
+  @impl
+  def storage_down(storage), do: {:error, "Cannot drop databases on DynamoDB"}
+
+  @impl
+  def storage_status(storage), do: :up
+
+  @impl
+  def storage_up(storage), do: {:error, :already_up}
 
   # Support for tables with a hash+range key.
   #
