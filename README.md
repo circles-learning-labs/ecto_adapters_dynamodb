@@ -182,7 +182,7 @@ In late 2018, Amazon introduced a new billing option for tables that allows user
 Install the [Hex](https://hex.pm/packages/ecto_adapters_dynamodb) package by adding `ecto_adapters_dynamodb` to your list of dependencies in `mix.exs`:
 
 ```elixir
-def deps do
+defp deps do
   [{:ecto_adapters_dynamodb, "~> 2.0.0-beta.0"}]
 end
 ```
@@ -190,7 +190,7 @@ end
 Otherwise, to fetch from GitHub:
 
 ```elixir
-def deps do
+defp deps do
   [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "2.0.0-beta.0"}]
 end
 ```
