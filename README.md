@@ -211,6 +211,14 @@ A note on `access_key_id` and `secret_access_key`: This can simply be the actual
 
 You may also omit all these ExAws options from the adapter config if you wish to configure ExAws manually (for example if you're using other features from ExAws such as S3, or dynamo_streams).
 
+**config/config.exs**
+
+Include the repo module that's configured for the adapter among the project's Ecto repos:
+
+```elixir
+config :my_app, ecto_repos: [MyApp.Repo]
+```
+
 **repo module**
 
 Configure your app's repo module to use `Ecto.Adapters.DynamoDB` as its `:adapter`:
@@ -221,14 +229,6 @@ defmodule MyApp.Repo do
     otp_app: :my_app,
     adapter: Ecto.Adapters.DynamoDB
 end
-```
-
-**config/config.exs**
-
-Include the repo module that's configured for the adapter among the project's Ecto repos:
-
-```elixir
-config :my_app, ecto_repos: [MyApp.Repo]
 ```
 
 **Supervisor**
@@ -250,13 +250,13 @@ end
 
 **mix.exs**
 
-Include `:ecto_sql` in the project's applications list, and make sure your app get started by adding it to the `:mod` key:
+Include the adapter in the project's applications list, and make sure your app get started by adding it to the `:mod` key:
 
 ```elixir
 def application do
   [
     mod: {MyApp, []},
-    applications: [:ecto_sql]
+    applications: [:ecto_adapters_dynamodb]
   ]
 end
 ```
