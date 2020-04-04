@@ -231,9 +231,11 @@ Include the repo module that's configured for the adapter among the project's Ec
 config :my_app, ecto_repos: [MyApp.Repo]
 ```
 
-**my_app.ex**
+**Supervisor**
 
-```
+Add the repo to your app's **Supervisor** configuration:
+
+```elixir
 defmodule MyApp do
   def start(_type, _args) do
     children = [
@@ -248,13 +250,13 @@ end
 
 **mix.exs**
 
-Include the adapter in the project's applications list:
+Include `:ecto_sql` in the project's applications list, and make sure your app get started by adding it to the `:mod` key:
 
 ```elixir
 def application do
   [
     mod: {MyApp, []},
-    applications: [:ecto_adapters_dynamodb]
+    applications: [:ecto_sql]
   ]
 end
 ```
