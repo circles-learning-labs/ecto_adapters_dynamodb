@@ -231,6 +231,21 @@ Include the repo module that's configured for the adapter among the project's Ec
 config :my_app, ecto_repos: [MyApp.Repo]
 ```
 
+**my_app.ex**
+
+```
+defmodule MyApp do
+  def start(_type, _args) do
+    children = [
+      MyApp.Repo
+    ]
+
+    opts = [strategy: :one_for_one, name: MyApp.Supervisor]
+    Supervisor.start_link(children, opts)
+  end
+end
+```
+
 **mix.exs**
 
 Include the adapter in the project's applications list:
@@ -238,7 +253,8 @@ Include the adapter in the project's applications list:
 ```elixir
 def application do
   [
-	applications: [:ecto_adapters_dynamodb]
+    mod: {MyApp, []},
+    applications: [:ecto_adapters_dynamodb]
   ]
 end
 ```
@@ -247,7 +263,7 @@ end
 
 For development, we use the [local version](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html) of DynamoDB, and some dummy variable assignments. Note that the access key/secret here are hardcoded in to the config, and that we set a `dynamo` key that overrides the connection parameters from the defaults for AWS. We point it to `localhost:8000` - the default for a local DynamoDB test server.
 
-**config/dev.exs"**
+**config/dev.exs**
 
 ```elixir               
 config :my_app, MyApp.Repo,
