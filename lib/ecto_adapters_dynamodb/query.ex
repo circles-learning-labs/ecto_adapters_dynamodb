@@ -6,8 +6,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   import Ecto.Adapters.DynamoDB.Info
 
-  @logical_ops [:and, :or]
-
   @typep key :: String.t
   @typep table_name :: String.t
   @typep query_op :: :== | :> | :< |:>= | :<= | :is_nil | :between | :begins_with | :in
@@ -17,6 +15,11 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   @typep search :: [search_clause]
   @typep dynamo_response :: %{required(String.t) => term}
   @typep query_opts :: [{atom(), any()}]
+
+  # DynamoDB will reject an entire batch get query if the query is for more than 100 records, so these need to be batched.
+  # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
+  @batch_get_item_limit 100
+  @logical_ops [:and, :or]
 
   # parameters for get_item: 
   # TABLE_NAME::string,
@@ -53,14 +56,11 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         {hash_values, op} = deep_find_key(search, hd indexes)
 
         if op == :in do
-          # DynamoDB will reject an entire batch get query if the query is for more than 100 records, so these need to be batched.
-          # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
-          batch_get_item_limit = 100
           responses_element = "Responses"
           unprocessed_keys_element = "UnprocessedKeys"
           response_map = %{responses_element => %{table => []}, unprocessed_keys_element => %{}} # The default format of the response from Dynamo.
 
-          Enum.chunk_every(hash_values, batch_get_item_limit)
+          Enum.chunk_every(hash_values, @batch_get_item_limit)
           |> Enum.reduce(response_map, fn(hash_batch, acc) ->
             batched_search = make_batched_search(search, hash_batch) # Modify the 'search' arg so that it only contains values from the current hash_batch.
 
