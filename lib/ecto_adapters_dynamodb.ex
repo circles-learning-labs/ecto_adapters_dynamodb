@@ -43,7 +43,8 @@ defmodule Ecto.Adapters.DynamoDB do
       migration_source: Keyword.get(config, :migration_source, "schema_migrations")
     }
 
-    [:debug_requests, :access_key_id, :secret_access_key, :region, :dynamodb] |> Enum.map(fn key ->
+    [:debug_requests, :access_key_id, :secret_access_key, :region, :dynamodb]
+    |> Enum.each(fn key ->
       if config[key] != nil, do: Application.put_env(:ex_aws, key, config[key])
     end)
 
