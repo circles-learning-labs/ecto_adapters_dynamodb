@@ -56,20 +56,26 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         {hash_values, op} = deep_find_key(search, hd indexes)
 
         if op == :in do
-          responses_element = "Responses"
-          unprocessed_keys_element = "UnprocessedKeys"
-          response_map = %{responses_element => %{table => []}, unprocessed_keys_element => %{}} # The default format of the response from Dynamo.
+          if should_query?(indexes, search) do
+            query = construct_search({nil, indexes}, search, opts)
 
-          Enum.chunk_every(hash_values, @batch_get_item_limit)
-          |> Enum.reduce(response_map, fn(hash_batch, acc) ->
-            batched_search = make_batched_search(search, hash_batch) # Modify the 'search' arg so that it only contains values from the current hash_batch.
+            do_in_query(table, hash_values, query, do_fetch_recursive)
+          else
+            responses_element = "Responses"
+            unprocessed_keys_element = "UnprocessedKeys"
+            response_map = %{responses_element => %{table => []}, unprocessed_keys_element => %{}} # The default format of the response from Dynamo.
 
-            %{^responses_element => %{^table => results}, ^unprocessed_keys_element => unprocessed_key_map} =
-              ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_batch, batched_search, construct_opts(:get_item, opts))) |> ExAws.request!
+            Enum.chunk_every(hash_values, @batch_get_item_limit)
+            |> Enum.reduce(response_map, fn(hash_batch, acc) ->
+              batched_search = make_batched_search(search, hash_batch) # Modify the 'search' arg so that it only contains values from the current hash_batch.
 
-            Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ results)
-            |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
-          end)
+              %{^responses_element => %{^table => results}, ^unprocessed_keys_element => unprocessed_key_map} =
+                ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_batch, batched_search, construct_opts(:get_item, opts))) |> ExAws.request!
+
+              Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ results)
+              |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
+            end)
+          end
         else
           if should_query?(indexes, search) do
             construct_search({nil, indexes}, search, opts)
@@ -90,16 +96,17 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         query = construct_search(index, search, opts)
 
         if op == :in do
-          responses_element = "Responses"
-          response_map = %{responses_element => %{table => []}}
+          do_in_query(table, hash_values, query, do_fetch_recursive)
+          # responses_element = "Responses"
+          # response_map = %{responses_element => %{table => []}}
 
-          Enum.reduce(hash_values, response_map, fn(hash_value, acc) ->
-            # When receiving a list of values to query on, construct a custom query for each of those values to pass into do_fetch_recursive/1.
-            %{"Items" => items} = Kernel.put_in(query, [:expression_attribute_values, :hash_key], hash_value)
-                                  |> (do_fetch_recursive).()
+          # Enum.reduce(hash_values, response_map, fn(hash_value, acc) ->
+          #   # When receiving a list of values to query on, construct a custom query for each of those values to pass into do_fetch_recursive/1.
+          #   %{"Items" => items} = Kernel.put_in(query, [:expression_attribute_values, :hash_key], hash_value)
+          #                         |> (do_fetch_recursive).()
 
-            Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ items)
-          end)
+          #   Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ items)
+          # end)
         else
           do_fetch_recursive.(query)
         end
@@ -108,6 +115,19 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
 
     results
+  end
+
+  defp do_in_query(table, hash_values, query, do_fetch_recursive) do
+    responses_element = "Responses"
+    response_map = %{responses_element => %{table => []}}
+
+    Enum.reduce(hash_values, response_map, fn(hash_value, acc) ->
+      # When receiving a list of values to query on, construct a custom query for each of those values to pass into do_fetch_recursive/1.
+      %{"Items" => items} = Kernel.put_in(query, [:expression_attribute_values, :hash_key], hash_value)
+                            |> (do_fetch_recursive).()
+
+      Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ items)
+    end)
   end
 
   # If a primary key query has additional search clauses that are not reflected by the indexes,
