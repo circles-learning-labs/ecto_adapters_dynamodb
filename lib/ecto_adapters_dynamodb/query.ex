@@ -50,37 +50,37 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       fetch_recursive(&ExAws.Dynamo.query/2, table, qry, parse_recursive_option(:query, opts), %{})
     end
 
-    results = case parsed_index do
+    case parsed_index do
       # primary key based lookup uses the efficient 'get_item' operation
       {:primary, indexes} = index ->
         {hash_values, op} = deep_find_key(search, hd indexes)
 
-        if op == :in do
-          responses_element = "Responses"
-          unprocessed_keys_element = "UnprocessedKeys"
-          response_map = %{responses_element => %{table => []}, unprocessed_keys_element => %{}} # The default format of the response from Dynamo.
+        primary_key_results =
+          if op == :in do
+            responses_element = "Responses"
+            unprocessed_keys_element = "UnprocessedKeys"
+            response_map = %{responses_element => %{table => []}, unprocessed_keys_element => %{}} # The default format of the response from Dynamo.
 
-          Enum.chunk_every(hash_values, @batch_get_item_limit)
-          |> Enum.reduce(response_map, fn(hash_batch, acc) ->
-            batched_search = make_batched_search(search, hash_batch) # Modify the 'search' arg so that it only contains values from the current hash_batch.
+            Enum.chunk_every(hash_values, @batch_get_item_limit)
+            |> Enum.reduce(response_map, fn(hash_batch, acc) ->
+              batched_search = make_batched_search(search, hash_batch) # Modify the 'search' arg so that it only contains values from the current hash_batch.
 
-            %{^responses_element => %{^table => results}, ^unprocessed_keys_element => unprocessed_key_map} =
-              ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_batch, batched_search, construct_opts(:get_item, opts))) |> ExAws.request!
+              %{^responses_element => %{^table => results}, ^unprocessed_keys_element => unprocessed_key_map} =
+                ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_batch, batched_search, construct_opts(:get_item, opts))) |> ExAws.request!
 
-            Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ results)
-            |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
-          end)
-        else
-          if should_query?(indexes, search) do
-            construct_search({nil, indexes}, search, opts)
-            |> do_fetch_recursive.()
+              Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ results)
+              |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
+            end)
           else
             # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
             query = construct_search(index, search, opts)
             ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
           end
-        end
 
+        case construct_filter_expression(search, indexes) do
+          {[], %{}, []} -> primary_key_results
+          filter -> do_filter(primary_key_results, filter)
+        end
       # secondary index based lookups need the query functionality. 
       index when is_tuple(index) ->
         index_fields = get_hash_range_key_list(index)
@@ -106,20 +106,25 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       :scan ->
         maybe_scan(table, search, opts)
     end
-
-    results
   end
 
-  # If a primary key query has additional search clauses that are not reflected by the indexes,
-  # we may need to use a Dynamo query instead of get_item in order to apply filters.
-  defp should_query?(_indexes, []), do: false
-  defp should_query?(indexes, [{logical_op, search_clauses} | additional_search_clauses]) when logical_op in @logical_ops,
-    do: should_query?(indexes, search_clauses) or should_query?(indexes, additional_search_clauses)
-  defp should_query?(indexes, [{field, _} | search_clauses]) do
-    if field not in indexes,
-      do: true,
-      else: should_query?(indexes, search_clauses)
+  defp do_filter(result, filter) do
+    IO.inspect result
+    IO.inspect filter
+
+    result
   end
+
+  # # If a primary key query has additional search clauses that are not reflected by the indexes,
+  # # we may need to use a Dynamo query instead of get_item in order to apply filters.
+  # defp should_filter?(_indexes, []), do: false
+  # defp should_filter?(indexes, [{logical_op, search_clauses} | additional_search_clauses]) when logical_op in @logical_ops,
+  #   do: should_filter?(indexes, search_clauses) or should_filter?(indexes, additional_search_clauses)
+  # defp should_filter?(indexes, [{field, _} | search_clauses]) do
+  #   if field not in indexes,
+  #     do: true,
+  #     else: should_filter?(indexes, search_clauses)
+  # end
 
   # In the case of a partial query on a composite key secondary index, the value of index in get_item/2 will be a three-element tuple, ex. {:secondary_partial, "person_id_entity", ["person_id"]}.
   # Otherwise, we can expect it to be a two-element tuple.
