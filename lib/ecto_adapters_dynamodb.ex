@@ -7,6 +7,11 @@ defmodule Ecto.Adapters.DynamoDB do
   @behaviour Ecto.Adapter.Queryable
   @behaviour Ecto.Adapter.Migration
 
+  @impl Ecto.Adapter
+  defmacro __before_compile__(_env) do
+    # Nothing to see here, yet...
+  end
+
   use Bitwise, only_operators: true
 
   alias ExAws.Dynamo
@@ -17,11 +22,6 @@ defmodule Ecto.Adapters.DynamoDB do
   # DynamoDB will reject attempts to batch write more than 25 records at once
   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
   @batch_write_item_limit 25
-
-  @impl Ecto.Adapter
-  defmacro __before_compile__(_env) do
-    # Nothing to see here, yet...
-  end
 
   def start_link({_module, config}) do
     ecto_dynamo_log(:debug, "#{inspect __MODULE__}.start_link", %{"#{inspect __MODULE__}.start_link-params" => %{config: config}})
