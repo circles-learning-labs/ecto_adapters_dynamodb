@@ -382,6 +382,10 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                select: p.id)
              |> TestRepo.all()
              |> Enum.sort() == sorted_ids
+      assert from(p in Person,
+               where: p.id in ^ids
+                 and is_nil(p.age))
+             |> TestRepo.all() == []
     end
 
     test "'all... in...' query, hard-coded and a variable lists of composite primary keys" do
@@ -487,6 +491,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         query
         |> TestRepo.all(index: "age_first_nam")
       end
+
       assert query
              |> TestRepo.all(index: "age_first_name")
              |> length() == 2

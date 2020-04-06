@@ -20,6 +20,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
   @batch_get_item_limit 100
   @logical_ops [:and, :or]
+  @responses_element_key "Responses"
+  @unprocessed_keys_element_key "UnprocessedKeys"
 
   # parameters for get_item: 
   # TABLE_NAME::string,
@@ -46,9 +48,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
           end
       parsed -> parsed
     end
-    do_fetch_recursive = fn(qry) ->
-      fetch_recursive(&ExAws.Dynamo.query/2, table, qry, parse_recursive_option(:query, opts), %{})
-    end
 
     results = case parsed_index do
       # primary key based lookup uses the efficient 'get_item' operation
@@ -56,24 +55,27 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         {hash_values, op} = deep_find_key(search, hd indexes)
 
         if op == :in do
-          responses_element = "Responses"
-          unprocessed_keys_element = "UnprocessedKeys"
-          response_map = %{responses_element => %{table => []}, unprocessed_keys_element => %{}} # The default format of the response from Dynamo.
+          if should_query?(indexes, search) do
+            construct_search({nil, indexes}, search, opts)
+            |> do_in_query(hash_values, table, opts)
+          else
+            response_map = %{@responses_element_key => %{table => []}, @unprocessed_keys_element_key => %{}}
 
-          Enum.chunk_every(hash_values, @batch_get_item_limit)
-          |> Enum.reduce(response_map, fn(hash_batch, acc) ->
-            batched_search = make_batched_search(search, hash_batch) # Modify the 'search' arg so that it only contains values from the current hash_batch.
+            Enum.chunk_every(hash_values, @batch_get_item_limit)
+            |> Enum.reduce(response_map, fn(hash_batch, acc) ->
+              batched_search = make_batched_search(search, hash_batch) # Modify the 'search' arg so that it only contains values from the current hash_batch.
 
-            %{^responses_element => %{^table => results}, ^unprocessed_keys_element => unprocessed_key_map} =
-              ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_batch, batched_search, construct_opts(:get_item, opts))) |> ExAws.request!
+              %{@responses_element_key => %{^table => results}, @unprocessed_keys_element_key => unprocessed_key_map} =
+                ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_batch, batched_search, construct_opts(:get_item, opts))) |> ExAws.request!
 
-            Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ results)
-            |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
-          end)
+              put_in(acc, [@responses_element_key, table], acc[@responses_element_key][table] ++ results)
+              |> maybe_put_unprocessed_keys(unprocessed_key_map, table)
+            end)
+          end
         else
           if should_query?(indexes, search) do
             construct_search({nil, indexes}, search, opts)
-            |> do_fetch_recursive.()
+            |> do_fetch_recursive(table, opts)
           else
             # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
             query = construct_search(index, search, opts)
@@ -89,25 +91,30 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
         query = construct_search(index, search, opts)
 
-        if op == :in do
-          responses_element = "Responses"
-          response_map = %{responses_element => %{table => []}}
-
-          Enum.reduce(hash_values, response_map, fn(hash_value, acc) ->
-            # When receiving a list of values to query on, construct a custom query for each of those values to pass into do_fetch_recursive/1.
-            %{"Items" => items} = Kernel.put_in(query, [:expression_attribute_values, :hash_key], hash_value)
-                                  |> (do_fetch_recursive).()
-
-            Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ items)
-          end)
-        else
-          do_fetch_recursive.(query)
-        end
+        if op == :in,
+          do: do_in_query(query, hash_values, table, opts),
+          else: do_fetch_recursive(query, table, opts)
       :scan ->
         maybe_scan(table, search, opts)
     end
 
     results
+  end
+
+  defp do_fetch_recursive(query, table, opts) do
+    fetch_recursive(&ExAws.Dynamo.query/2, table, query, parse_recursive_option(:query, opts), %{})
+  end
+
+  defp do_in_query(query, hash_values, table, opts) do
+    response_map = %{@responses_element_key => %{table => []}}
+
+    Enum.reduce(hash_values, response_map, fn(hash_value, acc) ->
+      # When receiving a list of values to query on, construct a custom query for each of those values to pass into do_fetch_recursive/1.
+      %{"Items" => items} = put_in(query, [:expression_attribute_values, :hash_key], hash_value)
+                            |> do_fetch_recursive(table, opts)
+
+      put_in(acc, [@responses_element_key, table], acc[@responses_element_key][table] ++ items)
+    end)
   end
 
   # If a primary key query has additional search clauses that are not reflected by the indexes,
@@ -127,13 +134,13 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp get_hash_range_key_list({_index_name, index_fields}), do: index_fields
 
   # If a batch_get_item request returns unprocessed keys, update the accumulator with those values.
-  defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, _table, _unprocessed_keys_element) when unprocessed_key_map == %{}, do: acc
-  defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, table, unprocessed_keys_element) do
-    if Map.has_key?(acc[unprocessed_keys_element], table) do
+  defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, _table) when unprocessed_key_map == %{}, do: acc
+  defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, table) do
+    if Map.has_key?(acc[@unprocessed_keys_element_key], table) do
       keys_element = "Keys"
-      Kernel.put_in(acc, [unprocessed_keys_element, table, keys_element], acc[unprocessed_keys_element][table][keys_element] ++ unprocessed_key_map[table][keys_element])
+      put_in(acc, [@unprocessed_keys_element_key, table, keys_element], acc[@unprocessed_keys_element_key][table][keys_element] ++ unprocessed_key_map[table][keys_element])
     else
-      Map.put(acc, unprocessed_keys_element, unprocessed_key_map)
+      Map.put(acc, @unprocessed_keys_element_key, unprocessed_key_map)
     end
   end
 
