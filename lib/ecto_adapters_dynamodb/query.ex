@@ -77,9 +77,10 @@ defmodule Ecto.Adapters.DynamoDB.Query do
             ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
           end
 
-        case construct_filter_expression(search, indexes) do
-          {[], %{}, []} -> primary_key_results
-          filter -> do_filter(primary_key_results, filter)
+
+        case collect_non_indexed_search(search, indexes, []) do
+          [] -> primary_key_results
+          non_indexed_filters -> do_filter(primary_key_results, non_indexed_filters)
         end
       # secondary index based lookups need the query functionality. 
       index when is_tuple(index) ->
@@ -108,11 +109,20 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
-  defp do_filter(result, filter) do
+  defp do_filter(result, non_indexed_filters) do
     IO.inspect result
-    IO.inspect filter
+    IO.inspect non_indexed_filters
 
     result
+  end
+
+  def apply_filter(%{"Item" => item}, [and: [{field, {value, :==}}]]) do
+    unnest(item[field]) == value
+  end
+
+  defp unnest(val) do
+    (for {k, v} <- val, do: v)
+    |> Enum.at(0)
   end
 
   # # If a primary key query has additional search clauses that are not reflected by the indexes,
