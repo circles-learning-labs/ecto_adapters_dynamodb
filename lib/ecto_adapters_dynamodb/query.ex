@@ -116,12 +116,33 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     result
   end
 
-  def apply_filter(%{"Item" => item}, [and: [{field, {value, :==}}]]) do
-    unnest(item[field]) == value
+
+  def apply_filter(%{"Item" => item}, filter) do
+    apply_filter(item, filter)
   end
 
+  def apply_filter(item, [{ logical_op, [ filter_clauses | additional_filter_clauses ] }]) when logical_op in @logical_ops do
+    apply_filter(item, filter_clauses, additional_filter_clauses)
+  end
+
+  def apply_filter(item, { logical_op, filter_clauses }, additional_filter_clauses) when logical_op in @logical_ops do
+    apply_filter(item, additional_filter_clauses, logical_op)
+  end
+
+
+  def apply_filter(_, [], _), do: true
+
+  def apply_filter(item, [{field, {value, :==}} | rest], :and) do
+    unnest(item[field]) == value and apply_filter(item, rest, :and)
+  end
+  def apply_filter(item, [{field, {_, :is_nil}} | rest], :and) do
+    item[field] == %{"NULL" => true} and apply_filter(item, rest, :and)
+  end
+
+
+
   defp unnest(val) do
-    (for {k, v} <- val, do: v)
+    (for {_, v} <- val, do: v)
     |> Enum.at(0)
   end
 
