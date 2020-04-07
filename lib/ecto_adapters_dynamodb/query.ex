@@ -122,27 +122,35 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
   def apply_filter(item, [{ logical_op, [ filter_clauses | additional_filter_clauses ] }]) when logical_op in @logical_ops do
-    apply_filter(item, filter_clauses, additional_filter_clauses)
+    case logical_op do
+      :and -> apply_filter(item, filter_clauses) and apply_filter(item, additional_filter_clauses)
+      :or -> apply_filter(item, filter_clauses) or apply_filter(item, additional_filter_clauses)
+    end
   end
 
-  def apply_filter(item, { logical_op, filter_clauses }, additional_filter_clauses) when logical_op in @logical_ops do
-    apply_filter(item, additional_filter_clauses, logical_op)
+  def apply_filter(item, { logical_op, filter_clause }) when logical_op in @logical_ops do
+    case logical_op do
+      :and -> apply_filter(item, filter_clause) and true
+      :or -> apply_filter(item, filter_clause) or true
+    end
   end
 
-
-  def apply_filter(_, [], _), do: true
-
-  def apply_filter(item, [{field, {value, :==}} | rest], :and) do
-    unnest(item[field]) == value and apply_filter(item, rest, :and)
-  end
-  def apply_filter(item, [{field, {_, :is_nil}} | rest], :and) do
-    item[field] == %{"NULL" => true} and apply_filter(item, rest, :and)
+  def apply_filter(item, [{field, {value, :==}}]) do
+    unnest(item[field]) == value
   end
 
+  def apply_filter(item, [{field, {_, :is_nil}}]) do
+    item[field] == %{"NULL" => true}
+  end
 
 
   defp unnest(val) do
-    (for {_, v} <- val, do: v)
+    for {k, v} <- val do
+      case k do
+        "N" -> String.to_integer(v)
+        _ -> v
+      end
+    end
     |> Enum.at(0)
   end
 
