@@ -70,7 +70,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
               %{^responses_element => %{^table => results}, ^unprocessed_keys_element => unprocessed_key_map} =
                 ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_batch, batched_search, construct_opts(:get_item, opts))) |> ExAws.request!
 
-              Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ results)
+              put_in(acc, [responses_element, table], acc[responses_element][table] ++ results)
               |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
             end)
           else
@@ -78,7 +78,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
             query = construct_search(index, search, opts)
             ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
           end
-
 
         case collect_non_indexed_search(search, indexes, []) do
           [] -> primary_key_results
@@ -98,10 +97,10 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
           Enum.reduce(hash_values, response_map, fn(hash_value, acc) ->
             # When receiving a list of values to query on, construct a custom query for each of those values to pass into do_fetch_recursive/1.
-            %{"Items" => items} = Kernel.put_in(query, [:expression_attribute_values, :hash_key], hash_value)
+            %{"Items" => items} = put_in(query, [:expression_attribute_values, :hash_key], hash_value)
                                   |> (do_fetch_recursive).()
 
-            Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ items)
+            put_in(acc, [responses_element, table], acc[responses_element][table] ++ items)
           end)
         else
           do_fetch_recursive.(query)
@@ -121,7 +120,14 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     put_in(result, ["Responses", table], filtered_results)
   end
 
+
   defp passes_filter?(item, [{ logical_op, [ filter_clauses | [ additional_filter_clauses ] ] }]) when logical_op in @logical_ops do
+    case logical_op do
+      :and -> passes_filter?(item, filter_clauses) and passes_filter?(item, additional_filter_clauses)
+      :or -> passes_filter?(item, filter_clauses) or passes_filter?(item, additional_filter_clauses)
+    end
+  end
+  defp passes_filter?(item, {logical_op, [ filter_clauses | [ additional_filter_clauses ] ]}) when logical_op in @logical_ops do
     case logical_op do
       :and -> passes_filter?(item, filter_clauses) and passes_filter?(item, additional_filter_clauses)
       :or -> passes_filter?(item, filter_clauses) or passes_filter?(item, additional_filter_clauses)
@@ -138,7 +144,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     Decoder.decode(item[field]) == filter_val
   end
   defp passes_filter?(item, {field, {_, :is_nil}}) do
-    is_nil(Decoder.decode(item[field]))
+    Decoder.decode(item[field])
+    |> is_nil()
   end
   defp passes_filter?(item, {field, {filter_val, :in}}) do
     Decoder.decode(item[field]) in filter_val
@@ -150,19 +157,17 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     Decoder.decode(item[field]) <= filter_val
   end
   defp passes_filter?(item, {field, {filter_val, :>}}) do
-    Decoder.decode(item[field]) < filter_val
+    Decoder.decode(item[field]) > filter_val
   end
   defp passes_filter?(item, {field, {filter_val, :>=}}) do
-    Decoder.decode(item[field]) <= filter_val
+    Decoder.decode(item[field]) >= filter_val
   end
   defp passes_filter?(item, {field, {filter_val, :begins_with}}) do
     {:ok, reg} = Regex.compile("^#{filter_val}.*")
-
     Regex.match?(reg, Decoder.decode(item[field]))
   end
   defp passes_filter?(item, {field, {[range_start, range_end], :between}}) do
     value = Decoder.decode(item[field])
-     
     value >= range_start and value <= range_end
   end
 
@@ -177,7 +182,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, table, unprocessed_keys_element) do
     if Map.has_key?(acc[unprocessed_keys_element], table) do
       keys_element = "Keys"
-      Kernel.put_in(acc, [unprocessed_keys_element, table, keys_element], acc[unprocessed_keys_element][table][keys_element] ++ unprocessed_key_map[table][keys_element])
+      put_in(acc, [unprocessed_keys_element, table, keys_element], acc[unprocessed_keys_element][table][keys_element] ++ unprocessed_key_map[table][keys_element])
     else
       Map.put(acc, unprocessed_keys_element, unprocessed_key_map)
     end
