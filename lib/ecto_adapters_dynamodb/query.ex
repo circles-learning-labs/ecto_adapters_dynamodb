@@ -6,6 +6,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   import Ecto.Adapters.DynamoDB.Info
 
+  alias ExAws.Dynamo.Decoder
+
   @typep key :: String.t
   @typep table_name :: String.t
   @typep query_op :: :== | :> | :< |:>= | :<= | :is_nil | :between | :begins_with | :in
@@ -80,7 +82,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
         case collect_non_indexed_search(search, indexes, []) do
           [] -> primary_key_results
-          non_indexed_filters -> do_filter(primary_key_results, non_indexed_filters)
+          non_indexed_filters -> filter(primary_key_results, non_indexed_filters, table)
         end
       # secondary index based lookups need the query functionality. 
       index when is_tuple(index) ->
@@ -109,61 +111,61 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
-  defp do_filter(result, non_indexed_filters) do
-    IO.inspect result
-    IO.inspect non_indexed_filters
-
-    result
+  defp filter(%{"Item" => item} = result, non_indexed_filters, _) do
+    if passes_filter?(item, non_indexed_filters),
+      do: result,
+      else: %{}
+  end
+  defp filter(%{"Responses" => items} = result, non_indexed_filters, table) do
+    filtered_results = Enum.filter(items[table], fn item -> passes_filter?(item, non_indexed_filters) end)
+    put_in(result, ["Responses", table], filtered_results)
   end
 
-
-  def apply_filter(%{"Item" => item}, filter) do
-    apply_filter(item, filter)
-  end
-
-  def apply_filter(item, [{ logical_op, [ filter_clauses | additional_filter_clauses ] }]) when logical_op in @logical_ops do
+  defp passes_filter?(item, [{ logical_op, [ filter_clauses | [ additional_filter_clauses ] ] }]) when logical_op in @logical_ops do
     case logical_op do
-      :and -> apply_filter(item, filter_clauses) and apply_filter(item, additional_filter_clauses)
-      :or -> apply_filter(item, filter_clauses) or apply_filter(item, additional_filter_clauses)
+      :and -> passes_filter?(item, filter_clauses) and passes_filter?(item, additional_filter_clauses)
+      :or -> passes_filter?(item, filter_clauses) or passes_filter?(item, additional_filter_clauses)
     end
   end
-
-  def apply_filter(item, { logical_op, filter_clause }) when logical_op in @logical_ops do
-    case logical_op do
-      :and -> apply_filter(item, filter_clause) and true
-      :or -> apply_filter(item, filter_clause) or true
-    end
+  defp passes_filter?(item, [{ logical_op, [ filter_clause ]}]) when logical_op in @logical_ops do
+    passes_filter?(item, filter_clause)
+  end
+  defp passes_filter?(item, { logical_op, [ filter_clause ]}) when logical_op in @logical_ops do
+    passes_filter?(item, filter_clause)
   end
 
-  def apply_filter(item, [{field, {value, :==}}]) do
-    unnest(item[field]) == value
+  defp passes_filter?(item, {field, {filter_val, :==}}) do
+    Decoder.decode(item[field]) == filter_val
+  end
+  defp passes_filter?(item, {field, {_, :is_nil}}) do
+    is_nil(Decoder.decode(item[field]))
+  end
+  defp passes_filter?(item, {field, {filter_val, :in}}) do
+    Decoder.decode(item[field]) in filter_val
+  end
+  defp passes_filter?(item, {field, {filter_val, :<}}) do
+    Decoder.decode(item[field]) < filter_val
+  end
+  defp passes_filter?(item, {field, {filter_val, :<=}}) do
+    Decoder.decode(item[field]) <= filter_val
+  end
+  defp passes_filter?(item, {field, {filter_val, :>}}) do
+    Decoder.decode(item[field]) < filter_val
+  end
+  defp passes_filter?(item, {field, {filter_val, :>=}}) do
+    Decoder.decode(item[field]) <= filter_val
+  end
+  defp passes_filter?(item, {field, {filter_val, :begins_with}}) do
+    {:ok, reg} = Regex.compile("^#{filter_val}.*")
+
+    Regex.match?(reg, Decoder.decode(item[field]))
+  end
+  defp passes_filter?(item, {field, {[range_start, range_end], :between}}) do
+    value = Decoder.decode(item[field])
+     
+    value >= range_start and value <= range_end
   end
 
-  def apply_filter(item, [{field, {_, :is_nil}}]) do
-    item[field] == %{"NULL" => true}
-  end
-
-
-  defp unnest(val) do
-    for {k, v} <- val do
-      case k do
-        "N" -> String.to_integer(v)
-        _ -> v
-      end
-    end
-    |> Enum.at(0)
-  end
-
-  # # If a primary key query has additional search clauses that are not reflected by the indexes,
-  # # we may need to use a Dynamo query instead of get_item in order to apply filters.
-  # defp should_filter?(_indexes, []), do: false
-  # defp should_filter?(indexes, [{logical_op, search_clauses} | additional_search_clauses]) when logical_op in @logical_ops,
-  #   do: should_filter?(indexes, search_clauses) or should_filter?(indexes, additional_search_clauses)
-  # defp should_filter?(indexes, [{field, _} | search_clauses]) do
-  #   if field not in indexes,
-  #     do: true,
-  #     else: should_filter?(indexes, search_clauses)
-  # end
 
   # In the case of a partial query on a composite key secondary index, the value of index in get_item/2 will be a three-element tuple, ex. {:secondary_partial, "person_id_entity", ["person_id"]}.
   # Otherwise, we can expect it to be a two-element tuple.
