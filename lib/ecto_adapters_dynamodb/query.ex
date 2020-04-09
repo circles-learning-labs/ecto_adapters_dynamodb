@@ -110,6 +110,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
+
   defp filter(%{"Item" => item} = result, non_indexed_filters, _) do
     if passes_filter?(item, non_indexed_filters),
       do: result,
@@ -121,54 +122,54 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
 
-  defp passes_filter?(item, [{ logical_op, [ filter_clauses | [ additional_filter_clauses ] ] }]) when logical_op in @logical_ops do
+  defp passes_filter?(item, [{ logical_op, [ filter_clauses | [ additional_filter_clauses ] ] }]) do
     case logical_op do
       :and -> passes_filter?(item, filter_clauses) and passes_filter?(item, additional_filter_clauses)
       :or -> passes_filter?(item, filter_clauses) or passes_filter?(item, additional_filter_clauses)
     end
   end
-  defp passes_filter?(item, {logical_op, [ filter_clauses | [ additional_filter_clauses ] ]}) when logical_op in @logical_ops do
+  defp passes_filter?(item, { logical_op, [ filter_clauses | [ additional_filter_clauses ] ] }) do
     case logical_op do
       :and -> passes_filter?(item, filter_clauses) and passes_filter?(item, additional_filter_clauses)
       :or -> passes_filter?(item, filter_clauses) or passes_filter?(item, additional_filter_clauses)
     end
   end
-  defp passes_filter?(item, [{ logical_op, [ filter_clause ]}]) when logical_op in @logical_ops do
+  defp passes_filter?(item, [{ _logical_op, [ filter_clause ]}])do
     passes_filter?(item, filter_clause)
   end
-  defp passes_filter?(item, { logical_op, [ filter_clause ]}) when logical_op in @logical_ops do
+  defp passes_filter?(item, { _logical_op, [ filter_clause ]}) do
     passes_filter?(item, filter_clause)
+  end
+  defp passes_filter?(item, { field, filter_clause }) when field not in @logical_ops do
+    case Map.get(item, field) do
+      nil -> evaluate_filter_expression(nil, filter_clause)
+      encoded_value ->
+        encoded_value
+        |> Decoder.decode()
+        |> evaluate_filter_expression(filter_clause)
+    end
   end
 
-  defp passes_filter?(item, {field, {filter_val, :==}}) do
-    Decoder.decode(item[field]) == filter_val
-  end
-  defp passes_filter?(item, {field, {_, :is_nil}}) do
-    Decoder.decode(item[field])
-    |> is_nil()
-  end
-  defp passes_filter?(item, {field, {filter_val, :in}}) do
-    Decoder.decode(item[field]) in filter_val
-  end
-  defp passes_filter?(item, {field, {filter_val, :<}}) do
-    Decoder.decode(item[field]) < filter_val
-  end
-  defp passes_filter?(item, {field, {filter_val, :<=}}) do
-    Decoder.decode(item[field]) <= filter_val
-  end
-  defp passes_filter?(item, {field, {filter_val, :>}}) do
-    Decoder.decode(item[field]) > filter_val
-  end
-  defp passes_filter?(item, {field, {filter_val, :>=}}) do
-    Decoder.decode(item[field]) >= filter_val
-  end
-  defp passes_filter?(item, {field, {filter_val, :begins_with}}) do
+
+  defp evaluate_filter_expression(value, {filter_val, :==}),
+    do: value == filter_val
+  defp evaluate_filter_expression(value, {_, :is_nil}),
+    do: is_nil(value)
+  defp evaluate_filter_expression(value, {filter_val, :in}),
+    do: value in filter_val
+  defp evaluate_filter_expression(value, {filter_val, :<}),
+    do: value < filter_val
+  defp evaluate_filter_expression(value, {filter_val, :<=}),
+    do: value <= filter_val
+  defp evaluate_filter_expression(value, {filter_val, :>}),
+    do: value > filter_val
+  defp evaluate_filter_expression(value, {filter_val, :>=}),
+    do: value >= filter_val
+  defp evaluate_filter_expression(value, {[range_start, range_end], :between}),
+    do: value >= range_start and value <= range_end
+  defp evaluate_filter_expression(value, {filter_val, :begins_with}) do
     {:ok, reg} = Regex.compile("^#{filter_val}.*")
-    Regex.match?(reg, Decoder.decode(item[field]))
-  end
-  defp passes_filter?(item, {field, {[range_start, range_end], :between}}) do
-    value = Decoder.decode(item[field])
-    value >= range_start and value <= range_end
+    Regex.match?(reg, value)
   end
 
 
