@@ -17,6 +17,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   @typep search :: [search_clause]
   @typep dynamo_response :: %{required(String.t) => term}
   @typep query_opts :: [{atom(), any()}]
+  @typep filters :: boolean() | String.t | number() | [] | [...] | map()
+  @typep decoded_terms :: filters | nil
 
   # DynamoDB will reject an entire batch get query if the query is for more than 100 records, so these need to be batched.
   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
@@ -65,10 +67,10 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
             Enum.chunk_every(hash_values, @batch_get_item_limit)
             |> Enum.reduce(response_map, fn(hash_batch, acc) ->
-              batched_search = make_batched_search(search, hash_batch) # Modify the 'search' arg so that it only contains values from the current hash_batch.
-
               %{^responses_element => %{^table => results}, ^unprocessed_keys_element => unprocessed_key_map} =
-                ExAws.Dynamo.batch_get_item(construct_batch_get_item_query(table, indexes, hash_batch, batched_search, construct_opts(:get_item, opts))) |> ExAws.request!
+                construct_batch_get_item_query(table, indexes, hash_batch, search, construct_opts(:get_item, opts))
+                |> ExAws.Dynamo.batch_get_item()
+                |> ExAws.request!
 
               put_in(acc, [responses_element, table], acc[responses_element][table] ++ results)
               |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
@@ -145,6 +147,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
 
+  @spec evaluate_filter_expression(decoded_terms, {filters, query_op}) :: boolean()
   defp evaluate_filter_expression(value, {filter_val, :==}),
     do: value == filter_val
   defp evaluate_filter_expression(value, {_, :is_nil}),
@@ -183,13 +186,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
-  # The initial 'search' arg will have a list of all of the values being queried for;
-  # when passing this data to construct_batch_get_item_query/5 during a batched operation,
-  # use a modified form of the 'search' arg that contains only the values from the current batch.
-  defp make_batched_search([and: [range_query, {hash_key, {_vals, op}}]], hash_batch),
-    do: [{hash_key, {hash_batch, op}}, range_query]
-  defp make_batched_search([{index, {_vals, op}}], hash_batch),
-    do: [{index, {hash_batch, op}}]
 
   @doc """
   Returns an atom, :scan or :query, specifying whether the current search will be a DynamoDB scan or a query.

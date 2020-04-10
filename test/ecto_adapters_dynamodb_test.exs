@@ -339,11 +339,14 @@ defmodule Ecto.Adapters.DynamoDB.Test do
               select: p.id)
              |> TestRepo.one() == person.id
 
+      email_fragment = "wron"
+
       refute from(p in Person,
               where: p.id == "person:jamesholden"
                 and p.email == "jholden@expanse.com"
                 and p.age > 17
                 and is_nil(p.country)
+                and fragment("begins_with(?, ?)", p.email, ^email_fragment)
                 and is_nil(p.updated_at)) # we expect updated_at to be not nil.
              |> TestRepo.one()
 
@@ -388,6 +391,8 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert from(p in Person,
                where: p.id in ^ids
+                 and p.last_name == "Howard"
+                 and is_nil(p.updated_at)
                  and is_nil(p.age))
              |> TestRepo.all() == []
     end
