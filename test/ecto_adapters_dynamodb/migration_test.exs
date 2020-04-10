@@ -41,7 +41,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
       table_info = Ecto.Adapters.DynamoDB.Info.table_info("cat")
 
       assert length(result) == 1
-      assert table_info["BillingModeSummary"]["BillingMode"] == "PROVISIONED"
     end
 
     test "alter table: add index to on-demand table" do
