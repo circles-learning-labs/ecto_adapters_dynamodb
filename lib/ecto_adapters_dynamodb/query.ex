@@ -138,11 +138,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
   defp passes_filter?(item, [{ _logical_op, [ filter_clause ]}])do
-    IO.puts "damn"
     passes_filter?(item, filter_clause)
   end
   defp passes_filter?(item, filter) do
-    IO.puts "shit"
     passes_filter?(item, [ filter ])
   end
 
@@ -188,8 +186,10 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   # The initial 'search' arg will have a list of all of the values being queried for;
   # when passing this data to construct_batch_get_item_query/5 during a batched operation,
   # use a modified form of the 'search' arg that contains only the values from the current batch.
-  defp make_batched_search([and: [range_query, {hash_key, {_vals, op}}]], hash_batch), do: [{hash_key, {hash_batch, op}}, range_query]
-  defp make_batched_search([{index, {_vals, op}}], hash_batch), do: [{index, {hash_batch, op}}]
+  defp make_batched_search([and: [range_query, {hash_key, {_vals, op}}]], hash_batch),
+    do: [{hash_key, {hash_batch, op}}, range_query]
+  defp make_batched_search([{index, {_vals, op}}], hash_batch),
+    do: [{index, {hash_batch, op}}]
 
   @doc """
   Returns an atom, :scan or :query, specifying whether the current search will be a DynamoDB scan or a query.
