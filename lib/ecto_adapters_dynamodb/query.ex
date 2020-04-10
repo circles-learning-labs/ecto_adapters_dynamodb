@@ -117,23 +117,11 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       else: %{}
   end
   defp filter(%{"Responses" => items} = result, non_indexed_filters, table) do
-    filtered_results = Enum.filter(items[table], fn item -> passes_filter?(item, non_indexed_filters) end)
+    filtered_results = Enum.filter(items[table], &passes_filter?(&1, non_indexed_filters))
     put_in(result, ["Responses", table], filtered_results)
   end
 
 
-  defp passes_filter?(item, [{ logical_op, [ filter_clauses | [ additional_filter_clauses ] ] }]) do
-    case logical_op do
-      :and -> passes_filter?(item, filter_clauses) and passes_filter?(item, additional_filter_clauses)
-      :or -> passes_filter?(item, filter_clauses) or passes_filter?(item, additional_filter_clauses)
-    end
-  end
-  defp passes_filter?(item, [{ _logical_op, [ filter_clause ]}])do
-    passes_filter?(item, filter_clause)
-  end
-  defp passes_filter?(item, { _logical_op, filter_clause } = filter) when is_list(filter_clause) do
-    passes_filter?(item, [ filter ])
-  end
   defp passes_filter?(item, { field, filter_clause }) when field not in @logical_ops do
     case Map.get(item, field) do
       nil -> evaluate_filter_expression(nil, filter_clause)
@@ -142,6 +130,20 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         |> Decoder.decode()
         |> evaluate_filter_expression(filter_clause)
     end
+  end
+  defp passes_filter?(item, [{ logical_op, [ filter_clauses | [ additional_filter_clauses ] ] }]) do
+    case logical_op do
+      :and -> passes_filter?(item, filter_clauses) and passes_filter?(item, additional_filter_clauses)
+      :or -> passes_filter?(item, filter_clauses) or passes_filter?(item, additional_filter_clauses)
+    end
+  end
+  defp passes_filter?(item, [{ _logical_op, [ filter_clause ]}])do
+    IO.puts "damn"
+    passes_filter?(item, filter_clause)
+  end
+  defp passes_filter?(item, filter) do
+    IO.puts "shit"
+    passes_filter?(item, [ filter ])
   end
 
 
