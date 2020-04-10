@@ -128,17 +128,11 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       :or -> passes_filter?(item, filter_clauses) or passes_filter?(item, additional_filter_clauses)
     end
   end
-  defp passes_filter?(item, { logical_op, [ filter_clauses | [ additional_filter_clauses ] ] }) do
-    case logical_op do
-      :and -> passes_filter?(item, filter_clauses) and passes_filter?(item, additional_filter_clauses)
-      :or -> passes_filter?(item, filter_clauses) or passes_filter?(item, additional_filter_clauses)
-    end
-  end
   defp passes_filter?(item, [{ _logical_op, [ filter_clause ]}])do
     passes_filter?(item, filter_clause)
   end
-  defp passes_filter?(item, { _logical_op, [ filter_clause ]}) do
-    passes_filter?(item, filter_clause)
+  defp passes_filter?(item, { _logical_op, filter_clause } = filter) when is_list(filter_clause) do
+    passes_filter?(item, [ filter ])
   end
   defp passes_filter?(item, { field, filter_clause }) when field not in @logical_ops do
     case Map.get(item, field) do
