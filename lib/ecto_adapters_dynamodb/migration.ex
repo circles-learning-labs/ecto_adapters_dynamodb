@@ -331,6 +331,9 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   # that attempt to add an index to a provisioned table without specifying throughput. The problem doesn't exist
   # the other way around; local Dynamo will ignore throughput specified for indexes where the table is on-demand.
   defp maybe_default_throughput_local(_using_ddb_local, data, table_info) do
+    # As of spring 2020, production and local DDB (version 1.11.478) no longer return a "BillingModeSummary" key
+    # for provisioned tables. In order to allow for backwards compatibility, we've retained the original condition
+    # following the or in the if statement below, but that can probably be removed in the future.
     if not Map.has_key?(table_info, "BillingModeSummary") or table_info["BillingModeSummary"]["BillingMode"] == "PROVISIONED" do
       updated_global_secondary_index_updates =
         for index_update <- data.global_secondary_index_updates, {action, index_info} <- index_update do
