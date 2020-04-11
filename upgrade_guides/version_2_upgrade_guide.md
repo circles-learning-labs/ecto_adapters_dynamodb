@@ -16,4 +16,4 @@ end
 
 ## Local DynamoDB version
 
-In order to make sure your local version of DynamoDB is up to date with the current production features, please use the latest release of DynamoDB local. As of spring 2019, the latest version is `1.11.477`, released on February 6, 2019.
+In order to make sure your local version of DynamoDB is up to date with the current production features, please use the latest release of DynamoDB local. As of spring 2020, the latest version is `1.11.478`, released on January 16, 2020. This major version release of the adapter should still be compatible with version `1.11.477`, but we strongly recommending upgrading.
