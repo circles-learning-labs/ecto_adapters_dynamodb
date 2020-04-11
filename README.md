@@ -183,7 +183,7 @@ Install the [Hex](https://hex.pm/packages/ecto_adapters_dynamodb) package by add
 
 ```elixir
 defp deps do
-  [{:ecto_adapters_dynamodb, "~> 2.0.0-beta.0"}]
+  [{:ecto_adapters_dynamodb, "~> 2.0.0-beta.1"}]
 end
 ```
 
@@ -191,13 +191,13 @@ Otherwise, to fetch from GitHub:
 
 ```elixir
 defp deps do
-  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "2.0.0-beta.0"}]
+  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "2.0.0-beta.1"}]
 end
 ```
 
 ### Local DynamoDB version
 
-In order to make sure your local version of DynamoDB is up to date with the current production features, please use the latest release of DynamoDB local. As of spring 2019, the latest version is `1.11.477`, released on February 6, 2019.
+In order to make sure your local version of DynamoDB is up to date with the current production features, please use the latest release of DynamoDB local. As of spring 2020, the latest version is `1.11.478`, released on January 16, 2020.
 
 ### Configuration
 
