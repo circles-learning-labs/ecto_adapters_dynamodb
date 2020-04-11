@@ -14,7 +14,6 @@ defmodule Ecto.Adapters.DynamoDB.Integration.ExAws.Dynamo.Test do
     {:ok, table_info} = ExAws.Dynamo.describe_table(@ex_aws_dynamo_test_table_name) |> ExAws.request()
 
     assert table_info["Table"]["TableName"] == @ex_aws_dynamo_test_table_name
-    assert table_info["Table"]["BillingModeSummary"]["BillingMode"] == "PROVISIONED"
   end
 
   test "update_table" do

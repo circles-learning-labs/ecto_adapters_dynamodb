@@ -14,10 +14,6 @@ defmodule Ecto.Adapters.DynamoDB.Info.Test do
         %{"AttributeName" => "mass", "AttributeType" => "N"},
         %{"AttributeName" => "name", "AttributeType" => "S"}
       ],
-      "BillingModeSummary" => %{
-        "BillingMode" => "PROVISIONED",
-        "LastUpdateToPayPerRequestDateTime" => 0.0
-      },
      "GlobalSecondaryIndexes" => [
         %{
           "IndexArn" => "arn:aws:dynamodb:ddblocal:000000000000:table/test_planet/index/name_mass",
