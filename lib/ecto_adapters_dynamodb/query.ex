@@ -148,20 +148,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
 
   @spec evaluate_filter_expression(decoded_terms, {filters, query_op}) :: boolean()
-  defp evaluate_filter_expression(value, {filter_val, :==}),
-    do: value == filter_val
+  defp evaluate_filter_expression(value, {filter_val, op}) when op in [:==, :<, :<=, :>, :>=],
+    do: apply(Kernel, op, [value, filter_val])
   defp evaluate_filter_expression(value, {_, :is_nil}),
     do: is_nil(value)
   defp evaluate_filter_expression(value, {filter_val, :in}),
     do: value in filter_val
-  defp evaluate_filter_expression(value, {filter_val, :<}),
-    do: value < filter_val
-  defp evaluate_filter_expression(value, {filter_val, :<=}),
-    do: value <= filter_val
-  defp evaluate_filter_expression(value, {filter_val, :>}),
-    do: value > filter_val
-  defp evaluate_filter_expression(value, {filter_val, :>=}),
-    do: value >= filter_val
   defp evaluate_filter_expression(value, {[range_start, range_end], :between}),
     do: value >= range_start and value <= range_end
   defp evaluate_filter_expression(value, {filter_val, :begins_with}) do
