@@ -18,12 +18,20 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   @typep dynamo_response :: %{required(String.t) => term}
   @typep query_opts :: [{atom(), any()}]
   @typep filters :: boolean() | String.t | number() | [] | [...] | map()
+  @typep filter_clause :: {filters, query_op}
+  @typep filter :: {boolean_op, filter_clause}
   @typep decoded_terms :: filters | nil
+  @typep non_indexed_filters :: {String.t, filter_clause} | [{boolean_op, [filter | filter_clause] }] | {boolean_op, [filter | filter_clause]}
 
+  @logical_ops [:and, :or]
+
+  # DDB attributes
+  @responses_element_key "Responses"
+  @unprocessed_keys_element_key "UnprocessedKeys"
+  @keys_element_key "Keys"
   # DynamoDB will reject an entire batch get query if the query is for more than 100 records, so these need to be batched.
   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html
   @batch_get_item_limit 100
-  @logical_ops [:and, :or]
 
   # parameters for get_item: 
   # TABLE_NAME::string,
@@ -61,19 +69,17 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
         primary_key_results =
           if op == :in do
-            responses_element = "Responses"
-            unprocessed_keys_element = "UnprocessedKeys"
-            response_map = %{responses_element => %{table => []}, unprocessed_keys_element => %{}} # The default format of the response from Dynamo.
+            response_map = %{@responses_element_key => %{table => []}, @unprocessed_keys_element_key => %{}} # The default format of the response from Dynamo.
 
             Enum.chunk_every(hash_values, @batch_get_item_limit)
             |> Enum.reduce(response_map, fn(hash_batch, acc) ->
-              %{^responses_element => %{^table => results}, ^unprocessed_keys_element => unprocessed_key_map} =
+              %{@responses_element_key => %{^table => results}, @unprocessed_keys_element_key => unprocessed_key_map} =
                 construct_batch_get_item_query(table, indexes, hash_batch, search, construct_opts(:get_item, opts))
                 |> ExAws.Dynamo.batch_get_item()
                 |> ExAws.request!
 
-              put_in(acc, [responses_element, table], acc[responses_element][table] ++ results)
-              |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
+              put_in(acc, [@responses_element_key, table], acc[@responses_element_key][table] ++ results)
+              |> maybe_put_unprocessed_keys(unprocessed_key_map, table)
             end)
           else
             # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
@@ -94,15 +100,14 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         query = construct_search(index, search, opts)
 
         if op == :in do
-          responses_element = "Responses"
-          response_map = %{responses_element => %{table => []}}
+          response_map = %{@responses_element_key => %{table => []}}
 
           Enum.reduce(hash_values, response_map, fn(hash_value, acc) ->
             # When receiving a list of values to query on, construct a custom query for each of those values to pass into do_fetch_recursive/1.
             %{"Items" => items} = put_in(query, [:expression_attribute_values, :hash_key], hash_value)
                                   |> (do_fetch_recursive).()
 
-            put_in(acc, [responses_element, table], acc[responses_element][table] ++ items)
+            put_in(acc, [@responses_element_key, table], acc[@responses_element_key][table] ++ items)
           end)
         else
           do_fetch_recursive.(query)
@@ -112,18 +117,18 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
-
+  @spec filter(dynamo_response,  non_indexed_filters, String.t) :: dynamo_response | %{}
   defp filter(%{"Item" => item} = result, non_indexed_filters, _) do
     if passes_filter?(item, non_indexed_filters),
       do: result,
       else: %{}
   end
-  defp filter(%{"Responses" => items} = result, non_indexed_filters, table) do
+  defp filter(%{@responses_element_key => items} = result, non_indexed_filters, table) do
     filtered_results = Enum.filter(items[table], &passes_filter?(&1, non_indexed_filters))
-    put_in(result, ["Responses", table], filtered_results)
+    put_in(result, [@responses_element_key, table], filtered_results)
   end
 
-
+  @spec passes_filter?(dynamo_response, non_indexed_filters) :: boolean()
   defp passes_filter?(item, { field, filter_clause }) when field not in @logical_ops do
     case Map.get(item, field) do
       nil -> evaluate_filter_expression(nil, filter_clause)
@@ -147,7 +152,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
 
-  @spec evaluate_filter_expression(decoded_terms, {filters, query_op}) :: boolean()
+  @spec evaluate_filter_expression(decoded_terms, filter_clause) :: boolean()
   defp evaluate_filter_expression(value, {filter_val, op}) when op in [:==, :<, :<=, :>, :>=],
     do: apply(Kernel, op, [value, filter_val])
   defp evaluate_filter_expression(value, {_, :is_nil}),
@@ -168,13 +173,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp get_hash_range_key_list({_index_name, index_fields}), do: index_fields
 
   # If a batch_get_item request returns unprocessed keys, update the accumulator with those values.
-  defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, _table, _unprocessed_keys_element) when unprocessed_key_map == %{}, do: acc
-  defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, table, unprocessed_keys_element) do
-    if Map.has_key?(acc[unprocessed_keys_element], table) do
-      keys_element = "Keys"
-      put_in(acc, [unprocessed_keys_element, table, keys_element], acc[unprocessed_keys_element][table][keys_element] ++ unprocessed_key_map[table][keys_element])
+  defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, _table) when unprocessed_key_map == %{}, do: acc
+  defp maybe_put_unprocessed_keys(acc, unprocessed_key_map, table) do
+    if Map.has_key?(acc[@unprocessed_keys_element_key], table) do
+      put_in(acc, [@unprocessed_keys_element_key, table, @keys_element_key], acc[@unprocessed_keys_element_key][table][@keys_element_key] ++ unprocessed_key_map[table][@keys_element_key])
     else
-      Map.put(acc, unprocessed_keys_element, unprocessed_key_map)
+      Map.put(acc, @unprocessed_keys_element_key, unprocessed_key_map)
     end
   end
 

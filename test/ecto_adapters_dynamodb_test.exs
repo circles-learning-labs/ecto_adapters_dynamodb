@@ -393,8 +393,10 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                where: p.id in ^ids
                  and p.last_name == "Howard"
                  and is_nil(p.updated_at)
-                 and is_nil(p.age))
-             |> TestRepo.all() == []
+                 and is_nil(p.age)
+                 or p.first_name == "Larry",
+               select: p.id)
+             |> TestRepo.all() == [person2.id]
     end
 
     test "'all... in...' query, hard-coded and a variable lists of composite primary keys" do
