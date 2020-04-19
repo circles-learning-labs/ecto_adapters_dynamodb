@@ -128,8 +128,24 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     put_in(result, [@responses_element_key, table], filtered_results)
   end
 
-  @spec passes_filter?(dynamo_response, non_indexed_filters) :: boolean()
-  defp passes_filter?(item, { field, filter_clause }) when field not in @logical_ops do
+
+  # @spec passes_filter?(dynamo_response, non_indexed_filters) :: boolean()
+  defp passes_filter?(item, [{ logical_op, [ deeper_clauses, filter ] }]) do
+    case logical_op do
+      :and -> evaluate_filter_expression(item, filter) and passes_filter?(item, deeper_clauses)
+      :or -> evaluate_filter_expression(item, filter) or passes_filter?(item, deeper_clauses)
+    end
+  end
+  defp passes_filter?(item, [{ _, [ filter ] }]) do
+    evaluate_filter_expression(item, filter)
+  end
+  defp passes_filter?(item, deeper_clauses) do
+    passes_filter?(item , [ deeper_clauses ])
+  end
+
+
+  # @spec evaluate_filter_expression(decoded_terms, filter_clause) :: boolean()
+  defp evaluate_filter_expression(item, { field, filter_clause }) when is_map(item) do
     case Map.get(item, field) do
       nil -> evaluate_filter_expression(nil, filter_clause)
       encoded_value ->
@@ -138,30 +154,15 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         |> evaluate_filter_expression(filter_clause)
     end
   end
-  defp passes_filter?(item, [{ logical_op, [ filter_clauses | [ additional_filter_clauses ] ] }]) do
-    case logical_op do
-      :and -> passes_filter?(item, filter_clauses) and passes_filter?(item, additional_filter_clauses)
-      :or -> passes_filter?(item, filter_clauses) or passes_filter?(item, additional_filter_clauses)
-    end
-  end
-  defp passes_filter?(item, [{ _logical_op, [ filter_clause ]}])do
-    passes_filter?(item, filter_clause)
-  end
-  defp passes_filter?(item, filter) do
-    passes_filter?(item, [ filter ])
-  end
-
-
-  @spec evaluate_filter_expression(decoded_terms, filter_clause) :: boolean()
-  defp evaluate_filter_expression(value, {filter_val, op}) when op in [:==, :<, :<=, :>, :>=],
+  defp evaluate_filter_expression(value, { filter_val, op }) when op in [ :==, :<, :<=, :>, :>= ],
     do: apply(Kernel, op, [value, filter_val])
-  defp evaluate_filter_expression(value, {_, :is_nil}),
+  defp evaluate_filter_expression(value, { _, :is_nil }),
     do: is_nil(value)
-  defp evaluate_filter_expression(value, {filter_val, :in}),
+  defp evaluate_filter_expression(value, { filter_val, :in }),
     do: value in filter_val
-  defp evaluate_filter_expression(value, {[range_start, range_end], :between}),
+  defp evaluate_filter_expression(value, { [ range_start, range_end ], :between }),
     do: value >= range_start and value <= range_end
-  defp evaluate_filter_expression(value, {filter_val, :begins_with}) do
+  defp evaluate_filter_expression(value, { filter_val, :begins_with }) do
     {:ok, reg} = Regex.compile("^#{filter_val}.*")
     Regex.match?(reg, value)
   end
