@@ -339,6 +339,24 @@ defmodule Ecto.Adapters.DynamoDB.Test do
               select: p.id)
              |> TestRepo.one() == person.id
 
+      lower_bound = 17
+      upper_bound = 19
+
+      assert from(p in Person,
+              where: p.id == "person:jamesholden"
+                and p.email == "jholden@expanse.com"
+                and p.last_name == "Holden"
+                and fragment("? between ? and ?", p.age, ^lower_bound, ^upper_bound),
+              select: p.id)
+             |> TestRepo.one() == person.id
+
+      refute from(p in Person,
+              where: p.id == "person:jamesholden"
+                and p.email == "wrong@test.com"
+                and fragment("? between ? and ?", p.age, ^lower_bound, ^upper_bound),
+              select: p.id)
+             |> TestRepo.one() == person.id
+
       email_fragment = "wron"
 
       refute from(p in Person,
@@ -397,6 +415,17 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                  or p.first_name == "Larry",
                select: p.id)
              |> TestRepo.all() == [person2.id]
+
+# x = 71
+# y = 73
+#       assert from(p in Person,
+#                where: p.id in ^ids
+#                  and p.last_name == "Howard"
+#                  and is_nil(p.updated_at)
+#                  and is_nil(p.age)
+#                  or fragment("? between ? and ?", p.age, ^x, ^y),
+#                select: p.id)
+#              |> TestRepo.all() == [person2.id]
     end
 
     test "'all... in...' query, hard-coded and a variable lists of composite primary keys" do

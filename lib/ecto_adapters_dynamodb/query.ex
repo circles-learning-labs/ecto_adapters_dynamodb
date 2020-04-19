@@ -138,7 +138,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
   defp passes_filter?(item, [{ _, [ filter ] }]), do: evaluate_filter_expression(item, filter)
-  defp passes_filter?(item, deeper_clauses), do: passes_filter?(item , [ deeper_clauses ])
+  defp passes_filter?(item, deeper_clauses_or_filter), do: passes_filter?(item , [ deeper_clauses_or_filter ])
 
 
   # @spec evaluate_filter_expression(decoded_terms, filter_clause) :: boolean()
@@ -159,10 +159,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     do: value in filter_val
   defp evaluate_filter_expression(value, { [ range_start, range_end ], :between }),
     do: value >= range_start and value <= range_end
-  defp evaluate_filter_expression(value, { filter_val, :begins_with }) do
-    {:ok, reg} = Regex.compile("^#{filter_val}.*")
-    Regex.match?(reg, value)
-  end
+  defp evaluate_filter_expression(value, { filter_val, :begins_with }),
+    do: String.starts_with?(value, filter_val)
 
 
   # In the case of a partial query on a composite key secondary index, the value of index in get_item/2 will be a three-element tuple, ex. {:secondary_partial, "person_id_entity", ["person_id"]}.
