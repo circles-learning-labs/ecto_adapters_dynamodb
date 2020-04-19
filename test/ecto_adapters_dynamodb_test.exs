@@ -396,6 +396,18 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       sorted_ids = Enum.sort(ids)
 
       assert from(p in Person,
+               where: p.id == "person-larry"
+                 and p.first_name == "Joe")
+             |> TestRepo.all() == []
+
+      assert from(p in Person,
+               where: p.id in ["person-larry", "person-not-exists"]
+                  and p.first_name == "Joe"
+                   or p.age >= 72,
+               select: p.id)
+             |> TestRepo.all() == [person2.id]
+
+      assert from(p in Person,
                where: p.id in ^ids,
                select: p.id)
              |> TestRepo.all()
