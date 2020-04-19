@@ -87,6 +87,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
             ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
           end
 
+        # If there are non-indexed searches, we can infer that the results are to be filtered.
         case collect_non_indexed_search(search, indexes, []) do
           [] -> primary_key_results
           non_indexed_filters -> filter(primary_key_results, non_indexed_filters, table)
@@ -136,12 +137,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       :or -> evaluate_filter_expression(item, filter) or passes_filter?(item, deeper_clauses)
     end
   end
-  defp passes_filter?(item, [{ _, [ filter ] }]) do
-    evaluate_filter_expression(item, filter)
-  end
-  defp passes_filter?(item, deeper_clauses) do
-    passes_filter?(item , [ deeper_clauses ])
-  end
+  defp passes_filter?(item, [{ _, [ filter ] }]), do: evaluate_filter_expression(item, filter)
+  defp passes_filter?(item, deeper_clauses), do: passes_filter?(item , [ deeper_clauses ])
 
 
   # @spec evaluate_filter_expression(decoded_terms, filter_clause) :: boolean()
