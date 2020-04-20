@@ -17,14 +17,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   @typep search :: [search_clause]
   @typep dynamo_response :: %{required(String.t) => term}
   @typep query_opts :: [{atom(), any()}]
-  @typep filters :: boolean() | String.t | number() | [] | [...] | map()
-  @typep filter_clause :: {filters, query_op}
-  @typep filter :: {boolean_op, filter_clause}
-  @typep decoded_terms :: filters | nil
-  @typep non_indexed_filters :: {String.t, filter_clause} | [{boolean_op, [filter | filter_clause] }] | {boolean_op, [filter | filter_clause]}
-
+  @typep field_val :: nil | boolean() | String.t | number() | [] | [...] | map()
+  @typep filter :: {field_val, query_op}
+  @typep filter_clause :: {String.t, filter}
+  # @typep filter_statement :: {boolean_op, [filter_clause]}
+  # @typep deep_filter_statement :: {boolean_op, nonempty_maybe_improper_list(deep_filter_statement, filter_clause) | [filter_statement]}
   @logical_ops [:and, :or]
-
   # DDB attributes
   @responses_element_key "Responses"
   @unprocessed_keys_element_key "UnprocessedKeys"
@@ -39,7 +37,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   #
 
   # Repo.all(model), provide cached results for tables designated in :cached_tables
-  @spec get_item(table_name, search, keyword) :: dynamo_response | no_return
+  @spec get_item(table_name, search, keyword) :: dynamo_response | %{} | no_return
   def get_item(table, search, opts) when search == [], do: maybe_scan(table, search, opts)
 
   # Regular queries
@@ -118,7 +116,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
-  @spec filter(dynamo_response,  non_indexed_filters, String.t) :: dynamo_response | %{}
+  # @spec filter(dynamo_response, non_indexed_filters, String.t) :: dynamo_response | %{}
   defp filter(%{"Item" => item} = result, non_indexed_filters, _) do
     if passes_filter?(item, non_indexed_filters),
       do: result,
@@ -129,8 +127,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     put_in(result, [@responses_element_key, table], filtered_results)
   end
 
-
-  # @spec passes_filter?(dynamo_response, non_indexed_filters) :: boolean()
+  # @spec passes_filter?(dynamo_response, filter_statement | deep_filter_statement | [filter_statement] | [deep_filter_statement]) :: boolean()
   defp passes_filter?(item, [{ logical_op, [ deeper_clauses, filter ] }]) do
     case logical_op do
       :and -> evaluate_filter_expression(item, filter) and passes_filter?(item, deeper_clauses)
@@ -141,25 +138,33 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp passes_filter?(item, deeper_clauses_or_filter), do: passes_filter?(item , [ deeper_clauses_or_filter ])
 
 
-  # @spec evaluate_filter_expression(decoded_terms, filter_clause) :: boolean()
-  defp evaluate_filter_expression(item, { field, filter_clause }) when is_map(item) do
+  @spec evaluate_filter_expression(dynamo_response, filter_clause) :: boolean()
+  defp evaluate_filter_expression(item, { field, filter }) do
     case Map.get(item, field) do
-      nil -> evaluate_filter_expression(nil, filter_clause)
+      nil ->
+        # If the key is missing from the map and the filter is checking that the field is nil, return true;
+        # for any other filter, a missing field will be false.
+        case filter do
+          { _, :is_nil } -> true
+                       _ -> false
+        end
       encoded_value ->
         encoded_value
         |> Decoder.decode()
-        |> evaluate_filter_expression(filter_clause)
+        |> do_evaluate_filter_expression(filter)
     end
   end
-  defp evaluate_filter_expression(value, { filter_val, op }) when op in [ :==, :<, :<=, :>, :>= ],
+
+  @spec do_evaluate_filter_expression(field_val, filter) :: boolean()
+  defp do_evaluate_filter_expression(value, { filter_val, op }) when op in [ :==, :<, :<=, :>, :>= ],
     do: apply(Kernel, op, [value, filter_val])
-  defp evaluate_filter_expression(value, { _, :is_nil }),
+  defp do_evaluate_filter_expression(value, { _, :is_nil }),
     do: is_nil(value)
-  defp evaluate_filter_expression(value, { filter_val, :in }),
+  defp do_evaluate_filter_expression(value, { filter_val, :in }),
     do: value in filter_val
-  defp evaluate_filter_expression(value, { [ range_start, range_end ], :between }),
+  defp do_evaluate_filter_expression(value, { [ range_start, range_end ], :between }),
     do: value >= range_start and value <= range_end
-  defp evaluate_filter_expression(value, { filter_val, :begins_with }),
+  defp do_evaluate_filter_expression(value, { filter_val, :begins_with }),
     do: String.starts_with?(value, filter_val)
 
 
