@@ -46,9 +46,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
           end
       parsed -> parsed
     end
-    do_fetch_recursive = fn(qry) ->
-      fetch_recursive(&ExAws.Dynamo.query/2, table, qry, parse_recursive_option(:query, opts), %{})
-    end
 
     results = case parsed_index do
       # primary key based lookup uses the efficient 'get_item' operation
@@ -71,14 +68,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
             |> maybe_put_unprocessed_keys(unprocessed_key_map, table, unprocessed_keys_element)
           end)
         else
-          if should_query?(indexes, search) do
-            construct_search({nil, indexes}, search, opts)
-            |> do_fetch_recursive.()
-          else
-            # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
-            query = construct_search(index, search, opts)
-            ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
-          end
+          # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#get_item/3
+          query = construct_search(index, search, opts)
+          ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts)) |> ExAws.request!
         end
 
       # secondary index based lookups need the query functionality. 
@@ -96,12 +88,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
           Enum.reduce(hash_values, response_map, fn(hash_value, acc) ->
             # When receiving a list of values to query on, construct a custom query for each of those values to pass into do_fetch_recursive/1.
             %{"Items" => items} = Kernel.put_in(query, [:expression_attribute_values, :hash_key], hash_value)
-                                  |> (do_fetch_recursive).()
+                                  |> do_fetch_recursive(table, opts)
 
             Kernel.put_in(acc, [responses_element, table], acc[responses_element][table] ++ items)
           end)
         else
-          do_fetch_recursive.(query)
+          do_fetch_recursive(query, table, opts)
         end
       :scan ->
         maybe_scan(table, search, opts)
@@ -110,15 +102,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     results
   end
 
-  # If a primary key query has additional search clauses that are not reflected by the indexes,
-  # we may need to use a Dynamo query instead of get_item in order to apply filters.
-  defp should_query?(_indexes, []), do: false
-  defp should_query?(indexes, [{logical_op, search_clauses} | additional_search_clauses]) when logical_op in @logical_ops,
-    do: should_query?(indexes, search_clauses) or should_query?(indexes, additional_search_clauses)
-  defp should_query?(indexes, [{field, _} | search_clauses]) do
-    if field not in indexes,
-      do: true,
-      else: should_query?(indexes, search_clauses)
+  defp do_fetch_recursive(query, table, opts) do
+      fetch_recursive(&ExAws.Dynamo.query/2, table, query, parse_recursive_option(:query, opts), %{})
   end
 
   # In the case of a partial query on a composite key secondary index, the value of index in get_item/2 will be a three-element tuple, ex. {:secondary_partial, "person_id_entity", ["person_id"]}.
