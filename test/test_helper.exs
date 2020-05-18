@@ -1,53 +1,56 @@
 # Load all our support files first, since we need some of them to define our helper modules
 
-files = File.ls!("./test/support") |> Enum.filter(&(String.ends_with?(&1, [".ex", ".exs"])))
+files = File.ls!("./test/support") |> Enum.filter(&String.ends_with?(&1, [".ex", ".exs"]))
 
-Enum.each files, fn(file) ->
-  Code.require_file "support/#{file}", __DIR__
-end
+Enum.each(files, fn file ->
+  Code.require_file("support/#{file}", __DIR__)
+end)
 
 defmodule TestHelper do
   alias ExAws.Dynamo
   alias Ecto.Adapters.DynamoDB.TestRepo
 
   def setup_all() do
-    IO.puts "========== main test suite =========="
+    IO.puts("========== main test suite ==========")
 
-    IO.puts "starting test repo"
+    IO.puts("starting test repo")
     TestRepo.start_link()
 
-    IO.puts "deleting any leftover test tables that may exist"
+    IO.puts("deleting any leftover test tables that may exist")
     Dynamo.delete_table("test_person") |> ExAws.request()
     Dynamo.delete_table("test_book_page") |> ExAws.request()
     Dynamo.delete_table("test_planet") |> ExAws.request()
 
-    IO.puts "creating test_person table"
+    IO.puts("creating test_person table")
     # Only need to define types for indexed fields:
     key_definitions = %{id: :string, email: :string, first_name: :string, age: :number}
+
     indexes = [
       %{
-         index_name: "email",
-         key_schema: [%{
-                      attribute_name: "email",
-                      key_type: "HASH",
-         }],
-         provisioned_throughput: %{
-           read_capacity_units: 100,
-           write_capacity_units: 100,
-         },
-         projection: %{projection_type: "ALL"}
+        index_name: "email",
+        key_schema: [
+          %{
+            attribute_name: "email",
+            key_type: "HASH"
+          }
+        ],
+        provisioned_throughput: %{
+          read_capacity_units: 100,
+          write_capacity_units: 100
+        },
+        projection: %{projection_type: "ALL"}
       },
       %{
         index_name: "first_name",
         key_schema: [
           %{
             attribute_name: "first_name",
-            key_type: "HASH",
-          },
+            key_type: "HASH"
+          }
         ],
         provisioned_throughput: %{
           read_capacity_units: 100,
-          write_capacity_units: 100,
+          write_capacity_units: 100
         },
         projection: %{projection_type: "ALL"}
       },
@@ -56,16 +59,16 @@ defmodule TestHelper do
         key_schema: [
           %{
             attribute_name: "first_name",
-            key_type: "HASH",
+            key_type: "HASH"
           },
           %{
             attribute_name: "email",
-            key_type: "RANGE",
+            key_type: "RANGE"
           }
         ],
         provisioned_throughput: %{
           read_capacity_units: 100,
-          write_capacity_units: 100,
+          write_capacity_units: 100
         },
         projection: %{projection_type: "ALL"}
       },
@@ -74,16 +77,16 @@ defmodule TestHelper do
         key_schema: [
           %{
             attribute_name: "first_name",
-            key_type: "HASH",
+            key_type: "HASH"
           },
           %{
             attribute_name: "age",
-            key_type: "RANGE",
+            key_type: "RANGE"
           }
         ],
         provisioned_throughput: %{
           read_capacity_units: 100,
-          write_capacity_units: 100,
+          write_capacity_units: 100
         },
         projection: %{projection_type: "ALL"}
       },
@@ -92,71 +95,99 @@ defmodule TestHelper do
         key_schema: [
           %{
             attribute_name: "age",
-            key_type: "HASH",
+            key_type: "HASH"
           },
           %{
             attribute_name: "first_name",
-            key_type: "RANGE",
+            key_type: "RANGE"
           }
         ],
         provisioned_throughput: %{
           read_capacity_units: 100,
-          write_capacity_units: 100,
+          write_capacity_units: 100
         },
         projection: %{projection_type: "ALL"}
-      },
+      }
     ]
-    Dynamo.create_table("test_person", [id: :hash], key_definitions, 100, 100, indexes, []) |> ExAws.request!
 
-    IO.puts "creating test_book_page table"
+    Dynamo.create_table("test_person", [id: :hash], key_definitions, 100, 100, indexes, [])
+    |> ExAws.request!()
+
+    IO.puts("creating test_book_page table")
     key_definitions = %{id: :string, page_num: :number}
-    Dynamo.create_table("test_book_page", [id: :hash, page_num: :range], key_definitions, 100, 100, [], []) |> ExAws.request!
 
-    IO.puts "creating test_planet table"
+    Dynamo.create_table(
+      "test_book_page",
+      [id: :hash, page_num: :range],
+      key_definitions,
+      100,
+      100,
+      [],
+      []
+    )
+    |> ExAws.request!()
+
+    IO.puts("creating test_planet table")
     key_definitions = %{id: :string, name: :string, mass: :number}
+
     indexes = [
       %{
         index_name: "name_mass",
         key_schema: [
           %{
             attribute_name: "name",
-            key_type: "HASH",
+            key_type: "HASH"
           },
           %{
             attribute_name: "mass",
-            key_type: "RANGE",
+            key_type: "RANGE"
           }
         ],
         provisioned_throughput: %{
           read_capacity_units: 100,
-          write_capacity_units: 100,
+          write_capacity_units: 100
         },
         projection: %{projection_type: "ALL"}
-      },
+      }
     ]
-    Dynamo.create_table("test_planet", [id: :hash, name: :range], key_definitions, 100, 100, indexes, []) |> ExAws.request!
 
-    IO.puts "creating test_fruit table"
-    Dynamo.create_table("test_fruit", [id: :hash], %{id: :string}, 100, 100, [], []) |> ExAws.request!
+    Dynamo.create_table(
+      "test_planet",
+      [id: :hash, name: :range],
+      key_definitions,
+      100,
+      100,
+      indexes,
+      []
+    )
+    |> ExAws.request!()
+
+    IO.puts("creating test_fruit table")
+
+    Dynamo.create_table("test_fruit", [id: :hash], %{id: :string}, 100, 100, [], [])
+    |> ExAws.request!()
 
     :ok
   end
-  def setup_all(:migration) do
-    IO.puts "========== migration test suite =========="
 
-    IO.puts "starting test repo"
+  def setup_all(:migration) do
+    IO.puts("========== migration test suite ==========")
+
+    IO.puts("starting test repo")
     TestRepo.start_link()
   end
 
   def on_exit() do
-    IO.puts "deleting main test tables"
+    IO.puts("deleting main test tables")
     Dynamo.delete_table("test_person") |> ExAws.request()
     Dynamo.delete_table("test_book_page") |> ExAws.request()
     Dynamo.delete_table("test_planet") |> ExAws.request()
     Dynamo.delete_table("test_fruit") |> ExAws.request()
   end
+
   def on_exit(:migration) do
-    IO.puts "deleting migration test tables"
+    IO.puts("deleting migration test tables")
+
     # Except for test_schema_migrations, these tables should be deleted during the "down" migration test.
     # Just to make sure, we'll clean up here anyway.
     Dynamo.delete_table("dog") |> ExAws.request()
@@ -165,7 +196,6 @@ defmodule TestHelper do
     Dynamo.delete_table("billing_mode_test") |> ExAws.request()
     Dynamo.delete_table("test_schema_migrations") |> ExAws.request()
   end
-
 end
 
 # Skip EQC testing if we don't have it installed:
@@ -193,8 +223,8 @@ if Code.ensure_compiled?(:eqc) do
 
     def person_with_id(key_gen) do
       let {id, first, last, age, email, pass, circles} <-
-          {key_gen, nonempty_str(), nonempty_str(), int(),
-            nonempty_str(), nonempty_str(), circle_list()} do
+            {key_gen, nonempty_str(), nonempty_str(), int(), nonempty_str(), nonempty_str(),
+             circle_list()} do
         %Person{
           id: id,
           first_name: first,
@@ -208,7 +238,7 @@ if Code.ensure_compiled?(:eqc) do
     end
   end
 else
-  IO.puts "Could not find eqc module - skipping property based testing!"
+  IO.puts("Could not find eqc module - skipping property based testing!")
 end
 
 # Set seed: 0 so that tests are run in order - critical for our migration tests.

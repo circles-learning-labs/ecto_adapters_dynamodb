@@ -8,16 +8,18 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddRedundantNameIndexToCat 
 
   def up do
     alter table(:cat,
-      options: [
-        global_indexes: [
-          [index_name: "name",
-            keys: [:name],
-            provisioned_throughput: [2,1],
-            create_if_not_exists: true]
-        ]
-      ]) do
-
-      add :name, :string, hash_key: true
+            options: [
+              global_indexes: [
+                [
+                  index_name: "name",
+                  keys: [:name],
+                  provisioned_throughput: [2, 1],
+                  create_if_not_exists: true
+                ]
+              ]
+            ]
+          ) do
+      add(:name, :string, hash_key: true)
     end
   end
 
@@ -26,5 +28,4 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddRedundantNameIndexToCat 
     # function in the preceding migration, which undoes a modification made to the name index.
     # This would normally cause an error, but we'll ignore that here, it does us no good.
   end
-
 end

@@ -8,19 +8,18 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddDogTable do
 
   def up do
     create_if_not_exists table(:dog,
-      primary_key: false,
-      options: [
-        billing_mode: :pay_per_request
-      ]) do
-
-      add :id, :string, primary_key: true
+                           primary_key: false,
+                           options: [
+                             billing_mode: :pay_per_request
+                           ]
+                         ) do
+      add(:id, :string, primary_key: true)
 
       timestamps()
     end
   end
 
   def down do
-    drop_if_exists table(:dog)
+    drop_if_exists(table(:dog))
   end
-
 end

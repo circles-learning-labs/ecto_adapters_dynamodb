@@ -8,14 +8,13 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.ModifyCatNameIndex do
 
   def up do
     alter table(:cat) do
-      modify :name, :string, provisioned_throughput: [3,2]
+      modify(:name, :string, provisioned_throughput: [3, 2])
     end
   end
 
   def down do
     alter table(:cat) do
-      modify :name, :string, provisioned_throughput: [2,1]
+      modify(:name, :string, provisioned_throughput: [2, 1])
     end
   end
-
 end

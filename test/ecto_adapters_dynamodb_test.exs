@@ -18,47 +18,51 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end)
   end
 
-
   test "get - no matching record" do
     result = TestRepo.get(Person, "person-faketestperson")
     assert result == nil
   end
 
   test "query - empty list param" do
-    result = TestRepo.all(from p in Person, where: p.id in [])
+    result = TestRepo.all(from(p in Person, where: p.id in []))
     assert result == []
   end
 
   describe "insert" do
     test "embedded records, source-mapped field, naive_datetime_usec and utc_datetime" do
-      {:ok, insert_result} = TestRepo.insert(%Person{
-                               id: "person:address_test",
-                               first_name: "Ringo",
-                               last_name: "Starr",
-                               email: "ringo@test.com",
-                               age: 76,
-                               country: "England",
-                               addresses: [
-                                 %Address{
-                                   street_number: 245,
-                                   street_name: "W 17th St"
-                                 },
-                                 %Address{
-                                   street_number: 1385,
-                                   street_name: "Broadway"
-                                 }
-                               ]
-                             })
+      {:ok, insert_result} =
+        TestRepo.insert(%Person{
+          id: "person:address_test",
+          first_name: "Ringo",
+          last_name: "Starr",
+          email: "ringo@test.com",
+          age: 76,
+          country: "England",
+          addresses: [
+            %Address{
+              street_number: 245,
+              street_name: "W 17th St"
+            },
+            %Address{
+              street_number: 1385,
+              street_name: "Broadway"
+            }
+          ]
+        })
 
       assert length(insert_result.addresses) == 2
       assert get_datetime_type(insert_result.inserted_at) == :naive_datetime_usec
-      assert get_datetime_type((insert_result.addresses |> Enum.at(0)).updated_at) == :utc_datetime
+
+      assert get_datetime_type((insert_result.addresses |> Enum.at(0)).updated_at) ==
+               :utc_datetime
+
       assert insert_result.country == "England"
+
       assert insert_result.__meta__ == %Ecto.Schema.Metadata{
-                                          state: :loaded,
-                                          source: "test_person",
-                                          schema: Person
-                                        }
+               state: :loaded,
+               source: "test_person",
+               schema: Person
+             }
 
       get_result = TestRepo.get(Person, insert_result.id)
       assert get_result == insert_result
@@ -69,6 +73,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         name: "Earth",
         mass: 1
       }
+
       planet_2 = %Planet{
         name: "Venus",
         mass: 2
@@ -76,8 +81,14 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       {:ok, earth} = TestRepo.insert(planet_1, insert_nil_fields: false)
       {:ok, venus} = TestRepo.insert(planet_2)
-      %{"Item" => earth_result} = ExAws.Dynamo.get_item("test_planet", %{id: earth.id, name: earth.name}) |> ExAws.request!
-      %{"Item" => venus_result} = ExAws.Dynamo.get_item("test_planet", %{id: venus.id, name: venus.name}) |> ExAws.request!
+
+      %{"Item" => earth_result} =
+        ExAws.Dynamo.get_item("test_planet", %{id: earth.id, name: earth.name})
+        |> ExAws.request!()
+
+      %{"Item" => venus_result} =
+        ExAws.Dynamo.get_item("test_planet", %{id: venus.id, name: venus.name})
+        |> ExAws.request!()
 
       refute Map.has_key?(earth_result, "moons")
       assert Map.has_key?(venus_result, "moons")
@@ -87,15 +98,17 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   describe "update" do
     test "update a single record" do
       TestRepo.insert(%Person{
-                        id: "person-update",
-                        first_name: "Update",
-                        last_name: "Test",
-                        age: 12,
-                        email: "update@test.com",
-                      })
-      {:ok, result} = TestRepo.get(Person, "person-update")
-                      |> Ecto.Changeset.change([first_name: "Updated", last_name: "Tested"])
-                      |> TestRepo.update()
+        id: "person-update",
+        first_name: "Update",
+        last_name: "Test",
+        age: 12,
+        email: "update@test.com"
+      })
+
+      {:ok, result} =
+        TestRepo.get(Person, "person-update")
+        |> Ecto.Changeset.change(first_name: "Updated", last_name: "Tested")
+        |> TestRepo.update()
 
       assert result.first_name == "Updated"
       assert result.last_name == "Tested"
@@ -104,17 +117,18 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     test ":remove_nil_fields_on_update option" do
       {:ok, person} =
         TestRepo.insert(%Person{
-                          first_name: "Prince",
-                          last_name: "Rodgers",
-                          age: 40,
-                          email: "prince@test.com"
-                        })
+          first_name: "Prince",
+          last_name: "Rodgers",
+          age: 40,
+          email: "prince@test.com"
+        })
 
       person
-      |> Ecto.Changeset.change([country: "USA", last_name: nil])
+      |> Ecto.Changeset.change(country: "USA", last_name: nil)
       |> TestRepo.update(remove_nil_fields_on_update: true)
 
-      %{"Item" => result} = ExAws.Dynamo.get_item("test_person", %{id: person.id}) |> ExAws.request!
+      %{"Item" => result} =
+        ExAws.Dynamo.get_item("test_person", %{id: person.id}) |> ExAws.request!()
 
       refute Map.has_key?(result, "last_name")
     end
@@ -143,42 +157,45 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   describe "update_all and query" do
     test "update_all - hash primary key query with hard-coded params" do
       person1 = %{
-                  id: "person-george",
-                  first_name: "George",
-                  last_name: "Washington",
-                  age: 70,
-                  email: "george@washington.com"
-                }
+        id: "person-george",
+        first_name: "George",
+        last_name: "Washington",
+        age: 70,
+        email: "george@washington.com"
+      }
+
       person2 = %{
-                  id: "person-thomas",
-                  first_name: "Thomas",
-                  last_name: "Jefferson",
-                  age: 27,
-                  email: "thomas@jefferson.com"
-                }
+        id: "person-thomas",
+        first_name: "Thomas",
+        last_name: "Jefferson",
+        age: 27,
+        email: "thomas@jefferson.com"
+      }
 
       TestRepo.insert_all(Person, [person1, person2])
 
       from(p in Person, where: p.id in ["person-george", "person-thomas"])
       |> TestRepo.update_all(set: [last_name: nil])
 
-      result = from(p in Person, where: p.id in ["person-george", "person-thomas"], select: p.last_name)
-              |> TestRepo.all()
+      result =
+        from(p in Person, where: p.id in ["person-george", "person-thomas"], select: p.last_name)
+        |> TestRepo.all()
 
       assert result == [nil, nil]
     end
 
     test "update_all - composite primary key query with pinned variable params" do
       page1 = %{
-                id: "page:test-3",
-                page_num: 1,
-                text: "abc",
-              }
+        id: "page:test-3",
+        page_num: 1,
+        text: "abc"
+      }
+
       page2 = %{
-                id: "page:test-4",
-                page_num: 2,
-                text: "def",
-              }
+        id: "page:test-4",
+        page_num: 2,
+        text: "def"
+      }
 
       TestRepo.insert_all(BookPage, [page1, page2])
 
@@ -188,20 +205,22 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       from(bp in BookPage, where: bp.id in ^ids and bp.page_num in ^pages)
       |> TestRepo.update_all(set: [text: "Call me Ishmael..."])
 
-      result = from(bp in BookPage, where: bp.id in ^ids and bp.page_num in ^pages, select: bp.text)
-               |> TestRepo.all()
+      result =
+        from(bp in BookPage, where: bp.id in ^ids and bp.page_num in ^pages, select: bp.text)
+        |> TestRepo.all()
 
       assert result == ["Call me Ishmael...", "Call me Ishmael..."]
     end
   end
 
   test "delete" do
-    {:ok, person} = TestRepo.insert(%Person{
-                 id: "person:delete",
-                 first_name: "Delete",
-                 age: 37,
-                 email: "delete@test.com",
-               })
+    {:ok, person} =
+      TestRepo.insert(%Person{
+        id: "person:delete",
+        first_name: "Delete",
+        age: 37,
+        email: "delete@test.com"
+      })
 
     TestRepo.delete(person)
 
@@ -210,37 +229,41 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
   test "delete_all" do
     person_1 = %{
-                 id: "person:delete_all_1",
-                 first_name: "Delete",
-                 age: 26,
-                 email: "delete_all@test.com",
-               }
+      id: "person:delete_all_1",
+      first_name: "Delete",
+      age: 26,
+      email: "delete_all@test.com"
+    }
+
     person_2 = %{
-                 id: "person:delete_all_2",
-                 first_name: "Delete",
-                 age: 97,
-                 email: "delete_all@test.com",
-               }
+      id: "person:delete_all_2",
+      first_name: "Delete",
+      age: 97,
+      email: "delete_all@test.com"
+    }
 
     TestRepo.insert_all(Person, [person_1, person_2])
 
-    result = from(p in Person, where: p.id in ^[person_1.id, person_2.id])
-             |> TestRepo.delete_all()
+    result =
+      from(p in Person, where: p.id in ^[person_1.id, person_2.id])
+      |> TestRepo.delete_all()
 
     assert {2, nil} == result
   end
 
   describe "update, get_by" do
     test "update and get_by record using a hash and range key, utc_datetime_usec" do
-      assert {:ok, book_page} = TestRepo.insert(%BookPage{
-        id: "gatsby",
-        page_num: 1
-      })
+      assert {:ok, book_page} =
+               TestRepo.insert(%BookPage{
+                 id: "gatsby",
+                 page_num: 1
+               })
 
-      {:ok, _} = BookPage.changeset(book_page, %{text: "Believe"})
-      |> TestRepo.update()
+      {:ok, _} =
+        BookPage.changeset(book_page, %{text: "Believe"})
+        |> TestRepo.update()
 
-      result = TestRepo.get_by(BookPage, [id: "gatsby", page_num: 1])
+      result = TestRepo.get_by(BookPage, id: "gatsby", page_num: 1)
 
       assert %BookPage{text: "Believe"} = result
       assert get_datetime_type(result.inserted_at) == :utc_datetime_usec
@@ -248,11 +271,14 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
     test "update a record using the legacy :range_key option, naive_datetime" do
       assert 1 == length(Planet.__schema__(:primary_key)), "the schema have a single key declared"
-      assert {:ok, planet} = TestRepo.insert(%Planet{
-        id: "neptune",
-        name: "Neptune",
-        mass: 123245
-      })
+
+      assert {:ok, planet} =
+               TestRepo.insert(%Planet{
+                 id: "neptune",
+                 name: "Neptune",
+                 mass: 123_245
+               })
+
       assert get_datetime_type(planet.inserted_at) == :naive_datetime
 
       {:ok, updated_planet} =
@@ -260,37 +286,40 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         |> TestRepo.update(range_key: {:name, planet.name})
 
       assert %Planet{
-        __meta__: %Ecto.Schema.Metadata{
-          state: :loaded,
-          source: "test_planet",
-          schema: Planet
-        },
-        mass: 0
-      } = updated_planet
+               __meta__: %Ecto.Schema.Metadata{
+                 state: :loaded,
+                 source: "test_planet",
+                 schema: Planet
+               },
+               mass: 0
+             } = updated_planet
 
-      {:ok, _} =
-        TestRepo.delete(%Planet{id: planet.id}, range_key: {:name, planet.name})
-    end  
+      {:ok, _} = TestRepo.delete(%Planet{id: planet.id}, range_key: {:name, planet.name})
+    end
   end
 
   describe "query" do
     test "query on composite primary key, hash and hash + range" do
       name = "houseofleaves"
+
       page_1 = %BookPage{
-                id: name,
-                page_num: 1,
-                text: "abc",
-              }
+        id: name,
+        page_num: 1,
+        text: "abc"
+      }
+
       page_2 = %BookPage{
-                id: name,
-                page_num: 2,
-                text: "def",
-              }
+        id: name,
+        page_num: 2,
+        text: "def"
+      }
+
       duplicate_page = %BookPage{
-                         id: name,
-                         page_num: 1,
-                         text: "ghi",
-                       }
+        id: name,
+        page_num: 1,
+        text: "ghi"
+      }
+
       {:ok, page_1} = BookPage.changeset(page_1) |> TestRepo.insert()
       {:ok, page_2} = BookPage.changeset(page_2) |> TestRepo.insert()
 
@@ -300,18 +329,24 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       [hash_res_1, hash_res_2] =
         from(p in BookPage, where: p.id == ^name)
-        |> TestRepo.all
-        |> Enum.sort_by(&(&1.page_num))
+        |> TestRepo.all()
+        |> Enum.sort_by(& &1.page_num)
 
       assert hash_res_1 == page_1
       assert hash_res_2 == page_2
+
       assert from(p in BookPage,
-               where: p.id == "houseofleaves"
-               and p.page_num == 1)
-               |> TestRepo.all() == [page_1]
+               where:
+                 p.id == "houseofleaves" and
+                   p.page_num == 1
+             )
+             |> TestRepo.all() == [page_1]
+
       assert from(p in BookPage,
-               where: p.id == ^page_2.id
-               and p.page_num == ^page_2.page_num)
+               where:
+                 p.id == ^page_2.id and
+                   p.page_num == ^page_2.page_num
+             )
              |> TestRepo.all() == [page_2]
     end
 
@@ -322,50 +357,59 @@ defmodule Ecto.Adapters.DynamoDB.Test do
           first_name: "James",
           last_name: "Holden",
           age: 18,
-          email: "jholden@expanse.com",
+          email: "jholden@expanse.com"
         })
 
       assert from(p in Person,
-               where: p.id == "person:jamesholden"
-                 and p.email == "jholden@expanse.com",
-               select: p.id)
+               where:
+                 p.id == "person:jamesholden" and
+                   p.email == "jholden@expanse.com",
+               select: p.id
+             )
              |> TestRepo.all()
              |> Enum.at(0) == person.id
 
       assert from(p in Person,
-              where: p.id == "person:jamesholden"
-                and p.email == "wrong@test.com"
-                or p.age == 18,
-              select: p.id)
+               where:
+                 (p.id == "person:jamesholden" and
+                    p.email == "wrong@test.com") or
+                   p.age == 18,
+               select: p.id
+             )
              |> TestRepo.one() == person.id
 
       refute from(p in Person,
-              where: p.id == "person:jamesholden"
-                and p.email == "jholden@expanse.com"
-                and is_nil(p.updated_at))
+               where:
+                 p.id == "person:jamesholden" and
+                   p.email == "jholden@expanse.com" and
+                   is_nil(p.updated_at)
+             )
              |> TestRepo.one()
 
       refute from(p in Person,
-              where: p.id == "person:jamesholden"
-                and is_nil(p.updated_at))
+               where:
+                 p.id == "person:jamesholden" and
+                   is_nil(p.updated_at)
+             )
              |> TestRepo.one()
     end
 
     test "'all... in...' query, hard-coded and a variable list of primary hash keys" do
       person1 = %{
-                  id: "person-moe",
-                  first_name: "Moe",
-                  last_name: "Howard",
-                  age: 75,
-                  email: "moe@stooges.com"
-                }
+        id: "person-moe",
+        first_name: "Moe",
+        last_name: "Howard",
+        age: 75,
+        email: "moe@stooges.com"
+      }
+
       person2 = %{
-                  id: "person-larry",
-                  first_name: "Larry",
-                  last_name: "Fine",
-                  age: 72,
-                  email: "larry@stooges.com"
-                }
+        id: "person-larry",
+        first_name: "Larry",
+        last_name: "Fine",
+        age: 72,
+        email: "larry@stooges.com"
+      }
 
       TestRepo.insert_all(Person, [person1, person2])
 
@@ -374,27 +418,31 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert from(p in Person,
                where: p.id in ^ids,
-               select: p.id)
+               select: p.id
+             )
              |> TestRepo.all()
              |> Enum.sort() == sorted_ids
+
       assert from(p in Person,
                where: p.id in ["person-moe", "person-larry"],
-               select: p.id)
+               select: p.id
+             )
              |> TestRepo.all()
              |> Enum.sort() == sorted_ids
     end
 
     test "'all... in...' query, hard-coded and a variable lists of composite primary keys" do
       page_1 = %{
-                id: "page:test-1",
-                page_num: 1,
-                text: "abc",
-              }
+        id: "page:test-1",
+        page_num: 1,
+        text: "abc"
+      }
+
       page_2 = %{
-                id: "page:test-2",
-                page_num: 2,
-                text: "def",
-              }
+        id: "page:test-2",
+        page_num: 2,
+        text: "def"
+      }
 
       TestRepo.insert_all(BookPage, [page_1, page_2])
 
@@ -403,16 +451,21 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       sorted_ids = Enum.sort(ids)
 
       assert from(bp in BookPage,
-              where: bp.id in ^ids
-                and bp.page_num in ^pages)
+               where:
+                 bp.id in ^ids and
+                   bp.page_num in ^pages
+             )
              |> TestRepo.all()
-             |> Enum.map(&(&1.id))
+             |> Enum.map(& &1.id)
              |> Enum.sort() == sorted_ids
+
       assert from(bp in BookPage,
-               where: bp.id in ["page:test-1", "page:test-2"]
-                 and bp.page_num in [1, 2])
+               where:
+                 bp.id in ["page:test-1", "page:test-2"] and
+                   bp.page_num in [1, 2]
+             )
              |> TestRepo.all()
-             |> Enum.map(&(&1.id))
+             |> Enum.map(& &1.id)
              |> Enum.sort() == sorted_ids
     end
 
@@ -424,6 +477,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         age: 55,
         email: "jerry@test.com"
       }
+
       person_2 = %{
         id: "person-bobtest",
         first_name: "Bob",
@@ -439,54 +493,70 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert from(p in Person,
                where: p.email in ^emails,
-               select: p.id)
+               select: p.id
+             )
              |> TestRepo.all()
              |> Enum.sort() == sorted_ids
+
       assert from(p in Person,
                where: p.email in ["jerry@test.com", "bob@test.com"],
-               select: p.id)
+               select: p.id
+             )
              |> TestRepo.all()
              |> Enum.sort() == sorted_ids
+
       assert from(p in Person,
-               where: p.email in ^emails
-                 and p.age > 69,
-               select: p.id)
+               where:
+                 p.email in ^emails and
+                   p.age > 69,
+               select: p.id
+             )
              |> TestRepo.all() == [person_2.id]
+
       assert from(p in Person,
-               where: p.email in ["jerry@test.com", "bob@test.com"]
-                 and p.age < 69,
-               select: p.id)
+               where:
+                 p.email in ["jerry@test.com", "bob@test.com"] and
+                   p.age < 69,
+               select: p.id
+             )
              |> TestRepo.all() == [person_1.id]
     end
 
     test "query secondary index, :index option provided to resolve ambiguous index choice" do
       person1 = %{
-                  id: "person-methuselah-baby",
-                  first_name: "Methuselah",
-                  last_name: "Baby",
-                  age: 0,
-                  email: "newborn_baby@test.com",
-                }
+        id: "person-methuselah-baby",
+        first_name: "Methuselah",
+        last_name: "Baby",
+        age: 0,
+        email: "newborn_baby@test.com"
+      }
+
       person2 = %{
-                  id: "person-methuselah-jones",
-                  first_name: "Methuselah",
-                  last_name: "Jones",
-                  age: 969,
-                  email: "methuselah@test.com",
-                }
+        id: "person-methuselah-jones",
+        first_name: "Methuselah",
+        last_name: "Jones",
+        age: 969,
+        email: "methuselah@test.com"
+      }
 
       TestRepo.insert_all(Person, [person1, person2])
 
       # based on the query, it won't be clear to the adapter whether to choose the first_name_age
       # or age_first_name index - pass the :index option to make sure it queries correctly.
-      query = from(p in Person,
-                 where: p.first_name == "Methuselah"
-                   and p.age in [0, 969])
+      query =
+        from(p in Person,
+          where:
+            p.first_name == "Methuselah" and
+              p.age in [0, 969]
+        )
 
-      assert_raise ArgumentError, "Ecto.Adapters.DynamoDB.Query.get_matching_secondary_index/3 error: :index option does not match existing secondary index names. Did you mean age_first_name?", fn ->
-        query
-        |> TestRepo.all(index: "age_first_nam")
-      end
+      assert_raise ArgumentError,
+                   "Ecto.Adapters.DynamoDB.Query.get_matching_secondary_index/3 error: :index option does not match existing secondary index names. Did you mean age_first_name?",
+                   fn ->
+                     query
+                     |> TestRepo.all(index: "age_first_nam")
+                   end
+
       assert query
              |> TestRepo.all(index: "age_first_name")
              |> length() == 2
@@ -494,50 +564,58 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
     test "composite primary key, using a 'begins_with' fragment on the range key" do
       name_fragment = "J"
+
       planet_1 = %{
         id: "planet",
         name: "Jupiter",
-        mass: 6537292902,
+        mass: 6_537_292_902,
         moons: MapSet.new(["Io", "Europa", "Ganymede"])
       }
+
       planet_2 = %{
         id: "planet",
         name: "Pluto",
-        mass: 3465,
+        mass: 3465
       }
 
       TestRepo.insert_all(Planet, [planet_1, planet_2])
 
       assert from(p in Planet,
-               where: p.id == "planet"
-                 and fragment("begins_with(?, ?)", p.name, ^name_fragment),
-               select: p.moons)
+               where:
+                 p.id == "planet" and
+                   fragment("begins_with(?, ?)", p.name, ^name_fragment),
+               select: p.moons
+             )
              |> TestRepo.all() == [planet_1.moons]
     end
 
     test "global secondary index with a composite key, using a 'begins_with' fragment on the range key" do
       email_fragment = "m"
+
       person_1 = %{
-                  id: "person-michael-jordan",
-                  first_name: "Michael",
-                  last_name: "Jordan",
-                  age: 52,
-                  email: "mjordan@test.com"
-                }
+        id: "person-michael-jordan",
+        first_name: "Michael",
+        last_name: "Jordan",
+        age: 52,
+        email: "mjordan@test.com"
+      }
+
       person_2 = %{
-                  id: "person-michael-macdonald",
-                  first_name: "Michael",
-                  last_name: "MacDonald",
-                  age: 74,
-                  email: "singin_dude@test.com"
-                }
+        id: "person-michael-macdonald",
+        first_name: "Michael",
+        last_name: "MacDonald",
+        age: 74,
+        email: "singin_dude@test.com"
+      }
 
       TestRepo.insert_all(Person, [person_1, person_2])
 
       assert from(p in Person,
-               where: p.first_name == "Michael"
-                 and fragment("begins_with(?, ?)", p.email, ^email_fragment),
-               select: p.id)
+               where:
+                 p.first_name == "Michael" and
+                   fragment("begins_with(?, ?)", p.email, ^email_fragment),
+               select: p.id
+             )
              |> TestRepo.all() == [person_1.id]
     end
 
@@ -548,7 +626,8 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         last_name: "Sinatra",
         age: 45,
         email: "frank_sinatra@test.com"
-      } 
+      }
+
       person2 = %{
         id: "person:dean",
         first_name: "Dean",
@@ -562,9 +641,11 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       first_names = [person1.first_name, person2.first_name]
 
       assert from(p in Person,
-               where: p.first_name in ^first_names
-                 and p.age < 50,
-               select: p.id)
+               where:
+                 p.first_name in ^first_names and
+                   p.age < 50,
+               select: p.id
+             )
              |> TestRepo.all() == ["person:frank"]
     end
 
@@ -574,35 +655,47 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         name: "Mercury",
         mass: 153
       }
+
       planet_2 = %{
         id: "planet-saturn",
         name: "Saturn",
-        mass: 409282891,
+        mass: 409_282_891,
         moons: MapSet.new(["Titan", "Enceladus", "Iapetus"])
       }
 
       TestRepo.insert_all(Planet, [planet_1, planet_2])
 
       assert from(p in Planet,
-               where: p.name in ^[planet_1.name, planet_2.name])
+               where: p.name in ^[planet_1.name, planet_2.name]
+             )
              |> TestRepo.all() ==
-             from(p in Planet,
-               where: p.id in ^[planet_1.id, planet_2.id])
-             |> TestRepo.all()
+               from(p in Planet,
+                 where: p.id in ^[planet_1.id, planet_2.id]
+               )
+               |> TestRepo.all()
+
       assert from(p in Planet,
-               where: p.name == ^planet_1.name)
+               where: p.name == ^planet_1.name
+             )
              |> TestRepo.all() ==
-             from(p in Planet,
-               where: p.id == ^planet_1.id)
-             |> TestRepo.all()
+               from(p in Planet,
+                 where: p.id == ^planet_1.id
+               )
+               |> TestRepo.all()
+
       # We'd expect inserted_at to be nil, since this was created by an insert_all operation
       assert from(p in Planet,
-               where: p.id == ^planet_2.id
-                 and is_nil(p.inserted_at))
+               where:
+                 p.id == ^planet_2.id and
+                   is_nil(p.inserted_at)
+             )
              |> TestRepo.one()
+
       refute from(p in Planet,
-               where: p.id == ^planet_2.id
-                 and is_nil(p.moons))
+               where:
+                 p.id == ^planet_2.id and
+                   is_nil(p.moons)
+             )
              |> TestRepo.one()
     end
 
@@ -614,6 +707,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         age: 75,
         email: "wayne_shorter@test.com"
       }
+
       person2 = %{
         id: "person:wayne_campbell",
         first_name: "Wayne",
@@ -628,7 +722,8 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert from(p in Person,
                where: p.first_name == "Wayne",
-               select: p.id)
+               select: p.id
+             )
              |> TestRepo.all()
              |> Enum.sort() == sorted_ids
     end
@@ -639,9 +734,12 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       TestRepo.insert_all(Fruit, [fruit_1, fruit_2])
 
-      assert_raise ArgumentError, "Ecto.Adapters.DynamoDB.Query.maybe_scan/3 error: :scan option or configuration have not been specified, and could not confirm the table, \"test_fruit\", as listed for scan or caching in the application's configuration. Please see README file for details.", fn ->
-        TestRepo.all(Fruit)
-      end
+      assert_raise ArgumentError,
+                   "Ecto.Adapters.DynamoDB.Query.maybe_scan/3 error: :scan option or configuration have not been specified, and could not confirm the table, \"test_fruit\", as listed for scan or caching in the application's configuration. Please see README file for details.",
+                   fn ->
+                     TestRepo.all(Fruit)
+                   end
+
       assert TestRepo.all(Fruit, scan: true)
              |> length() == 2
     end
@@ -660,9 +758,10 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     TestRepo.insert_all(Person, people_to_insert)
 
     assert from(p in Person,
-             where: p.id in ^person_ids)
-             |> TestRepo.all()
-             |> length() == total_records
+             where: p.id in ^person_ids
+           )
+           |> TestRepo.all()
+           |> length() == total_records
 
     assert from(p in Person, where: p.id in ^person_ids)
            |> TestRepo.update_all(set: [last_name: "Foobar"]) == {total_records, []}
@@ -671,14 +770,15 @@ defmodule Ecto.Adapters.DynamoDB.Test do
            |> TestRepo.delete_all() == {total_records, nil}
 
     assert from(p in Person,
-             where: p.id in ^person_ids)
-             |> TestRepo.all()
-             |> length() == 0
+             where: p.id in ^person_ids
+           )
+           |> TestRepo.all()
+           |> length() == 0
   end
 
   defp make_list_of_people_for_batch_insert(total_records) do
     for i <- 0..total_records, i > 0 do
-      id_string = :crypto.strong_rand_bytes(16) |> Base.url_encode64 |> binary_part(0, 16)
+      id_string = :crypto.strong_rand_bytes(16) |> Base.url_encode64() |> binary_part(0, 16)
       id = "person:" <> id_string
 
       %{
@@ -696,6 +796,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       case datetime do
         %NaiveDateTime{} ->
           {:naive_datetime, datetime |> NaiveDateTime.to_iso8601()}
+
         %DateTime{} ->
           {:utc_datetime, datetime |> DateTime.to_iso8601()}
       end

@@ -5,9 +5,9 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
   @moduledoc """
   Implements Ecto migrations for `create table` and `alter table`.
-  
+
   The functions, `add`, `remove` and `modify` correspond to indexes on the DynamoDB table. Using `add`, the second parameter, field type (which corresponds with the DynamoDB attribute) must be specified. Use the third parameter to specify a primary key not already specified. For a HASH-only primary key, use `primary_key: true` as the third parameter. For a composite primary key (HASH and RANGE), in addition to the `primary_key` specification, set the third parameter on the range key attribute to `range_key: true`. There should be only one primary key (hash or composite) specified per table.
- 
+
   To specify index details, such as provisioned throughput, create_if_not_exists/drop_if_exists, billing_mode, and global and local indexes, use the `options` keyword in `create table` and `alter table`, please see the examples below for greater detail.
 
   *Please note that `change` may not work as expected on rollback. We recommend specifying `up` and `down` instead.*
@@ -121,21 +121,28 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   ```
   """
 
-
   # DynamoDB has restrictions on what can be done while tables are being created or
   # updated so we allow for a custom wait between requests if certain resource-access
   # errors are returned
   @initial_wait Application.get_env(:ecto_adapters_dynamodb, :migration_initial_wait) || 1000
   @wait_exponent Application.get_env(:ecto_adapters_dynamodb, :migration_wait_exponent) || 1.05
-  @max_wait Application.get_env(:ecto_adapters_dynamodb, :migration_max_wait) || 10 * 60 * 1000 # 10 minutes
+  # 10 minutes
+  @max_wait Application.get_env(:ecto_adapters_dynamodb, :migration_max_wait) || 10 * 60 * 1000
 
   # Adapted from line 620, https://github.com/michalmuskala/mongodb_ecto/blob/master/lib/mongo_ecto.ex
   def execute_ddl(_repo_meta, string, _opts) when is_binary(string) do
-    raise ArgumentError, message: "Ecto.Adapters.Dynamodb does not support SQL statements in `execute`"
+    raise ArgumentError,
+      message: "Ecto.Adapters.Dynamodb does not support SQL statements in `execute`"
   end
 
   def execute_ddl(%{repo: repo, migration_source: migration_source}, command, options) do
-    ecto_dynamo_log(:debug, "#{inspect __MODULE__}.execute_ddl", %{"#{inspect __MODULE__}.execute_ddl-params" => %{repo: repo, command: command, options: options}})
+    ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.execute_ddl", %{
+      "#{inspect(__MODULE__)}.execute_ddl-params" => %{
+        repo: repo,
+        command: command,
+        options: options
+      }
+    })
 
     # We provide a configuration option for migration_table_capacity
     updated_command = maybe_add_schema_migration_table_capacity(migration_source, command)
@@ -145,23 +152,33 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   def execute_ddl({:create_if_not_exists, %Ecto.Migration.Table{} = table, field_clauses}) do
     # :schema_migrations might be provided as an atom, while 'table.name' is now usually a binary
     table_name = if is_atom(table.name), do: Atom.to_string(table.name), else: table.name
-    %{"TableNames" => table_list} = Dynamo.list_tables |> ExAws.request!
+    %{"TableNames" => table_list} = Dynamo.list_tables() |> ExAws.request!()
 
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: :create_if_not_exists (table)")
-    
+    ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.execute_ddl: :create_if_not_exists (table)")
+
     if not Enum.member?(table_list, table_name) do
-      ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: create_if_not_exist: creating table", %{table_name: table.name})
+      ecto_dynamo_log(
+        :info,
+        "#{inspect(__MODULE__)}.execute_ddl: create_if_not_exist: creating table",
+        %{table_name: table.name}
+      )
 
       create_table(table_name, field_clauses, table.options)
     else
-      ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: create_if_not_exists: table already exists.", %{table_name: table.name})
+      ecto_dynamo_log(
+        :info,
+        "#{inspect(__MODULE__)}.execute_ddl: create_if_not_exists: table already exists.",
+        %{table_name: table.name}
+      )
     end
 
     {:ok, []}
   end
 
   def execute_ddl({:create, %Ecto.Migration.Table{} = table, field_clauses}) do
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: create table: creating table", %{table_name: table.name})
+    ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.execute_ddl: create table: creating table", %{
+      table_name: table.name
+    })
 
     create_table(table.name, field_clauses, table.options)
 
@@ -169,118 +186,198 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   def execute_ddl({command, %Ecto.Migration.Index{}}) do
-    raise ArgumentError, message: "Ecto.Adapters.Dynamodb migration does not support '" <> to_string(command) <> " index', please use 'alter table' instead, see README.md"
+    raise ArgumentError,
+      message:
+        "Ecto.Adapters.Dynamodb migration does not support '" <>
+          to_string(command) <> " index', please use 'alter table' instead, see README.md"
   end
 
   def execute_ddl({:drop, %Ecto.Migration.Table{} = table}) do
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: drop: removing table", %{table_name: table.name})
+    ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.execute_ddl: drop: removing table", %{
+      table_name: table.name
+    })
 
-    Dynamo.delete_table(table.name) |> ExAws.request!
+    Dynamo.delete_table(table.name) |> ExAws.request!()
 
     {:ok, []}
   end
 
   def execute_ddl({:drop_if_exists, %Ecto.Migration.Table{} = table}) do
-    %{"TableNames" => table_list} = Dynamo.list_tables |> ExAws.request!
+    %{"TableNames" => table_list} = Dynamo.list_tables() |> ExAws.request!()
 
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: drop_if_exists (table)")
-    
+    ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.execute_ddl: drop_if_exists (table)")
+
     if Enum.member?(table_list, table.name) do
-      ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: drop_if_exists: removing table", %{table_name: table.name})
+      ecto_dynamo_log(
+        :info,
+        "#{inspect(__MODULE__)}.execute_ddl: drop_if_exists: removing table",
+        %{table_name: table.name}
+      )
 
-      Dynamo.delete_table(table.name) |> ExAws.request!
+      Dynamo.delete_table(table.name) |> ExAws.request!()
     else
-      ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: drop_if_exists (table): table does not exist.", %{table_name: table.name})
+      ecto_dynamo_log(
+        :info,
+        "#{inspect(__MODULE__)}.execute_ddl: drop_if_exists (table): table does not exist.",
+        %{table_name: table.name}
+      )
     end
 
     {:ok, []}
   end
 
   def execute_ddl({:alter, %Ecto.Migration.Table{} = table, field_clauses}) do
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.execute_ddl: :alter (table)")
+    ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.execute_ddl: :alter (table)")
 
     {delete, update, key_list} = build_delete_and_update(field_clauses)
 
-    attribute_definitions = for {field, type} <- key_list do
-      %{attribute_name: field, attribute_type: Dynamo.Encoder.atom_to_dynamo_type(convert_type(type))}
-    end
+    attribute_definitions =
+      for {field, type} <- key_list do
+        %{
+          attribute_name: field,
+          attribute_type: Dynamo.Encoder.atom_to_dynamo_type(convert_type(type))
+        }
+      end
 
-    to_create = case table.options[:global_indexes] do
-      nil -> nil
-      global_indexes ->
-        Enum.filter(global_indexes, fn index -> if index[:keys], do: index[:keys] |> Enum.all?(fn key -> Keyword.has_key?(key_list, key) end) end)
-    end
+    to_create =
+      case table.options[:global_indexes] do
+        nil ->
+          nil
+
+        global_indexes ->
+          Enum.filter(global_indexes, fn index ->
+            if index[:keys],
+              do: index[:keys] |> Enum.all?(fn key -> Keyword.has_key?(key_list, key) end)
+          end)
+      end
 
     create = build_secondary_indexes(to_create) |> Enum.map(fn index -> %{create: index} end)
 
-    data = %{global_secondary_index_updates: create ++ delete ++ update}
-           |> Map.merge(if create == [], do: %{}, else: %{attribute_definitions: attribute_definitions})
+    data =
+      %{global_secondary_index_updates: create ++ delete ++ update}
+      |> Map.merge(
+        if create == [], do: %{}, else: %{attribute_definitions: attribute_definitions}
+      )
 
     update_table_recursive(table, data, @initial_wait, 0)
   end
 
-  def execute_ddl({command, struct, _}), do:
-  raise ArgumentError, message: "#{inspect __MODULE__}.execute_ddl error: '" <> to_string(command) <> " #{extract_ecto_migration_type(inspect struct.__struct__)}' is not supported"
+  def execute_ddl({command, struct, _}),
+    do:
+      raise(ArgumentError,
+        message:
+          "#{inspect(__MODULE__)}.execute_ddl error: '" <>
+            to_string(command) <>
+            " #{extract_ecto_migration_type(inspect(struct.__struct__))}' is not supported"
+      )
 
-  def execute_ddl({command, struct}), do:
-  raise ArgumentError, message: "#{inspect __MODULE__}.execute_ddl error: '" <> to_string(command) <> " #{extract_ecto_migration_type(inspect struct.__struct__)}' is not supported"
-
+  def execute_ddl({command, struct}),
+    do:
+      raise(ArgumentError,
+        message:
+          "#{inspect(__MODULE__)}.execute_ddl error: '" <>
+            to_string(command) <>
+            " #{extract_ecto_migration_type(inspect(struct.__struct__))}' is not supported"
+      )
 
   # We provide a configuration option for migration_table_capacity
-  defp maybe_add_schema_migration_table_capacity(migration_source, {:create_if_not_exists, %Ecto.Migration.Table{} = table, field_clauses} = command) do
+  defp maybe_add_schema_migration_table_capacity(
+         migration_source,
+         {:create_if_not_exists, %Ecto.Migration.Table{} = table, field_clauses} = command
+       ) do
     if to_string(table.name) == migration_source do
-      migration_table_capacity = Application.get_env(:ecto_adapters_dynamodb, :migration_table_capacity) || [1,1]
-      updated_table_options = case table.options do
-        nil  -> [provisioned_throughput: migration_table_capacity]
-        opts -> Keyword.put(opts, :provisioned_throughput, migration_table_capacity)
-      end
+      migration_table_capacity =
+        Application.get_env(:ecto_adapters_dynamodb, :migration_table_capacity) || [1, 1]
+
+      updated_table_options =
+        case table.options do
+          nil -> [provisioned_throughput: migration_table_capacity]
+          opts -> Keyword.put(opts, :provisioned_throughput, migration_table_capacity)
+        end
+
       {:create_if_not_exists, Map.put(table, :options, updated_table_options), field_clauses}
     else
       command
     end
   end
+
   defp maybe_add_schema_migration_table_capacity(_repo_meta, command), do: command
 
   defp poll_table(table_name) do
-    table_info = Dynamo.describe_table(table_name) |> ExAws.request
+    table_info = Dynamo.describe_table(table_name) |> ExAws.request()
 
     case table_info do
-      {:ok, %{"Table" => table}} -> 
-        ecto_dynamo_log(:info, "#{inspect __MODULE__}.poll_table: table", %{"#{inspect __MODULE__}.poll_table-table" => %{table_name: table_name, table: table}})
+      {:ok, %{"Table" => table}} ->
+        ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.poll_table: table", %{
+          "#{inspect(__MODULE__)}.poll_table-table" => %{table_name: table_name, table: table}
+        })
 
         table
 
       {:error, error_tuple} ->
-        ecto_dynamo_log(:info, "#{inspect __MODULE__}.poll_table: error attempting to poll table. Stopping...", %{"#{inspect __MODULE__}.poll_table-error" => %{table_name: table_name, error_tuple: error_tuple}})
+        ecto_dynamo_log(
+          :info,
+          "#{inspect(__MODULE__)}.poll_table: error attempting to poll table. Stopping...",
+          %{
+            "#{inspect(__MODULE__)}.poll_table-error" => %{
+              table_name: table_name,
+              error_tuple: error_tuple
+            }
+          }
+        )
 
-        raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
+        raise ExAws.Error, message: "ExAws Request Error! #{inspect(error_tuple)}"
     end
   end
 
   defp list_non_active_statuses(table_info) do
-    secondary_index_statuses = (table_info["GlobalSecondaryIndexes"] || []) |> Enum.map(fn index -> {index["IndexName"], index["IndexStatus"]} end)
+    secondary_index_statuses =
+      (table_info["GlobalSecondaryIndexes"] || [])
+      |> Enum.map(fn index -> {index["IndexName"], index["IndexStatus"]} end)
 
-    [{"TableStatus", table_info["TableStatus"]}] ++ secondary_index_statuses |> Enum.filter(fn {_, y} -> y != "ACTIVE" end)
+    ([{"TableStatus", table_info["TableStatus"]}] ++ secondary_index_statuses)
+    |> Enum.filter(fn {_, y} -> y != "ACTIVE" end)
   end
 
   defp update_table_recursive(table, data, wait_interval, time_waited) do
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: polling table", %{table_name: table.name})
+    ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.update_table_recursive: polling table", %{
+      table_name: table.name
+    })
 
     table_info = poll_table(table.name)
     non_active_statuses = list_non_active_statuses(table_info)
 
     if non_active_statuses != [] do
-      ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: non-active status found in table", %{"#{inspect __MODULE__}.update_table_recursive-non_active_status" => %{table_name: table.name, non_active_statuses: non_active_statuses}})
+      ecto_dynamo_log(
+        :info,
+        "#{inspect(__MODULE__)}.update_table_recursive: non-active status found in table",
+        %{
+          "#{inspect(__MODULE__)}.update_table_recursive-non_active_status" => %{
+            table_name: table.name,
+            non_active_statuses: non_active_statuses
+          }
+        }
+      )
 
-      to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
+      to_wait =
+        if time_waited == 0,
+          do: wait_interval,
+          else: round(:math.pow(wait_interval, @wait_exponent))
 
-      if (time_waited + to_wait) <= @max_wait do
-        ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
+      if time_waited + to_wait <= @max_wait do
+        ecto_dynamo_log(
+          :info,
+          "#{inspect(__MODULE__)}.update_table_recursive: waiting #{inspect(to_wait)} milliseconds (waited so far: #{
+            inspect(time_waited)
+          } ms)"
+        )
 
         :timer.sleep(to_wait)
         update_table_recursive(table, data, to_wait, time_waited + to_wait)
       else
-        raise "Wait exceeding configured max wait time, stopping migration at update table #{inspect table.name}...\nData: #{inspect data}"
+        raise "Wait exceeding configured max wait time, stopping migration at update table #{
+                inspect(table.name)
+              }...\nData: #{inspect(data)}"
       end
     else
       # Before passinng the index data to Dynamo, do a little extra preparation:
@@ -288,45 +385,92 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       # - if the user is running against Dynamo's local development version (in config, dynamodb_local: true),
       #   we may need to add provisioned_throughput to indexes to handle situations where the local table is provisioned
       #   but the index will be added to a production table that is on-demand.
-      prepared_data = make_safe_index_requests(data, table)
-                      |> maybe_default_throughput_local(table_info)
+      prepared_data =
+        make_safe_index_requests(data, table)
+        |> maybe_default_throughput_local(table_info)
 
       case prepared_data[:global_secondary_index_updates] do
-        [] -> {:ok, []}
-        _ ->
-          result = Dynamo.update_table(table.name, prepared_data) |> ExAws.request
+        [] ->
+          {:ok, []}
 
-          ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: DynamoDB/ExAws response", %{"#{inspect __MODULE__}.update_table_recursive-result" => inspect result})
+        _ ->
+          result = Dynamo.update_table(table.name, prepared_data) |> ExAws.request()
+
+          ecto_dynamo_log(
+            :info,
+            "#{inspect(__MODULE__)}.update_table_recursive: DynamoDB/ExAws response",
+            %{"#{inspect(__MODULE__)}.update_table_recursive-result" => inspect(result)}
+          )
 
           case result do
             {:ok, _} ->
-              ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: table altered successfully.", %{table_name: table.name})
+              ecto_dynamo_log(
+                :info,
+                "#{inspect(__MODULE__)}.update_table_recursive: table altered successfully.",
+                %{table_name: table.name}
+              )
+
               {:ok, []}
 
-            {:error, {error, _message}} when (error in ["LimitExceededException", "ProvisionedThroughputExceededException", "ThrottlingException"]) ->
-              to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
+            {:error, {error, _message}}
+            when error in [
+                   "LimitExceededException",
+                   "ProvisionedThroughputExceededException",
+                   "ThrottlingException"
+                 ] ->
+              to_wait =
+                if time_waited == 0,
+                  do: wait_interval,
+                  else: round(:math.pow(wait_interval, @wait_exponent))
 
-              if (time_waited + to_wait) <= @max_wait do
-                ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: #{inspect error} ... waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
+              if time_waited + to_wait <= @max_wait do
+                ecto_dynamo_log(
+                  :info,
+                  "#{inspect(__MODULE__)}.update_table_recursive: #{inspect(error)} ... waiting #{
+                    inspect(to_wait)
+                  } milliseconds (waited so far: #{inspect(time_waited)} ms)"
+                )
+
                 :timer.sleep(to_wait)
                 update_table_recursive(table, data, to_wait, time_waited + to_wait)
               else
-                raise "#{inspect error} ... wait exceeding configured max wait time, stopping migration at update table #{inspect table.name}...\nData: #{inspect data}"
+                raise "#{inspect(error)} ... wait exceeding configured max wait time, stopping migration at update table #{
+                        inspect(table.name)
+                      }...\nData: #{inspect(data)}"
               end
 
             {:error, error_tuple} ->
-              ecto_dynamo_log(:info, "#{inspect __MODULE__}.update_table_recursive: error attempting to update table. Stopping...", %{"#{inspect __MODULE__}.update_table_recursive-error" => %{table_name: table.name, error_tuple: error_tuple, data: inspect data}})
-              raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
+              ecto_dynamo_log(
+                :info,
+                "#{inspect(__MODULE__)}.update_table_recursive: error attempting to update table. Stopping...",
+                %{
+                  "#{inspect(__MODULE__)}.update_table_recursive-error" => %{
+                    table_name: table.name,
+                    error_tuple: error_tuple,
+                    data: inspect(data)
+                  }
+                }
+              )
+
+              raise ExAws.Error, message: "ExAws Request Error! #{inspect(error_tuple)}"
           end
       end
     end
   end
 
   # When running against local Dynamo, we may need to perform some additional special handling for indexes.
-  defp maybe_default_throughput_local(data, table_info), do: maybe_default_throughput_local(Application.get_env(:ecto_adapters_dynamodb, :dynamodb_local), data, table_info)
+  defp maybe_default_throughput_local(data, table_info),
+    do:
+      maybe_default_throughput_local(
+        Application.get_env(:ecto_adapters_dynamodb, :dynamodb_local),
+        data,
+        table_info
+      )
+
   # When running against production Dynamo, don't alter the index data. Production DDB will reject the migration if there's
   # disagreement between the table's billing mode and the options specified in the index migration.
   defp maybe_default_throughput_local(false, data, _table_info), do: data
+
   # However, when runnning against the local dev version of Dynamo, it will hang on index migrations
   # that attempt to add an index to a provisioned table without specifying throughput. The problem doesn't exist
   # the other way around; local Dynamo will ignore throughput specified for indexes where the table is on-demand.
@@ -334,12 +478,20 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     # As of spring 2020, production and local DDB (version 1.11.478) no longer return a "BillingModeSummary" key
     # for provisioned tables. In order to allow for backwards compatibility, we've retained the original condition
     # following the or in the if statement below, but that can probably be removed in the future.
-    if not Map.has_key?(table_info, "BillingModeSummary") or table_info["BillingModeSummary"]["BillingMode"] == "PROVISIONED" do
+    if not Map.has_key?(table_info, "BillingModeSummary") or
+         table_info["BillingModeSummary"]["BillingMode"] == "PROVISIONED" do
       updated_global_secondary_index_updates =
-        for index_update <- data.global_secondary_index_updates, {action, index_info} <- index_update do
+        for index_update <- data.global_secondary_index_updates,
+            {action, index_info} <- index_update do
           if action in [:create, :update] do
             # If the table is provisioned but the index_info lacks :provisioned_throughput, add a map of "default" values.
-            %{action => Map.put_new(index_info, :provisioned_throughput, %{read_capacity_units: 1, write_capacity_units: 1})}
+            %{
+              action =>
+                Map.put_new(index_info, :provisioned_throughput, %{
+                  read_capacity_units: 1,
+                  write_capacity_units: 1
+                })
+            }
           else
             index_update
           end
@@ -352,64 +504,156 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   defp create_table(table_name, field_clauses, options) do
-    {key_schema, key_definitions} = build_key_schema_and_definitions(table_name, field_clauses, options)
-    [read_capacity, write_capacity] = options[:provisioned_throughput] || [nil,nil]
+    {key_schema, key_definitions} =
+      build_key_schema_and_definitions(table_name, field_clauses, options)
+
+    [read_capacity, write_capacity] = options[:provisioned_throughput] || [nil, nil]
     global_indexes = build_secondary_indexes(options[:global_indexes])
     local_indexes = build_secondary_indexes(options[:local_indexes])
     billing_mode = options[:billing_mode] || :provisioned
 
-    create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, billing_mode, @initial_wait, 0)
+    create_table_recursive(
+      table_name,
+      key_schema,
+      key_definitions,
+      read_capacity,
+      write_capacity,
+      global_indexes,
+      local_indexes,
+      billing_mode,
+      @initial_wait,
+      0
+    )
   end
 
-  defp create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, billing_mode, wait_interval, time_waited) do
+  defp create_table_recursive(
+         table_name,
+         key_schema,
+         key_definitions,
+         read_capacity,
+         write_capacity,
+         global_indexes,
+         local_indexes,
+         billing_mode,
+         wait_interval,
+         time_waited
+       ) do
     # The nil and false args (8th and 9th args, respectively) correspond to TTL options 'ttl_attribute' and 'enabled' in the
     # fork of ex_aws_dynamo that we're currently using. It should be easy enough to add support for those, if we want to.
-    result = Dynamo.create_table(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, billing_mode) |> ExAws.request
+    result =
+      Dynamo.create_table(
+        table_name,
+        key_schema,
+        key_definitions,
+        read_capacity,
+        write_capacity,
+        global_indexes,
+        local_indexes,
+        billing_mode
+      )
+      |> ExAws.request()
 
-    ecto_dynamo_log(:info, "#{inspect __MODULE__}.create_table_recursive: DynamoDB/ExAws response", %{"#{inspect __MODULE__}.create_table_recursive-result" => inspect result})
+    ecto_dynamo_log(
+      :info,
+      "#{inspect(__MODULE__)}.create_table_recursive: DynamoDB/ExAws response",
+      %{"#{inspect(__MODULE__)}.create_table_recursive-result" => inspect(result)}
+    )
 
     case result do
       {:ok, _} ->
-        ecto_dynamo_log(:info, "#{inspect __MODULE__}.create_table_recursive: table created successfully.", %{table_name: table_name})
+        ecto_dynamo_log(
+          :info,
+          "#{inspect(__MODULE__)}.create_table_recursive: table created successfully.",
+          %{table_name: table_name}
+        )
+
         :ok
 
-      {:error, {error, _message}} when (error in ["LimitExceededException", "ProvisionedThroughputExceededException", "ThrottlingException"]) ->
-        to_wait = if time_waited == 0, do: wait_interval, else: round(:math.pow(wait_interval, @wait_exponent))
+      {:error, {error, _message}}
+      when error in [
+             "LimitExceededException",
+             "ProvisionedThroughputExceededException",
+             "ThrottlingException"
+           ] ->
+        to_wait =
+          if time_waited == 0,
+            do: wait_interval,
+            else: round(:math.pow(wait_interval, @wait_exponent))
 
-        if (time_waited + to_wait) <= @max_wait do
-          ecto_dynamo_log(:info, "#{inspect __MODULE__}.create_table_recursive: #{inspect error} ... waiting #{inspect to_wait} milliseconds (waited so far: #{inspect time_waited} ms)")
+        if time_waited + to_wait <= @max_wait do
+          ecto_dynamo_log(
+            :info,
+            "#{inspect(__MODULE__)}.create_table_recursive: #{inspect(error)} ... waiting #{
+              inspect(to_wait)
+            } milliseconds (waited so far: #{inspect(time_waited)} ms)"
+          )
+
           :timer.sleep(to_wait)
-          create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, billing_mode, to_wait, time_waited + to_wait)
+
+          create_table_recursive(
+            table_name,
+            key_schema,
+            key_definitions,
+            read_capacity,
+            write_capacity,
+            global_indexes,
+            local_indexes,
+            billing_mode,
+            to_wait,
+            time_waited + to_wait
+          )
         else
-          raise "#{inspect error} ... wait exceeding configured max wait time, stopping migration at create table #{inspect table_name}..."
+          raise "#{inspect(error)} ... wait exceeding configured max wait time, stopping migration at create table #{
+                  inspect(table_name)
+                }..."
         end
 
       {:error, error_tuple} ->
-        ecto_dynamo_log(:info, "#{inspect __MODULE__}.create_table_recursive: error attempting to create table. Stopping...", %{"#{inspect __MODULE__}.create_table_recursive-error" => %{table_name: table_name, error_tuple: error_tuple}})
+        ecto_dynamo_log(
+          :info,
+          "#{inspect(__MODULE__)}.create_table_recursive: error attempting to create table. Stopping...",
+          %{
+            "#{inspect(__MODULE__)}.create_table_recursive-error" => %{
+              table_name: table_name,
+              error_tuple: error_tuple
+            }
+          }
+        )
 
-        raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
+        raise ExAws.Error, message: "ExAws Request Error! #{inspect(error_tuple)}"
     end
   end
 
   defp build_key_schema_and_definitions(table_name, field_clauses, options) do
     secondary_index_atoms =
-      (options[:global_indexes] || []) ++ (options[:local_indexes] || [])
+      ((options[:global_indexes] || []) ++ (options[:local_indexes] || []))
       |> Enum.flat_map(fn indexes -> indexes[:keys] || [] end)
 
-    {hash_key, range_key, key_list} = Enum.reduce(field_clauses, {nil, nil, []}, fn({cmd, field, type, opts}, {hash, range, key_list}) ->
-      cond do      
-        cmd == :add and opts[:primary_key] == true ->
-          {field, range, [{field, type} | key_list]}
-        cmd == :add and opts[:range_key] == true ->
-          {hash, field, [{field, type} | key_list]}
-        cmd == :add and Enum.member?(secondary_index_atoms, field) ->
-          {hash, range, [{field, type} | key_list]}
-        true ->
-          {hash, range, key_list}
-      end
-    end)
+    {hash_key, range_key, key_list} =
+      Enum.reduce(field_clauses, {nil, nil, []}, fn {cmd, field, type, opts},
+                                                    {hash, range, key_list} ->
+        cond do
+          cmd == :add and opts[:primary_key] == true ->
+            {field, range, [{field, type} | key_list]}
 
-    if is_nil(hash_key), do: raise "#{inspect __MODULE__}.build_key_schema error: no primary key was found for table #{inspect table_name}. Please specify one primary key in migration."
+          cmd == :add and opts[:range_key] == true ->
+            {hash, field, [{field, type} | key_list]}
+
+          cmd == :add and Enum.member?(secondary_index_atoms, field) ->
+            {hash, range, [{field, type} | key_list]}
+
+          true ->
+            {hash, range, key_list}
+        end
+      end)
+
+    if is_nil(hash_key),
+      do:
+        raise(
+          "#{inspect(__MODULE__)}.build_key_schema error: no primary key was found for table #{
+            inspect(table_name)
+          }. Please specify one primary key in migration."
+        )
 
     key_definitions = for {field, type} <- key_list, into: %{}, do: {field, convert_type(type)}
 
@@ -423,29 +667,37 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   defp build_secondary_indexes(nil), do: []
+
   defp build_secondary_indexes(global_indexes) do
     Enum.map(global_indexes, fn index ->
-      %{index_name: index[:index_name],
+      %{
+        index_name: index[:index_name],
         key_schema: build_secondary_key_schema(index[:keys]),
-        projection: build_secondary_projection(index[:projection])}
+        projection: build_secondary_projection(index[:projection])
+      }
       |> maybe_add_throughput(index[:provisioned_throughput])
     end)
   end
 
   defp build_secondary_key_schema(keys) do
     case keys do
-      [hash]        -> [%{attribute_name: Atom.to_string(hash), key_type: "HASH"}]
-      [hash, range] -> [%{attribute_name: Atom.to_string(hash), key_type: "HASH"},
-                        %{attribute_name: Atom.to_string(range), key_type: "RANGE"}]
+      [hash] ->
+        [%{attribute_name: Atom.to_string(hash), key_type: "HASH"}]
+
+      [hash, range] ->
+        [
+          %{attribute_name: Atom.to_string(hash), key_type: "HASH"},
+          %{attribute_name: Atom.to_string(range), key_type: "RANGE"}
+        ]
     end
   end
 
   defp build_secondary_projection(nil), do: %{projection_type: "ALL"}
+
   defp build_secondary_projection(projection) do
     case projection[:projection_type] do
       :include ->
-        %{projection_type: "INCLUDE",
-          non_key_attributes: projection[:non_key_attributes]}
+        %{projection_type: "INCLUDE", non_key_attributes: projection[:non_key_attributes]}
 
       type when type in [:all, :keys_only] ->
         %{projection_type: ExAws.Utils.upcase(type)}
@@ -453,14 +705,24 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   defp build_delete_and_update(field_clauses) do
-    Enum.reduce(proper_list(field_clauses), {[],[],[]}, fn (field_clause, {delete, update, key_list}) ->
+    Enum.reduce(proper_list(field_clauses), {[], [], []}, fn field_clause,
+                                                             {delete, update, key_list} ->
       case field_clause do
         {:remove, field} ->
           {[%{delete: %{index_name: field}} | delete], update, key_list}
+
         {:modify, field, _type, opts} ->
-          {delete, [%{update: %{index_name: field} |> maybe_add_throughput(opts[:provisioned_throughput])} | update], key_list}
+          {delete,
+           [
+             %{
+               update: %{index_name: field} |> maybe_add_throughput(opts[:provisioned_throughput])
+             }
+             | update
+           ], key_list}
+
         {:add, field, type, _opts} ->
           {delete, update, [{field, type} | key_list]}
+
         _ ->
           {delete, update, key_list}
       end
@@ -469,16 +731,23 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
   # Include provisioned_throughput only when it has been explicitly provided.
   defp maybe_add_throughput(index_map, nil), do: Map.merge(index_map, %{})
-  defp maybe_add_throughput(index_map, [read_capacity, write_capacity]), do:
-    Map.merge(index_map, %{provisioned_throughput: %{read_capacity_units: read_capacity, write_capacity_units: write_capacity}})
+
+  defp maybe_add_throughput(index_map, [read_capacity, write_capacity]),
+    do:
+      Map.merge(index_map, %{
+        provisioned_throughput: %{
+          read_capacity_units: read_capacity,
+          write_capacity_units: write_capacity
+        }
+      })
 
   defp convert_type(type) do
     case type do
-      :bigint    -> :number
-      :serial    -> :number
-      :binary    -> :blob
+      :bigint -> :number
+      :serial -> :number
+      :binary -> :blob
       :binary_id -> :blob
-      _          -> type
+      _ -> type
     end
   end
 
@@ -488,8 +757,17 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   defp make_safe_index_requests(data, table) do
     existing_index_names = list_existing_global_secondary_index_names(table.name)
     {create_if_not_exist_indexes, drop_if_exists_indexes} = get_existence_options(table.options)
-    filter_fun = &(assess_conditional_index_operations(&1, existing_index_names, create_if_not_exist_indexes, drop_if_exists_indexes))
-    filtered_global_secondary_index_updates = Enum.filter(data[:global_secondary_index_updates], filter_fun)
+
+    filter_fun =
+      &assess_conditional_index_operations(
+        &1,
+        existing_index_names,
+        create_if_not_exist_indexes,
+        drop_if_exists_indexes
+      )
+
+    filtered_global_secondary_index_updates =
+      Enum.filter(data[:global_secondary_index_updates], filter_fun)
 
     # In the case of creating an index, the data will have an :attribute_definitions key,
     # which has additional info about the index being created. If that index has been removed
@@ -500,61 +778,120 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     # we have opted to filter the attribute_definitions to match the global_secondary_index_updates.
     filtered_attribute_definitions =
       case data[:attribute_definitions] do
-        nil -> nil
-        _ -> Enum.filter(data[:attribute_definitions], fn(attribute_definition) ->
-               attribute_name = Atom.to_string(attribute_definition.attribute_name)
-               if attribute_name not in create_if_not_exist_indexes, do: true, else: attribute_name not in existing_index_names
-             end)
+        nil ->
+          nil
+
+        _ ->
+          Enum.filter(data[:attribute_definitions], fn attribute_definition ->
+            attribute_name = Atom.to_string(attribute_definition.attribute_name)
+
+            if attribute_name not in create_if_not_exist_indexes,
+              do: true,
+              else: attribute_name not in existing_index_names
+          end)
       end
 
     %{global_secondary_index_updates: filtered_global_secondary_index_updates}
-    |> Map.merge(if is_nil(filtered_attribute_definitions), do: %{}, else: %{attribute_definitions: filtered_attribute_definitions})
+    |> Map.merge(
+      if is_nil(filtered_attribute_definitions),
+        do: %{},
+        else: %{attribute_definitions: filtered_attribute_definitions}
+    )
   end
 
   # Check for the presence/absence of the option and assess its relationship to the list of existing indexes
-  defp assess_conditional_index_operations(global_secondary_index_update, existing_index_names, create_if_not_exist_indexes, drop_if_exists_indexes) do
-      [{operation, index_info}] = Map.to_list(global_secondary_index_update)
-      index_name = if Kernel.is_atom(index_info.index_name), do: Atom.to_string(index_info.index_name), else: index_info.index_name
+  defp assess_conditional_index_operations(
+         global_secondary_index_update,
+         existing_index_names,
+         create_if_not_exist_indexes,
+         drop_if_exists_indexes
+       ) do
+    [{operation, index_info}] = Map.to_list(global_secondary_index_update)
 
-      assess_index_operation(operation,
-                             index_name,
-                             index_name in create_if_not_exist_indexes,
-                             index_name in drop_if_exists_indexes,
-                             existing_index_names)
+    index_name =
+      if Kernel.is_atom(index_info.index_name),
+        do: Atom.to_string(index_info.index_name),
+        else: index_info.index_name
+
+    assess_index_operation(
+      operation,
+      index_name,
+      index_name in create_if_not_exist_indexes,
+      index_name in drop_if_exists_indexes,
+      existing_index_names
+    )
   end
 
   # If an existence option has not been provided, or if the action is an update, return 'true' so
   # the index is included in the results of Enum.filter(). Otherwise, compare :create_if_not_exists
   # and :drop_if_exists with the list of existing indexes and decide how to proceed.
-  defp assess_index_operation(:create, index_name, in_create_if_not_exist_indexes, _in_drop_if_exists_indexes, existing_index_names) when in_create_if_not_exist_indexes do
+  defp assess_index_operation(
+         :create,
+         index_name,
+         in_create_if_not_exist_indexes,
+         _in_drop_if_exists_indexes,
+         existing_index_names
+       )
+       when in_create_if_not_exist_indexes do
     if index_name not in existing_index_names do
       true
     else
-      ecto_dynamo_log(:info, "#{inspect __MODULE__}.assess_index_operation: index already exists. Skipping create...", %{"#{inspect __MODULE__}.assess_index_operation_skip-create-index" => index_name})
+      ecto_dynamo_log(
+        :info,
+        "#{inspect(__MODULE__)}.assess_index_operation: index already exists. Skipping create...",
+        %{"#{inspect(__MODULE__)}.assess_index_operation_skip-create-index" => index_name}
+      )
+
       false
     end
   end
-  defp assess_index_operation(:delete, index_name, _in_create_if_not_exist_indexes, in_drop_if_exists_indexes, existing_index_names) when in_drop_if_exists_indexes do
+
+  defp assess_index_operation(
+         :delete,
+         index_name,
+         _in_create_if_not_exist_indexes,
+         in_drop_if_exists_indexes,
+         existing_index_names
+       )
+       when in_drop_if_exists_indexes do
     if index_name in existing_index_names do
       true
     else
-      ecto_dynamo_log(:info, "#{inspect __MODULE__}.assess_index_operation: index does not exist. Skipping drop...", %{"#{inspect __MODULE__}.assess_index_operation_skip-drop-index" => index_name})
+      ecto_dynamo_log(
+        :info,
+        "#{inspect(__MODULE__)}.assess_index_operation: index does not exist. Skipping drop...",
+        %{"#{inspect(__MODULE__)}.assess_index_operation_skip-drop-index" => index_name}
+      )
+
       false
     end
   end
-  defp assess_index_operation(_operation, _index_name, _in_create_if_not_exist_indexes, _in_drop_if_exists_indexes, _existing_index_names), do: true
+
+  defp assess_index_operation(
+         _operation,
+         _index_name,
+         _in_create_if_not_exist_indexes,
+         _in_drop_if_exists_indexes,
+         _existing_index_names
+       ),
+       do: true
 
   defp list_existing_global_secondary_index_names(table_name) do
     case poll_table(table_name)["GlobalSecondaryIndexes"] do
-      nil -> []
-      existing_indexes -> Enum.map(existing_indexes, fn(existing_index) -> existing_index["IndexName"] end)
+      nil ->
+        []
+
+      existing_indexes ->
+        Enum.map(existing_indexes, fn existing_index -> existing_index["IndexName"] end)
     end
   end
 
   # Return a tuple with all of the indexes flagged with :create_if_not_exists or :drop_if_exists options
   defp get_existence_options(table_options) do
     case table_options do
-      nil -> {[], []}
+      nil ->
+        {[], []}
+
       _ ->
         global_index_options = Keyword.get(table_options, :global_indexes, [])
 
@@ -565,14 +902,16 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
   # Sort the existence options based on the option provided
   defp parse_existence_options(global_index_options, option) do
-    for global_index_option <- global_index_options, Keyword.has_key?(global_index_option, option), do: global_index_option[:index_name]
+    for global_index_option <- global_index_options,
+        Keyword.has_key?(global_index_option, option),
+        do: global_index_option[:index_name]
   end
 
   defp proper_list(l), do: proper_list(l, [])
   defp proper_list([], res), do: Enum.reverse(res)
-  defp proper_list([a | b], res) when not (is_list b), do: Enum.reverse([a | res])
+  defp proper_list([a | b], res) when not is_list(b), do: Enum.reverse([a | res])
   defp proper_list([a | b], res), do: proper_list(b, [a | res])
 
   defp extract_ecto_migration_type(str),
-  do: str |> String.split(".") |> List.last |> String.downcase
+    do: str |> String.split(".") |> List.last() |> String.downcase()
 end

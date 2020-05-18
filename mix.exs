@@ -2,17 +2,19 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   use Mix.Project
 
   def project do
-    [app: :ecto_adapters_dynamodb,
-     version: "2.0.0-beta.1",
-     elixir: "~> 1.7",
-     build_embedded: Mix.env == :prod,
-     start_permanent: Mix.env == :prod,
-     deps: deps(),
-     dialyzer: [plt_add_apps: [:ecto]],
-     docs: [main: "readme", extras: ["README.md"]],
-     description: "A DynamoDB adapter for Ecto supporting basic queries. See https://github.com/circles-learning-labs/ecto_adapters_dynamodb for detailed instructions.",
-     package: package(),
-     source_url: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb"
+    [
+      app: :ecto_adapters_dynamodb,
+      version: "2.0.0-beta.1",
+      elixir: "~> 1.7",
+      build_embedded: Mix.env() == :prod,
+      start_permanent: Mix.env() == :prod,
+      deps: deps(),
+      dialyzer: [plt_add_apps: [:ecto]],
+      docs: [main: "readme", extras: ["README.md"]],
+      description:
+        "A DynamoDB adapter for Ecto supporting basic queries. See https://github.com/circles-learning-labs/ecto_adapters_dynamodb for detailed instructions.",
+      package: package(),
+      source_url: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb"
     ]
   end
 
@@ -21,23 +23,24 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   # Type "mix help compile.app" for more information
   def application do
     # Specify extra applications you'll use from Erlang/Elixir
-    [extra_applications: [:logger],
-     mod: {Ecto.Adapters.DynamoDB.Application, []},
-     env: [
-       cached_tables: [],
-       insert_nil_fields: true,
-       dynamodb_local: false,
-       log_levels: [:info],
-       log_colours: %{info: :green, debug: :normal},
-       log_in_colour: System.get_env("MIX_ENV") == "dev",
-       log_path: "",
-       remove_nil_fields_on_update: false,
-       scan_all: false,
-       scan_limit: 100,
-       scan_tables: []
-     ],
-     applications: [:ex_aws, :hackney, :ecto_sql]
-   ]
+    [
+      extra_applications: [:logger],
+      mod: {Ecto.Adapters.DynamoDB.Application, []},
+      env: [
+        cached_tables: [],
+        insert_nil_fields: true,
+        dynamodb_local: false,
+        log_levels: [:info],
+        log_colours: %{info: :green, debug: :normal},
+        log_in_colour: System.get_env("MIX_ENV") == "dev",
+        log_path: "",
+        remove_nil_fields_on_update: false,
+        scan_all: false,
+        scan_limit: 100,
+        scan_tables: []
+      ],
+      applications: [:ex_aws, :hackney, :ecto_sql]
+    ]
   end
 
   # Dependencies can be Hex packages:
@@ -55,9 +58,10 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
       {:ex_aws_dynamo, "~> 3.0"},
       {:jason, "~> 1.0"},
       {:hackney, "~> 1.6"},
+      {:credo, "~> 1.4", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
       {:eqc_ex, "~> 1.4.2", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.19.3", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.19.3", only: :dev, runtime: false}
     ]
   end
 
