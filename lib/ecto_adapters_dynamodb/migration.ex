@@ -216,7 +216,9 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     data = %{global_secondary_index_updates: create ++ delete ++ update}
            |> Map.merge(if create == [], do: %{}, else: %{attribute_definitions: attribute_definitions})
 
-    update_table_recursive(table, data, @initial_wait, 0)
+    result = update_table_recursive(table, data, @initial_wait, 0)
+    set_ttl(table.name, table.options)
+    result
   end
 
   def execute_ddl({command, struct, _}), do:
@@ -359,11 +361,10 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     billing_mode = options[:billing_mode] || :provisioned
 
     create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, billing_mode, @initial_wait, 0)
+    set_ttl(table_name, options)
   end
 
   defp create_table_recursive(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, billing_mode, wait_interval, time_waited) do
-    # The nil and false args (8th and 9th args, respectively) correspond to TTL options 'ttl_attribute' and 'enabled' in the
-    # fork of ex_aws_dynamo that we're currently using. It should be easy enough to add support for those, if we want to.
     result = Dynamo.create_table(table_name, key_schema, key_definitions, read_capacity, write_capacity, global_indexes, local_indexes, billing_mode) |> ExAws.request
 
     ecto_dynamo_log(:info, "#{inspect __MODULE__}.create_table_recursive: DynamoDB/ExAws response", %{"#{inspect __MODULE__}.create_table_recursive-result" => inspect result})
@@ -388,6 +389,26 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         ecto_dynamo_log(:info, "#{inspect __MODULE__}.create_table_recursive: error attempting to create table. Stopping...", %{"#{inspect __MODULE__}.create_table_recursive-error" => %{table_name: table_name, error_tuple: error_tuple}})
 
         raise ExAws.Error, message: "ExAws Request Error! #{inspect error_tuple}"
+    end
+  end
+
+  defp set_ttl(_, nil), do: :ok
+  defp set_ttl(table_name, table_options) do
+    if Keyword.has_key?(table_options, :ttl_attribute) do
+      do_set_ttl(table_name, table_options[:ttl_attribute])
+    end
+  end
+
+  defp do_set_ttl(table_name, nil), do: do_set_ttl(table_name, "ttl", false)
+  defp do_set_ttl(table_name, attribute, enabled? \\ true) do
+    result =
+      table_name
+      |> Dynamo.update_time_to_live(attribute, enabled?)
+      |> ExAws.request()
+
+    case result do
+      {:error, {"ValidationException", "TimeToLive is already disabled"}} when not enabled? -> :ok
+      {:ok, _} -> :ok
     end
   end
 

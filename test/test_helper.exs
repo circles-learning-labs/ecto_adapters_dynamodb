@@ -169,7 +169,7 @@ defmodule TestHelper do
 end
 
 # Skip EQC testing if we don't have it installed:
-if Code.ensure_compiled?(:eqc) do
+if Code.ensure_compiled(:eqc) == {:module, :eqc} do
   defmodule TestGenerators do
     use EQC
 

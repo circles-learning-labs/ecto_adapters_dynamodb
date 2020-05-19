@@ -34,6 +34,14 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
       assert length(result) == 1
       assert table_info["BillingModeSummary"]["BillingMode"] == "PAY_PER_REQUEST"
+
+      {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info("dog")
+      assert %{
+        "TimeToLiveDescription" => %{
+          "AttributeName" => "ttl",
+          "TimeToLiveStatus" => "ENABLED"
+        }
+      } == ttl_description
     end
 
     test "create: provisioned table" do
@@ -51,6 +59,14 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
       assert index["IndexName"] == "name"
       assert index["ProvisionedThroughput"]["ReadCapacityUnits"] == 0
       assert index["ProvisionedThroughput"]["WriteCapacityUnits"] == 0
+
+      {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info("dog")
+      assert %{
+        "TimeToLiveDescription" => %{
+          "AttributeName" => "ttl",
+          "TimeToLiveStatus" => "ENABLED"
+        }
+      } == ttl_description
     end
 
     test "alter table: add index to provisioned table" do
@@ -116,8 +132,39 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
     end
   end
 
+  describe "TTL modification" do
+    test "add TTL" do
+      result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
+      assert length(result) == 1
+
+      {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info("cat")
+      assert %{
+        "TimeToLiveDescription" => %{
+          "AttributeName" => "ttl",
+          "TimeToLiveStatus" => "ENABLED"
+        }
+      } == ttl_description
+    end
+
+    test "remove TTL" do
+      result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
+      assert length(result) == 1
+
+      {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info("dog")
+      assert %{
+        "TimeToLiveDescription" => %{
+          "TimeToLiveStatus" => "DISABLED"
+        }
+      } == ttl_description
+    end
+  end
+
   test "run migrations down" do
-    {:ok, migrations} = File.ls(@migration_path)
+    migrations =
+      @migration_path
+      |> File.ls!()
+      |> Enum.filter(&(Path.extname(&1) == ".exs"))
+
     result = Ecto.Migrator.run(TestRepo, @migration_path, :down, all: true)
     assert length(result) == length(migrations)
   end
