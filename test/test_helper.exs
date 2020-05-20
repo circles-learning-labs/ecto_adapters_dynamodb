@@ -20,6 +20,7 @@ defmodule TestHelper do
     Dynamo.delete_table("test_person") |> ExAws.request()
     Dynamo.delete_table("test_book_page") |> ExAws.request()
     Dynamo.delete_table("test_planet") |> ExAws.request()
+    Dynamo.delete_table("test_fruit") |> ExAws.request()
 
     IO.puts "creating test_person table"
     # Only need to define types for indexed fields:
