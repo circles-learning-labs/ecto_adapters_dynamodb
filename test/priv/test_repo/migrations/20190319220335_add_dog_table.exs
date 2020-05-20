@@ -10,7 +10,8 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddDogTable do
     create_if_not_exists table(:dog,
       primary_key: false,
       options: [
-        billing_mode: :pay_per_request
+        billing_mode: :pay_per_request,
+        ttl_attribute: "ttl"
       ]) do
 
       add :id, :string, primary_key: true
