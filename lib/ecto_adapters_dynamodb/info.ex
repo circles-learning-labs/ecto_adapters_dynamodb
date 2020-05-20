@@ -3,6 +3,8 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   Get information on dynamo tables and schema 
   """
 
+  alias ExAws.Dynamo
+
   @typep table_name_t :: String.t
   @typep dynamo_response_t :: %{required(String.t) => term}
 
@@ -111,6 +113,11 @@ defmodule Ecto.Adapters.DynamoDB.Info do
     for index <- indexes, do: {index["IndexName"], normalise_dynamo_index!( index["KeySchema"] )}
   end
 
+  def ttl_info(tablename) do
+    tablename
+    |> Dynamo.describe_time_to_live()
+    |> ExAws.request()
+  end
 
   @doc """
   returns a list of any indexed attributes in the table

@@ -20,6 +20,7 @@ defmodule TestHelper do
     Dynamo.delete_table("test_person") |> ExAws.request()
     Dynamo.delete_table("test_book_page") |> ExAws.request()
     Dynamo.delete_table("test_planet") |> ExAws.request()
+    Dynamo.delete_table("test_fruit") |> ExAws.request()
 
     IO.puts "creating test_person table"
     # Only need to define types for indexed fields:
@@ -169,7 +170,7 @@ defmodule TestHelper do
 end
 
 # Skip EQC testing if we don't have it installed:
-if Code.ensure_compiled?(:eqc) do
+if Code.ensure_compiled(:eqc) == {:module, :eqc} do
   defmodule TestGenerators do
     use EQC
 
