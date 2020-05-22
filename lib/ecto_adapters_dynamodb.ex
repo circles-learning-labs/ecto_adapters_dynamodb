@@ -1124,7 +1124,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp decode_embed(val, type) do
-    case Ecto.Adapters.SQL.load_embed(type, val) do
+    case Ecto.Type.embedded_load(type, val, :json) do
       {:ok, decoded_value} ->
         decoded_value
       :error ->
