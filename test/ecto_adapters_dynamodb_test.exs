@@ -331,24 +331,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
                select: p.id)
              |> TestRepo.all()
              |> Enum.at(0) == person.id
-
-      assert from(p in Person,
-              where: p.id == "person:jamesholden"
-                and p.email == "wrong@test.com"
-                or p.age == 18,
-              select: p.id)
-             |> TestRepo.one() == person.id
-
-      refute from(p in Person,
-              where: p.id == "person:jamesholden"
-                and p.email == "jholden@expanse.com"
-                and is_nil(p.updated_at))
-             |> TestRepo.one()
-
-      refute from(p in Person,
-              where: p.id == "person:jamesholden"
-                and is_nil(p.updated_at))
-             |> TestRepo.one()
     end
 
     test "'all... in...' query, hard-coded and a variable list of primary hash keys" do
@@ -595,15 +577,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
              from(p in Planet,
                where: p.id == ^planet_1.id)
              |> TestRepo.all()
-      # We'd expect inserted_at to be nil, since this was created by an insert_all operation
-      assert from(p in Planet,
-               where: p.id == ^planet_2.id
-                 and is_nil(p.inserted_at))
-             |> TestRepo.one()
-      refute from(p in Planet,
-               where: p.id == ^planet_2.id
-                 and is_nil(p.moons))
-             |> TestRepo.one()
     end
 
     test "get multiple records on a partial secondary index composite key (hash only)" do
