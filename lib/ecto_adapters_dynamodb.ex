@@ -1181,7 +1181,7 @@ defmodule Ecto.Adapters.DynamoDB do
       depth = opts[:depth] || 4
       colours = Application.get_env(:ecto_adapters_dynamodb, :log_colours)
       d = DateTime.utc_now
-      formatted_message = "#{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC [Ecto dynamo #{level}] #{message}"
+      formatted_message = "#{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC [Ecto dynamo #{level}] #{inspect message}"
       {:ok, log_message} = Jason.encode(%{message: formatted_message, attributes: chisel(attributes, depth)})
 
       if Application.get_env(:ecto_adapters_dynamodb, :log_in_colour) do
