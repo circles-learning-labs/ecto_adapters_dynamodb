@@ -3,7 +3,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
 
   def project do
     [app: :ecto_adapters_dynamodb,
-     version: "2.0.2",
+     version: "2.0.3",
      elixir: "~> 1.7",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
@@ -35,8 +35,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
        scan_all: false,
        scan_limit: 100,
        scan_tables: []
-     ],
-     applications: [:ex_aws, :hackney, :ecto_sql]
+     ]
    ]
   end
 

@@ -191,7 +191,7 @@ Otherwise, to fetch from GitHub:
 
 ```elixir
 defp deps do
-  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "2.0.2"}]
+  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "2.0.3"}]
 end
 ```
 
@@ -250,13 +250,12 @@ end
 
 **mix.exs**
 
-Include the adapter in the project's applications list, and make sure your app get started by adding it to the `:mod` key:
+Start your app by adding it to the `:mod` key under `application`:
 
 ```elixir
 def application do
   [
-    mod: {MyApp, []},
-    applications: [:ecto_adapters_dynamodb]
+    mod: {MyApp, []}
   ]
 end
 ```
