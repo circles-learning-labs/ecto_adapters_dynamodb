@@ -183,7 +183,9 @@ Install the [Hex](https://hex.pm/packages/ecto_adapters_dynamodb) package by add
 
 ```elixir
 defp deps do
-  [{:ecto_adapters_dynamodb, "~> 2.0"}]
+  [
+  	{:ecto_adapters_dynamodb, "~> 2.0"}
+  ]
 end
 ```
 
@@ -191,7 +193,9 @@ Otherwise, to fetch from GitHub:
 
 ```elixir
 defp deps do
-  [{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "2.0.2"}]
+  [
+  	{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "2.0.3"}
+  ]
 end
 ```
 
@@ -250,16 +254,17 @@ end
 
 **mix.exs**
 
-Include the adapter in the project's applications list, and make sure your app get started by adding it to the `:mod` key:
+Start your app by adding it to the `:mod` key under `application`:
 
 ```elixir
 def application do
   [
-    mod: {MyApp, []},
-    applications: [:ecto_adapters_dynamodb]
+    mod: {MyApp, []}
   ]
 end
 ```
+
+Depending on your app's configuration, you may need to add `:ecto_adapters_dynamodb` under `:extra_applications`.
 
 #### Configuring a Development Environment against a local instance of Dynamo
 
