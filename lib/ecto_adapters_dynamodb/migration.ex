@@ -32,8 +32,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         add :email,   :string, primary_key: true  # primary composite key
         add :title,   :string, range_key: true    # primary composite key
         add :content, :string
-
-        timestamps()
       end
     end
 
@@ -53,8 +51,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
 
         add :id, :string, primary_key: true
         add :name, :string, hash_key: true
-
-        timestamps()
       end
     end
 
