@@ -3,6 +3,8 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   Get information on dynamo tables and schema 
   """
 
+  alias Ecto.Adapters.DynamoDB
+  alias Ecto.Repo
   alias ExAws.Dynamo
 
   @typep table_name_t :: String.t()
@@ -34,17 +36,17 @@ defmodule Ecto.Adapters.DynamoDB.Info do
     "TableStatus" => "ACTIVE"}
   ```
   """
-  @spec table_info(table_name_t) :: dynamo_response_t | no_return
-  def table_info(tablename) do
+  @spec table_info(Repo.t(), table_name_t) :: dynamo_response_t | no_return
+  def table_info(repo, tablename) do
     # Fetch and cache the raw schema definition from DynamoDB
-    Ecto.Adapters.DynamoDB.Cache.describe_table!(tablename)
+    Ecto.Adapters.DynamoDB.Cache.describe_table!(repo, tablename)
   end
 
   @doc "Get all the raw information on indexes for a given table, returning as a map."
-  @spec index_details(table_name_t) :: %{primary: [map], secondary: [map]}
-  def index_details(tablename) do
+  @spec index_details(Repo.t(), table_name_t) :: %{primary: [map], secondary: [map]}
+  def index_details(repo, tablename) do
     # Extract the primary key data (required) and the optional secondary global or local indexes
-    %{"KeySchema" => primary_key} = schema = table_info(tablename)
+    %{"KeySchema" => primary_key} = schema = table_info(repo, tablename)
 
     indexes =
       Map.get(schema, "GlobalSecondaryIndexes", []) ++
@@ -57,9 +59,9 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   @doc """
   Get a list of the available indexes on a table. The format of this list is described in normalise_dynamo_index!
   """
-  @spec indexes(table_name_t) :: [{:primary | String.t(), [String.t()]}]
-  def indexes(tablename) do
-    [primary_key!(tablename) | secondary_indexes(tablename)]
+  @spec indexes(Repo.t(), table_name_t) :: [{:primary | String.t(), [String.t()]}]
+  def indexes(repo, tablename) do
+    [primary_key!(repo, tablename) | secondary_indexes(repo, tablename)]
   end
 
   @doc """
@@ -68,13 +70,13 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   \\{:primary, [index]}
   in a format described in normalise_dynamo_index!
   """
-  @spec primary_key!(table_name_t) :: {:primary, [String.t()]} | no_return
-  def primary_key!(tablename) do
-    indexes = index_details(tablename)
+  @spec primary_key!(Repo.t(), table_name_t) :: {:primary, [String.t()]} | no_return
+  def primary_key!(repo, tablename) do
+    indexes = index_details(repo, tablename)
     {:primary, normalise_dynamo_index!(indexes[:primary])}
   end
 
-  @spec repo_primary_key(module) :: String.t() | no_return
+  @spec repo_primary_key(module()) :: String.t() | no_return
   def repo_primary_key(repo) do
     case repo.__schema__(:primary_key) do
       [pkey] ->
@@ -106,25 +108,28 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   returns a simple list of the secondary indexes (global and local) for the table. Uses same format
   for each member of the list as 'primary_key!'.
   """
-  @spec secondary_indexes(table_name_t) :: [{String.t(), [String.t()]}] | no_return
-  def secondary_indexes(tablename) do
+  @spec secondary_indexes(Repo.t(), table_name_t) :: [{String.t(), [String.t()]}] | no_return
+  def secondary_indexes(repo, tablename) do
     # Extract the secondary index value from the index_details map
-    %{:secondary => indexes} = index_details(tablename)
+    %{:secondary => indexes} = index_details(repo, tablename)
     for index <- indexes, do: {index["IndexName"], normalise_dynamo_index!(index["KeySchema"])}
   end
 
-  def ttl_info(tablename) do
+  def ttl_info(repo, tablename) do
     tablename
     |> Dynamo.describe_time_to_live()
-    |> ExAws.request()
+    |> ExAws.request(DynamoDB.ex_aws_config(repo))
   end
 
   @doc """
   returns a list of any indexed attributes in the table
   """
-  @spec indexed_attributes(table_name_t) :: [String.t()]
-  def indexed_attributes(table_name) do
-    indexes(table_name) |> Enum.map(fn {_, fields} -> fields end) |> List.flatten() |> Enum.uniq()
+  @spec indexed_attributes(Repo.t(), table_name_t) :: [String.t()]
+  def indexed_attributes(repo, table_name) do
+    indexes(repo, table_name)
+    |> Enum.map(fn {_, fields} -> fields end)
+    |> List.flatten()
+    |> Enum.uniq()
   end
 
   # dynamo raw index data is complex, and can contain either one or two fields along with their type (hash or range)

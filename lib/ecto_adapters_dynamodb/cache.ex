@@ -6,92 +6,117 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
   @typep table_name_t :: String.t()
   @typep dynamo_response_t :: %{required(String.t()) => term}
 
-  @spec start_link() :: Agent.on_start()
-  def start_link do
-    cached_table_list = Application.get_env(:ecto_adapters_dynamodb, :cached_tables)
+  alias Ecto.Adapters.DynamoDB
+  alias Ecto.Repo
+
+  defstruct [
+    :schemas,
+    :tables,
+    :ex_aws_config
+  ]
+
+  @type t :: %__MODULE__{
+          schemas: Map.t(),
+          tables: [CachedTable.t()]
+        }
+
+  def child_spec([repo]) do
+    %{
+      id: repo,
+      start: {__MODULE__, :start_link, [repo]}
+    }
+  end
+
+  @spec start_link(Repo.t()) :: Agent.on_start()
+  def start_link(repo) do
+    cached_table_list =
+      :ecto_adapters_dynamodb
+      |> Application.get_env(repo)
+      |> Keyword.get(:cached_tables, [])
 
     Agent.start_link(
       fn ->
-        %{
+        %__MODULE__{
           schemas: %{},
-          tables: for(table_name <- cached_table_list, into: %{}, do: {table_name, nil})
+          tables: for(table_name <- cached_table_list, into: %{}, do: {table_name, nil}),
+          ex_aws_config: DynamoDB.ex_aws_config(repo)
         }
       end,
-      name: __MODULE__
+      name: agent(repo)
     )
   end
 
   @doc """
   Returns the cached value for a call to DynamoDB, describe-table. Performs a DynamoDB scan if not yet cached and raises any errors as a result of the request. The raw json is presented as an elixir map.
   """
-  @spec describe_table!(table_name_t) :: dynamo_response_t | no_return
-  def describe_table!(table_name) do
-    case describe_table(table_name) do
+  @spec describe_table!(Repo.t(), table_name_t) :: dynamo_response_t | no_return
+  def describe_table!(repo, table_name) do
+    case describe_table(repo, table_name) do
       {:ok, schema} -> schema
       {:error, error} -> raise error.type, message: error.message
     end
   end
 
-  @spec describe_table(table_name_t) :: {:ok, dynamo_response_t} | {:error, term}
-  def describe_table(table_name),
-    do: Agent.get_and_update(__MODULE__, &do_describe_table(&1, table_name))
+  @spec describe_table(Repo.t(), table_name_t) :: {:ok, dynamo_response_t} | {:error, term}
+  def describe_table(repo, table_name),
+    do: Agent.get_and_update(agent(repo), &do_describe_table(&1, table_name))
 
   @doc """
   Performs a DynamoDB, describe-table, and caches (without returning) the result. Raises any errors as a result of the request
   """
-  @spec update_table_info!(table_name_t) :: :ok | no_return
-  def update_table_info!(table_name) do
-    case update_table_info(table_name) do
+  @spec update_table_info!(Repo.t(), table_name_t) :: :ok | no_return
+  def update_table_info!(repo, table_name) do
+    case update_table_info(repo, table_name) do
       :ok -> :ok
       {:error, error} -> raise error.type, message: error.message
     end
   end
 
-  @spec update_table_info(table_name_t) :: :ok | {:error, term}
-  def update_table_info(table_name),
-    do: Agent.get_and_update(__MODULE__, &do_update_table_info(&1, table_name))
+  @spec update_table_info(Repo.t(), table_name_t) :: :ok | {:error, term}
+  def update_table_info(repo, table_name),
+    do: Agent.get_and_update(agent(repo), &do_update_table_info(&1, table_name))
 
   @doc """
   Returns the cached first page of results for a table. Performs a DynamoDB scan if not yet cached and raises any errors as a result of the request
   """
-  @spec scan!(table_name_t) :: dynamo_response_t | no_return
-  def scan!(table_name) do
-    case scan(table_name) do
+  @spec scan!(Repo.t(), table_name_t) :: dynamo_response_t | no_return
+  def scan!(repo, table_name) do
+    case scan(repo, table_name) do
       {:ok, scan_result} -> scan_result
       {:error, error} -> raise error.type, message: error.message
     end
   end
 
-  @spec scan(table_name_t) :: {:ok, dynamo_response_t} | {:error, term}
-  def scan(table_name),
-    do: Agent.get_and_update(__MODULE__, &do_scan(&1, table_name))
+  @spec scan(Repo.t(), table_name_t) :: {:ok, dynamo_response_t} | {:error, term}
+  def scan(repo, table_name),
+    do: Agent.get_and_update(agent(repo), &do_scan(&1, table_name))
 
   @doc """
   Performs a DynamoDB scan and caches (without returning) the first page of results. Raises any errors as a result of the request
   """
-  @spec update_cached_table!(table_name_t) :: :ok | no_return
-  def update_cached_table!(table_name) do
-    case update_cached_table(table_name) do
+  @spec update_cached_table!(Repo.t(), table_name_t) :: :ok | no_return
+  def update_cached_table!(repo, table_name) do
+    case update_cached_table(repo, table_name) do
       :ok -> :ok
       {:error, error} -> raise error.type, message: error.message
     end
   end
 
-  @spec update_cached_table(table_name_t) :: :ok | {:error, term}
-  def update_cached_table(table_name),
-    do: Agent.get_and_update(__MODULE__, &do_update_cached_table(&1, table_name))
+  @spec update_cached_table(Repo.t(), table_name_t) :: :ok | {:error, term}
+  def update_cached_table(repo, table_name),
+    do: Agent.get_and_update(agent(repo), &do_update_cached_table(&1, table_name))
 
   @doc """
   Returns the current cache of table schemas, and cache of first page of results for selected tables, as an Elixir map
   """
   # For testing and debugging use only:
-  def get_cache,
-    do: Agent.get(__MODULE__, & &1)
+  def get_cache(repo),
+    do: Agent.get(agent(repo), & &1)
 
   defp do_describe_table(cache, table_name) do
     case cache.schemas[table_name] do
       nil ->
-        result = ExAws.Dynamo.describe_table(table_name) |> ExAws.request()
+        result = ExAws.Dynamo.describe_table(table_name) |> ExAws.request(cache.ex_aws_config)
 
         case result do
           {:ok, %{"Table" => schema}} ->
@@ -109,7 +134,7 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
   end
 
   defp do_update_table_info(cache, table_name) do
-    result = ExAws.Dynamo.describe_table(table_name) |> ExAws.request()
+    result = ExAws.Dynamo.describe_table(table_name) |> ExAws.request(cache.ex_aws_config)
 
     case result do
       {:ok, %{"Table" => schema}} ->
@@ -126,7 +151,7 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
 
     case cache.tables[table_name] do
       nil when table_name_in_config ->
-        result = ExAws.Dynamo.scan(table_name) |> ExAws.request()
+        result = ExAws.Dynamo.scan(table_name) |> ExAws.request(cache.ex_aws_config)
 
         case result do
           {:ok, scan_result} ->
@@ -164,7 +189,7 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
           }}, cache}
 
       _ ->
-        result = ExAws.Dynamo.scan(table_name) |> ExAws.request()
+        result = ExAws.Dynamo.scan(table_name) |> ExAws.request(cache.ex_aws_config)
 
         case result do
           {:ok, scan_result} ->
@@ -177,4 +202,6 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
         end
     end
   end
+
+  defp agent(repo), do: Module.concat(repo, Cache)
 end

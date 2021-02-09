@@ -7,6 +7,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
   import Ecto.Query
 
+  alias Ecto.Adapters.DynamoDB
   alias Ecto.Adapters.DynamoDB.TestRepo
   alias Ecto.Adapters.DynamoDB.TestSchema.{Person, Address, BookPage, Planet, Fruit}
 
@@ -84,11 +85,11 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       %{"Item" => earth_result} =
         ExAws.Dynamo.get_item("test_planet", %{id: earth.id, name: earth.name})
-        |> ExAws.request!()
+        |> request!()
 
       %{"Item" => venus_result} =
         ExAws.Dynamo.get_item("test_planet", %{id: venus.id, name: venus.name})
-        |> ExAws.request!()
+        |> request!()
 
       refute Map.has_key?(earth_result, "moons")
       assert Map.has_key?(venus_result, "moons")
@@ -127,8 +128,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       |> Ecto.Changeset.change(country: "USA", last_name: nil)
       |> TestRepo.update(remove_nil_fields_on_update: true)
 
-      %{"Item" => result} =
-        ExAws.Dynamo.get_item("test_person", %{id: person.id}) |> ExAws.request!()
+      %{"Item" => result} = ExAws.Dynamo.get_item("test_person", %{id: person.id}) |> request!()
 
       refute Map.has_key?(result, "last_name")
     end
@@ -527,7 +527,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         )
 
       assert_raise ArgumentError,
-                   "Ecto.Adapters.DynamoDB.Query.get_matching_secondary_index/3 error: :index option does not match existing secondary index names. Did you mean age_first_name?",
+                   "Ecto.Adapters.DynamoDB.Query.get_matching_secondary_index/4 error: :index option does not match existing secondary index names. Did you mean age_first_name?",
                    fn ->
                      query
                      |> TestRepo.all(index: "age_first_nam")
@@ -766,4 +766,6 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       do: :"#{base_type}_usec",
       else: base_type
   end
+
+  defp request!(operation), do: ExAws.request!(operation, DynamoDB.ex_aws_config(TestRepo))
 end

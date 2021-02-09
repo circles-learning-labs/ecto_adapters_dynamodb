@@ -5,7 +5,17 @@ defmodule Ecto.Adapters.DynamoDB.Info.Test do
 
   use ExUnit.Case
 
-  import import Ecto.Adapters.DynamoDB.Info
+  import Ecto.Adapters.DynamoDB.Info
+
+  alias Ecto.Adapters.DynamoDB.TestRepo
+
+  setup_all do
+    TestHelper.setup_all()
+
+    on_exit(fn ->
+      TestHelper.on_exit()
+    end)
+  end
 
   test "table_info" do
     assert %{
@@ -47,7 +57,7 @@ defmodule Ecto.Adapters.DynamoDB.Info.Test do
              "TableArn" => "arn:aws:dynamodb:ddblocal:000000000000:table/test_planet",
              "TableName" => "test_planet",
              "TableStatus" => "ACTIVE"
-           } = table_info("test_planet")
+           } = table_info(TestRepo, "test_planet")
   end
 
   test "index_details" do
@@ -134,11 +144,11 @@ defmodule Ecto.Adapters.DynamoDB.Info.Test do
                  }
                }
              ]
-           } = index_details("test_person")
+           } = index_details(TestRepo, "test_person")
   end
 
   test "indexes" do
-    assert indexes("test_person") == [
+    assert indexes(TestRepo, "test_person") == [
              {:primary, ["id"]},
              {"first_name_age", ["first_name", "age"]},
              {"age_first_name", ["age", "first_name"]},
@@ -149,7 +159,7 @@ defmodule Ecto.Adapters.DynamoDB.Info.Test do
   end
 
   test "primary_key!" do
-    assert primary_key!("test_planet") == {:primary, ["id", "name"]}
+    assert primary_key!(TestRepo, "test_planet") == {:primary, ["id", "name"]}
   end
 
   test "repo_primary_key" do
@@ -163,7 +173,7 @@ defmodule Ecto.Adapters.DynamoDB.Info.Test do
   end
 
   test "secondary_indexes" do
-    assert secondary_indexes("test_person") == [
+    assert secondary_indexes(TestRepo, "test_person") == [
              {"first_name_age", ["first_name", "age"]},
              {"age_first_name", ["age", "first_name"]},
              {"first_name", ["first_name"]},
@@ -173,6 +183,6 @@ defmodule Ecto.Adapters.DynamoDB.Info.Test do
   end
 
   test "indexed_attributes" do
-    assert indexed_attributes("test_planet") == ["id", "name", "mass"]
+    assert indexed_attributes(TestRepo, "test_planet") == ["id", "name", "mass"]
   end
 end

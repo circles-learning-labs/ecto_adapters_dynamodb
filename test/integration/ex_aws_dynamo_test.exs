@@ -5,6 +5,8 @@ defmodule Ecto.Adapters.DynamoDB.Integration.ExAws.Dynamo.Test do
 
   use ExUnit.Case
 
+  alias Ecto.Adapters.DynamoDB
+  alias Ecto.Adapters.DynamoDB.TestRepo
   alias ExAws.Dynamo
 
   @ex_aws_dynamo_test_table_name "ex_aws_dynamo_test_table"
@@ -17,26 +19,24 @@ defmodule Ecto.Adapters.DynamoDB.Integration.ExAws.Dynamo.Test do
       1,
       1
     )
-    |> ExAws.request!()
+    |> request!()
 
-    {:ok, table_info} =
-      ExAws.Dynamo.describe_table(@ex_aws_dynamo_test_table_name) |> ExAws.request()
+    {:ok, table_info} = ExAws.Dynamo.describe_table(@ex_aws_dynamo_test_table_name) |> request()
 
     assert table_info["Table"]["TableName"] == @ex_aws_dynamo_test_table_name
   end
 
   test "update_table" do
     Dynamo.update_table(@ex_aws_dynamo_test_table_name, billing_mode: :pay_per_request)
-    |> ExAws.request!()
+    |> request!()
 
-    {:ok, table_info} =
-      ExAws.Dynamo.describe_table(@ex_aws_dynamo_test_table_name) |> ExAws.request()
+    {:ok, table_info} = ExAws.Dynamo.describe_table(@ex_aws_dynamo_test_table_name) |> request()
 
     assert table_info["Table"]["BillingModeSummary"]["BillingMode"] == "PAY_PER_REQUEST"
   end
 
   test "delete_table" do
-    result = Dynamo.delete_table(@ex_aws_dynamo_test_table_name) |> ExAws.request!()
+    result = Dynamo.delete_table(@ex_aws_dynamo_test_table_name) |> request!()
 
     assert result["TableDescription"]["TableName"] == @ex_aws_dynamo_test_table_name
   end
@@ -62,4 +62,7 @@ defmodule Ecto.Adapters.DynamoDB.Integration.ExAws.Dynamo.Test do
     assert Dynamo.Decoder.decode(%{"NS" => ["1", "2", "3"]}) == MapSet.new([1, 2, 3])
     assert Dynamo.Decoder.decode(%{"L" => [%{"S" => "asdf"}, %{"N" => "1"}]}) == ["asdf", 1]
   end
+
+  defp request(request), do: ExAws.request(request, DynamoDB.ex_aws_config(TestRepo))
+  defp request!(request), do: ExAws.request!(request, DynamoDB.ex_aws_config(TestRepo))
 end

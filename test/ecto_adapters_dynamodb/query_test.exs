@@ -3,9 +3,14 @@ defmodule Ecto.Adapters.DynamoDB.Query.Test do
   Unit tests for the query module.
   """
   use ExUnit.Case
-  import Ecto.Adapters.DynamoDB.Query, only: [get_matching_secondary_index: 3]
+
+  import Ecto.Adapters.DynamoDB.Query, only: [get_matching_secondary_index: 4]
+
+  alias Ecto.Adapters.DynamoDB.TestRepo
 
   setup_all do
+    TestHelper.setup_all()
+
     on_exit(fn ->
       TestHelper.on_exit()
     end)
@@ -16,14 +21,15 @@ defmodule Ecto.Adapters.DynamoDB.Query.Test do
   # on the test_person table, first_name and first_name_email. If we just query on a hash indexed field
   # (either on its own, or with additional conditions), use the hash-only key rather than the composite key;
   # otherwise, querying with the composite key would fail to return records where a first_name was provided but email was nil.
-  test "get_matching_secondary_index/3" do
+  test "get_matching_secondary_index/4" do
     tablename = "test_person"
 
     hash_idx_result =
-      get_matching_secondary_index(tablename, [{"first_name", {"Jerry", :==}}], [])
+      get_matching_secondary_index(TestRepo, tablename, [{"first_name", {"Jerry", :==}}], [])
 
     composite_idx_result =
       get_matching_secondary_index(
+        TestRepo,
         tablename,
         [and: [{"first_name", {"Jerry", :==}}, {"email", {"jerry@test.com", :==}}]],
         []
@@ -31,6 +37,7 @@ defmodule Ecto.Adapters.DynamoDB.Query.Test do
 
     multi_cond_hash_idx_result =
       get_matching_secondary_index(
+        TestRepo,
         tablename,
         [and: [{"first_name", {"Jerry", :==}}, {"last_name", {"Garcia", :==}}]],
         []
@@ -39,6 +46,7 @@ defmodule Ecto.Adapters.DynamoDB.Query.Test do
     # If a user provides an explicit :index option, select that index if it is available.
     string_idx_option_result =
       get_matching_secondary_index(
+        TestRepo,
         tablename,
         [and: [{"first_name", {"Jerry", :==}}, {"last_name", {"Garcia", :==}}]],
         index: "email"
@@ -46,6 +54,7 @@ defmodule Ecto.Adapters.DynamoDB.Query.Test do
 
     atom_idx_option_result =
       get_matching_secondary_index(
+        TestRepo,
         tablename,
         [and: [{"first_name", {"Jerry", :==}}, {"last_name", {"Garcia", :==}}]],
         index: :email
@@ -59,17 +68,21 @@ defmodule Ecto.Adapters.DynamoDB.Query.Test do
 
     assert_raise(
       ArgumentError,
-      "Ecto.Adapters.DynamoDB.Query.get_matching_secondary_index/3 error: :index option does not match existing secondary index names. Did you mean email?",
+      "Ecto.Adapters.DynamoDB.Query.get_matching_secondary_index/4 error: :index option does not match existing secondary index names. Did you mean email?",
       fn ->
-        get_matching_secondary_index(tablename, [{"first_name", {"Jerry", :==}}], index: "emai")
+        get_matching_secondary_index(TestRepo, tablename, [{"first_name", {"Jerry", :==}}],
+          index: "emai"
+        )
       end
     )
 
     assert_raise(
       ArgumentError,
-      "Ecto.Adapters.DynamoDB.Query.get_matching_secondary_index/3 error: :index option does not match existing secondary index names.",
+      "Ecto.Adapters.DynamoDB.Query.get_matching_secondary_index/4 error: :index option does not match existing secondary index names.",
       fn ->
-        get_matching_secondary_index(tablename, [{"first_name", {"Jerry", :==}}], index: :foobar)
+        get_matching_secondary_index(TestRepo, tablename, [{"first_name", {"Jerry", :==}}],
+          index: :foobar
+        )
       end
     )
   end
