@@ -14,8 +14,10 @@ defmodule Ecto.Adapters.DynamoDB do
 
   use Bitwise, only_operators: true
 
-  alias ExAws.Dynamo
+  alias Ecto.Adapters.DynamoDB.Cache
+  alias Ecto.Adapters.DynamoDB.RepoConfig
   alias Ecto.Query.BooleanExpr
+  alias ExAws.Dynamo
 
   @pool_opts [:timeout, :pool_size, :migration_lock]
 
@@ -23,21 +25,8 @@ defmodule Ecto.Adapters.DynamoDB do
   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
   @batch_write_item_limit 25
 
-  def start_link({_module, config}) do
-    ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.start_link", %{
-      "#{inspect(__MODULE__)}.start_link-params" => %{config: config}
-    })
-
-    Agent.start_link(fn -> [] end)
-  end
-
   @impl Ecto.Adapter
   def init(config) do
-    child = %{
-      id: __MODULE__,
-      start: {__MODULE__, :start_link, [{__MODULE__, config}]}
-    }
-
     log = Keyword.get(config, :log, :debug)
     telemetry_prefix = Keyword.fetch!(config, :telemetry_prefix)
 
@@ -48,29 +37,25 @@ defmodule Ecto.Adapters.DynamoDB do
     }
 
     # Pass some config values through to ex_aws.
-    [:debug_requests, :access_key_id, :secret_access_key, :region, :dynamodb]
-    |> Enum.each(fn key ->
-      if config[key] != nil, do: Application.put_env(:ex_aws, key, config[key])
-    end)
 
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.init", %{
       "#{inspect(__MODULE__)}.init-params" => %{config: config}
     })
 
-    {:ok, child, meta}
+    {:ok, Cache.child_spec([config[:repo]]), meta}
   end
 
   @doc """
   Ensure all applications necessary to run the adapter are started.
   """
   @impl Ecto.Adapter
-  def ensure_all_started(repo, type) do
+  def ensure_all_started(config, type) do
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.ensure_all_started", %{
-      "#{inspect(__MODULE__)}.ensure_all_started-params" => %{type: type, repo: repo}
+      "#{inspect(__MODULE__)}.ensure_all_started-params" => %{type: type, config: config}
     })
 
     with {:ok, _} = Application.ensure_all_started(:ecto_adapters_dynamodb) do
-      {:ok, [repo]}
+      {:ok, [config]}
     end
   end
 
@@ -78,8 +63,8 @@ defmodule Ecto.Adapters.DynamoDB do
   def supports_ddl_transaction?, do: false
 
   @impl Ecto.Adapter.Migration
-  def execute_ddl(repo, command, options) do
-    Ecto.Adapters.DynamoDB.Migration.execute_ddl(repo, command, options)
+  def execute_ddl(adapter_meta, command, options) do
+    Ecto.Adapters.DynamoDB.Migration.execute_ddl(adapter_meta, command, options)
   end
 
   @impl Ecto.Adapter.Migration
@@ -265,10 +250,10 @@ defmodule Ecto.Adapters.DynamoDB do
 
     case func do
       :delete_all ->
-        delete_all(table, lookup_fields, updated_opts)
+        delete_all(repo, table, lookup_fields, updated_opts)
 
       :update_all ->
-        update_all(table, lookup_fields, updated_opts, prepared.updates, params)
+        update_all(repo, table, lookup_fields, updated_opts, prepared.updates, params)
 
       :all ->
         ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.execute: :all", %{
@@ -279,7 +264,7 @@ defmodule Ecto.Adapters.DynamoDB do
           }
         })
 
-        result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, updated_opts)
+        result = Ecto.Adapters.DynamoDB.Query.get_item(repo, table, lookup_fields, updated_opts)
 
         ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.execute: all: result", %{
           "#{inspect(__MODULE__)}.execute-all-result" => inspect(result)
@@ -342,7 +327,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   # delete_all allows for the recursive option, scanning through multiple pages
-  defp delete_all(table, lookup_fields, opts) do
+  defp delete_all(repo, table, lookup_fields, opts) do
     ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.delete_all", %{
       "#{inspect(__MODULE__)}.delete_all-params" => %{
         table: table,
@@ -352,19 +337,27 @@ defmodule Ecto.Adapters.DynamoDB do
     })
 
     # select only the key
-    {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
-    scan_or_query = Ecto.Adapters.DynamoDB.Query.scan_or_query?(table, lookup_fields)
+    {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(repo, table)
+    scan_or_query = Ecto.Adapters.DynamoDB.Query.scan_or_query?(repo, table, lookup_fields)
     recursive = Ecto.Adapters.DynamoDB.Query.parse_recursive_option(scan_or_query, opts)
 
     updated_opts =
       prepare_recursive_opts(opts ++ [projection_expression: Enum.join(key_list, ", ")])
 
-    delete_all_recursive(table, lookup_fields, updated_opts, recursive, %{}, 0)
+    delete_all_recursive(repo, table, lookup_fields, updated_opts, recursive, %{}, 0)
   end
 
-  defp delete_all_recursive(table, lookup_fields, opts, recursive, query_info, total_processed) do
+  defp delete_all_recursive(
+         repo,
+         table,
+         lookup_fields,
+         opts,
+         recursive,
+         query_info,
+         total_processed
+       ) do
     # query the table for which records to delete
-    fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, opts)
+    fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(repo, table, lookup_fields, opts)
 
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.delete_all_recursive: fetch_result", %{
       "#{inspect(__MODULE__)}.delete_all_recursive-fetch_result" => inspect(fetch_result)
@@ -388,7 +381,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     unprocessed_items =
       if prepared_data != [] do
-        batch_delete(table, prepared_data)
+        batch_delete(repo, table, prepared_data)
       else
         %{}
       end
@@ -423,6 +416,7 @@ defmodule Ecto.Adapters.DynamoDB do
       opts_with_offset = opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
 
       delete_all_recursive(
+        repo,
         table,
         lookup_fields,
         opts_with_offset,
@@ -441,13 +435,13 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # Returns unprocessed_items
   # Similarly to a batch insert, batch delete is also restricted by DDB's batch write limit of 25 records - these requests will be chunked as well.
-  defp batch_delete(table, prepared_data) do
+  defp batch_delete(repo, table, prepared_data) do
     Enum.chunk_every(prepared_data, @batch_write_item_limit)
     |> Enum.reduce(%{}, fn batch, unprocessed_items ->
       batch_write_attempt =
         Dynamo.batch_write_item(%{table => batch})
-        |> ExAws.request()
-        |> handle_error!(%{table: table, records: []})
+        |> ExAws.request(ex_aws_config(repo))
+        |> handle_error!(repo, %{table: table, records: []})
 
       case batch_write_attempt do
         %{"UnprocessedItems" => %{^table => items}} ->
@@ -459,7 +453,7 @@ defmodule Ecto.Adapters.DynamoDB do
     end)
   end
 
-  defp update_all(table, lookup_fields, opts, updates, params) do
+  defp update_all(repo, table, lookup_fields, opts, updates, params) do
     ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.update_all", %{
       "#{inspect(__MODULE__)}.update_all-params" => %{
         table: table,
@@ -468,10 +462,10 @@ defmodule Ecto.Adapters.DynamoDB do
       }
     })
 
-    scan_or_query = Ecto.Adapters.DynamoDB.Query.scan_or_query?(table, lookup_fields)
+    scan_or_query = Ecto.Adapters.DynamoDB.Query.scan_or_query?(repo, table, lookup_fields)
     recursive = Ecto.Adapters.DynamoDB.Query.parse_recursive_option(scan_or_query, opts)
 
-    key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
+    key_list = Ecto.Adapters.DynamoDB.Info.primary_key!(repo, table)
 
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.update_all: key_list", %{
       "#{inspect(__MODULE__)}.update_all-key_list" => inspect(key_list)
@@ -481,7 +475,7 @@ defmodule Ecto.Adapters.DynamoDB do
     # also includes possibly removing nil fields, and since we have one handler for
     # both set and remove, we call it during the batch update process
     {update_expression, update_fields_sans_set_remove, set_remove_fields} =
-      construct_update_expression(updates, params, opts)
+      construct_update_expression(repo, updates, params, opts)
 
     ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.update_all: update fields", %{
       "#{inspect(__MODULE__)}.update_all-update_fields" => %{
@@ -491,7 +485,9 @@ defmodule Ecto.Adapters.DynamoDB do
     })
 
     attribute_names = construct_expression_attribute_names(update_fields_sans_set_remove)
-    attribute_values = construct_expression_attribute_values(update_fields_sans_set_remove, opts)
+
+    attribute_values =
+      construct_expression_attribute_values(repo, update_fields_sans_set_remove, opts)
 
     base_update_options = [
       expression_attribute_names: attribute_names,
@@ -516,11 +512,16 @@ defmodule Ecto.Adapters.DynamoDB do
         opts_with_pull_indexes =
           Keyword.update(opts, :pull_indexes, merged_pull_indexes, fn _ -> merged_pull_indexes end)
 
-        {update_batch_update_options(update_options, set_remove_fields, opts_with_pull_indexes),
-         []}
+        {update_batch_update_options(
+           repo,
+           update_options,
+           set_remove_fields,
+           opts_with_pull_indexes
+         ), []}
       end
 
     update_all_recursive(
+      repo,
       table,
       lookup_fields,
       updated_opts,
@@ -534,6 +535,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp update_all_recursive(
+         repo,
          table,
          lookup_fields,
          opts,
@@ -544,7 +546,7 @@ defmodule Ecto.Adapters.DynamoDB do
          query_info,
          total_updated
        ) do
-    fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(table, lookup_fields, opts)
+    fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(repo, table, lookup_fields, opts)
 
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.update_all_recursive: fetch_result", %{
       "#{inspect(__MODULE__)}.update_all_recursive-fetch_result" => inspect(fetch_result)
@@ -573,7 +575,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     num_updated =
       if items != [] do
-        batch_update(table, items, key_list, update_options, set_remove_fields, opts)
+        batch_update(repo, table, items, key_list, update_options, set_remove_fields, opts)
       else
         0
       end
@@ -584,6 +586,7 @@ defmodule Ecto.Adapters.DynamoDB do
       opts_with_offset = opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
 
       update_all_recursive(
+        repo,
         table,
         lookup_fields,
         opts_with_offset,
@@ -602,7 +605,7 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  defp batch_update(table, items, key_list, update_options, set_remove_fields, opts) do
+  defp batch_update(repo, table, items, key_list, update_options, set_remove_fields, opts) do
     Enum.reduce(items, 0, fn result_to_update, acc ->
       filters = get_key_values_dynamo_map(result_to_update, key_list)
 
@@ -628,7 +631,12 @@ defmodule Ecto.Adapters.DynamoDB do
                 merged_pull_indexes
               end)
 
-            update_batch_update_options(update_options, set_remove_fields, opts_with_pull_indexes)
+            update_batch_update_options(
+              repo,
+              update_options,
+              set_remove_fields,
+              opts_with_pull_indexes
+            )
         end
 
       # 'options_with_set_and_remove' might not have the key, ':expression_attribute_values',
@@ -640,8 +648,8 @@ defmodule Ecto.Adapters.DynamoDB do
 
       if options_with_set_and_remove[:update_expression] |> String.trim() != "" do
         Dynamo.update_item(table, filters, options_with_set_and_remove)
-        |> ExAws.request()
-        |> handle_error!(%{table: table, records: record ++ []})
+        |> ExAws.request(ex_aws_config(repo))
+        |> handle_error!(repo, %{table: table, records: record ++ []})
 
         acc + 1
       else
@@ -650,7 +658,7 @@ defmodule Ecto.Adapters.DynamoDB do
     end)
   end
 
-  defp update_batch_update_options(update_options, set_remove_fields, opts) do
+  defp update_batch_update_options(repo, update_options, set_remove_fields, opts) do
     attribute_names =
       construct_expression_attribute_names(Keyword.values(set_remove_fields) |> List.flatten())
 
@@ -658,15 +666,18 @@ defmodule Ecto.Adapters.DynamoDB do
       maybe_list(set_remove_fields[:set]) ++ maybe_list(set_remove_fields[:push])
 
     opts_with_push = opts ++ Keyword.take(set_remove_fields, [:push])
-    attribute_values = construct_expression_attribute_values(set_and_push_fields, opts_with_push)
-    set_statement = construct_set_statement(set_remove_fields[:set], opts_with_push)
+
+    attribute_values =
+      construct_expression_attribute_values(repo, set_and_push_fields, opts_with_push)
+
+    set_statement = construct_set_statement(repo, set_remove_fields[:set], opts_with_push)
 
     opts_for_construct_remove =
       Keyword.take(set_remove_fields, [:pull]) ++
         Keyword.take(opts, [:pull_indexes, :remove_nil_fields])
 
     remove_statement =
-      construct_remove_statement(set_remove_fields[:set], opts_for_construct_remove)
+      construct_remove_statement(repo, set_remove_fields[:set], opts_for_construct_remove)
 
     base_update_options = [
       expression_attribute_names:
@@ -713,10 +724,10 @@ defmodule Ecto.Adapters.DynamoDB do
   #                  {:ok, fields} | {:invalid, constraints} | no_return
   #  def insert(_,_,_,_,_) do
   @impl Ecto.Adapter.Schema
-  def insert(repo, schema_meta, fields, on_conflict, returning, opts) do
+  def insert(repo_meta, schema_meta, fields, on_conflict, returning, opts) do
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.insert", %{
       "#{inspect(__MODULE__)}.insert-params" => %{
-        repo: repo,
+        repo_meta: repo_meta,
         schema_meta: schema_meta,
         fields: fields,
         on_conflict: on_conflict,
@@ -729,7 +740,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     do_not_insert_nil_fields =
       insert_nil_field_option == false ||
-        Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
+        RepoConfig.config_val(repo_meta.repo, :insert_nil_fields) == false
 
     table = schema_meta.source
 
@@ -743,7 +754,7 @@ defmodule Ecto.Adapters.DynamoDB do
       "#{inspect(__MODULE__)}.insert-vars" => %{table: table, record: record}
     })
 
-    {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
+    {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(repo_meta.repo, table)
     hash_key = hd(key_list)
 
     on_conflict_action = elem(on_conflict, 0)
@@ -765,8 +776,8 @@ defmodule Ecto.Adapters.DynamoDB do
       end
 
     case Dynamo.put_item(table, record, options)
-         |> ExAws.request()
-         |> handle_error!(%{table: table, records: [record]}) do
+         |> ExAws.request(ex_aws_config(repo_meta.repo))
+         |> handle_error!(repo_meta.repo, %{table: table, records: [record]}) do
       {:error, "ConditionalCheckFailedException"} ->
         case on_conflict_action do
           # Per discussion with Jose Valim (https://github.com/elixir-ecto/ecto/issues/2378)
@@ -806,7 +817,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     do_not_insert_nil_fields =
       insert_nil_field_option == false ||
-        Application.get_env(:ecto_adapters_dynamodb, :insert_nil_fields) == false
+        RepoConfig.config_val(repo, :insert_nil_fields) == false
 
     table = schema_meta.source
     model = schema_meta.schema
@@ -830,13 +841,13 @@ defmodule Ecto.Adapters.DynamoDB do
       }
     })
 
-    batch_write(table, prepared_rows, opts)
+    batch_write(repo, table, prepared_rows, opts)
   end
 
   # DynamoDB will reject an entire batch of insert_all() records if there are more than 25 requests.
   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
-  # batch_write/3 will break the list into chunks of 25 items and insert each separately.
-  defp batch_write(table, prepared_fields, opts) do
+  # batch_write/4 will break the list into chunks of 25 items and insert each separately.
+  defp batch_write(repo, table, prepared_fields, opts) do
     unprocessed_items_element = "UnprocessedItems"
     grouped_records = Enum.chunk_every(prepared_fields, @batch_write_item_limit)
     num_batches = length(grouped_records)
@@ -849,7 +860,7 @@ defmodule Ecto.Adapters.DynamoDB do
       |> Enum.reduce({0, []}, fn {field_group, i},
                                  {running_total_processed, batch_write_results} ->
         {total_batch_processed, batch_write_attempt} =
-          handle_batch_write(field_group, table, unprocessed_items_element)
+          handle_batch_write(repo, field_group, table, unprocessed_items_element)
 
         # Log depth of 11 will capture the full data structure returned in any UnprocessedItems - https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
         ecto_dynamo_log(
@@ -893,11 +904,11 @@ defmodule Ecto.Adapters.DynamoDB do
     {total_processed, nil}
   end
 
-  defp handle_batch_write(field_group, table, unprocessed_items_element) do
+  defp handle_batch_write(repo, field_group, table, unprocessed_items_element) do
     results =
       Dynamo.batch_write_item(%{table => field_group})
-      |> ExAws.request()
-      |> handle_error!(%{table: table, records: get_records_from_fields(field_group)})
+      |> ExAws.request(ex_aws_config(repo))
+      |> handle_error!(repo, %{table: table, records: get_records_from_fields(field_group)})
 
     if results[unprocessed_items_element] == %{} do
       {length(field_group), results}
@@ -934,10 +945,10 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   @impl Ecto.Adapter.Schema
-  def delete(repo, schema_meta, filters, opts) do
+  def delete(adapter_meta = %{repo: repo}, schema_meta, filters, opts) do
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.delete", %{
       "#{inspect(__MODULE__)}.delete-params" => %{
-        repo: repo,
+        adapter_meta: adapter_meta,
         schema_meta: schema_meta,
         filters: filters,
         opts: opts
@@ -947,7 +958,7 @@ defmodule Ecto.Adapters.DynamoDB do
     table = schema_meta.source
 
     updated_filters =
-      maybe_update_filters_for_range_key(table, schema_meta, filters, opts, "delete")
+      maybe_update_filters_for_range_key(repo, table, schema_meta, filters, opts, "delete")
 
     attribute_names = construct_expression_attribute_names(keys_to_atoms(filters))
 
@@ -962,18 +973,18 @@ defmodule Ecto.Adapters.DynamoDB do
         else: []
 
     case Dynamo.delete_item(table, updated_filters, options)
-         |> ExAws.request()
-         |> handle_error!(%{table: table, records: record ++ []}) do
+         |> ExAws.request(ex_aws_config(repo))
+         |> handle_error!(repo, %{table: table, records: record ++ []}) do
       %{} -> {:ok, []}
       {:error, "ConditionalCheckFailedException"} -> {:error, :stale}
     end
   end
 
   @impl Ecto.Adapter.Schema
-  def update(%{repo: repo}, schema_meta, fields, filters, returning, opts) do
+  def update(adapter_meta = %{repo: repo}, schema_meta, fields, filters, returning, opts) do
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.update", %{
       "#{inspect(__MODULE__)}.update-params" => %{
-        repo: repo,
+        adapter_meta: adapter_meta,
         schema_meta: schema_meta,
         fields: fields,
         filters: filters,
@@ -985,12 +996,12 @@ defmodule Ecto.Adapters.DynamoDB do
     table = schema_meta.source
 
     updated_filters =
-      maybe_update_filters_for_range_key(table, schema_meta, filters, opts, "update")
+      maybe_update_filters_for_range_key(repo, table, schema_meta, filters, opts, "update")
 
-    update_expression = construct_update_expression(fields, opts)
+    update_expression = construct_update_expression(repo, fields, opts)
     # add updated_filters to attribute_ names and values for condition_expression
     attribute_names = construct_expression_attribute_names(fields ++ keys_to_atoms(filters))
-    attribute_values = construct_expression_attribute_values(fields, opts)
+    attribute_values = construct_expression_attribute_values(repo, fields, opts)
 
     base_options = [
       expression_attribute_names: attribute_names,
@@ -1010,8 +1021,8 @@ defmodule Ecto.Adapters.DynamoDB do
         else: []
 
     case Dynamo.update_item(table, updated_filters, options)
-         |> ExAws.request()
-         |> handle_error!(%{table: table, records: record ++ []}) do
+         |> ExAws.request(ex_aws_config(repo))
+         |> handle_error!(repo, %{table: table, records: record ++ []}) do
       %{} -> {:ok, []}
       {:error, "ConditionalCheckFailedException"} -> {:error, :stale}
     end
@@ -1023,7 +1034,7 @@ defmodule Ecto.Adapters.DynamoDB do
   #  * If :range_key is specified with a value it is added to filters
   #  * If :range_key is not specified, and the table does have a range key, attempt to find it with a DynamoDB query
   #
-  defp maybe_update_filters_for_range_key(table, schema_meta, filters, opts, action) do
+  defp maybe_update_filters_for_range_key(repo, table, schema_meta, filters, opts, action) do
     with primary_key_length <- length(schema_meta.schema.__schema__(:primary_key)) do
       case opts[:range_key] do
         # Use primary keys declared in schema
@@ -1031,7 +1042,7 @@ defmodule Ecto.Adapters.DynamoDB do
           filters
 
         nil ->
-          {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(table)
+          {:primary, key_list} = Ecto.Adapters.DynamoDB.Info.primary_key!(repo, table)
 
           if length(key_list) > 1 do
             updated_opts = opts ++ [projection_expression: Enum.join(key_list, ", ")]
@@ -1040,7 +1051,7 @@ defmodule Ecto.Adapters.DynamoDB do
               for {field, val} <- filters, do: {Atom.to_string(field), {val, :==}}
 
             fetch_result =
-              Ecto.Adapters.DynamoDB.Query.get_item(table, filters_as_strings, updated_opts)
+              Ecto.Adapters.DynamoDB.Query.get_item(repo, table, filters_as_strings, updated_opts)
 
             items =
               case fetch_result do
@@ -1152,10 +1163,10 @@ defmodule Ecto.Adapters.DynamoDB do
     for {f, _} <- fields, into: %{}, do: {"##{Atom.to_string(f)}", Atom.to_string(f)}
   end
 
-  defp construct_expression_attribute_values(fields, opts) do
+  defp construct_expression_attribute_values(repo, fields, opts) do
     remove_rather_than_set_to_null =
       opts[:remove_nil_fields] || opts[:remove_nil_fields_on_update] ||
-        Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
+        RepoConfig.config_val(repo, :remove_nil_fields_on_update) == true
 
     # If the value is nil and the :remove_nil_fields option is set,
     # we're removing this attribute, not updating it, so filter out any such fields:
@@ -1191,7 +1202,7 @@ defmodule Ecto.Adapters.DynamoDB do
     [expression_attribute_values: attribute_values] ++ options
   end
 
-  defp construct_update_expression(updates, params, opts) do
+  defp construct_update_expression(_repo, updates, params, opts) do
     to_set = extract_update_params(updates, :set, params)
     to_push = extract_update_params(updates, :push, params)
     to_pull = extract_update_params(updates, :pull, params)
@@ -1206,18 +1217,18 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # The update callback supplies fields in the paramaters
   # whereas update_all includes a more complicated updates structure
-  defp construct_update_expression(fields, opts) do
-    set_statement = construct_set_statement(fields, opts)
-    rem_statement = construct_remove_statement(fields, opts)
+  defp construct_update_expression(repo, fields, opts) do
+    set_statement = construct_set_statement(repo, fields, opts)
+    rem_statement = construct_remove_statement(repo, fields, opts)
 
     String.trim("#{set_statement} #{rem_statement}")
   end
 
   # fields::[{:field, val}]
-  defp construct_set_statement(fields, opts) do
+  defp construct_set_statement(repo, fields, opts) do
     remove_rather_than_set_to_null =
       opts[:remove_nil_fields] || opts[:remove_nil_fields_on_update] ||
-        Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
+        RepoConfig.config_val(repo, :remove_nil_fields_on_update) == true
 
     set_clauses =
       for {key, val} <- fields, not (is_nil(val) and remove_rather_than_set_to_null) do
@@ -1247,10 +1258,10 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  defp construct_remove_statement(fields, opts) do
+  defp construct_remove_statement(repo, fields, opts) do
     remove_rather_than_set_to_null =
       opts[:remove_nil_fields] || opts[:remove_nil_fields_on_update] ||
-        Application.get_env(:ecto_adapters_dynamodb, :remove_nil_fields_on_update) == true
+        RepoConfig.config_val(repo, :remove_nil_fields_on_update) == true
 
     # Ecto :pull update can be emulated provided
     # we are given an index to remove in opts[:pull_indexes]
@@ -1561,14 +1572,14 @@ defmodule Ecto.Adapters.DynamoDB do
   # be more instructive - when trying to set an indexed field to something
   # other than a string or number - so we're adding a more helpful message.
   # The parameter, 'params', has the type %{table: :string, records: [:map]}
-  defp handle_error!(ex_aws_request_result, params) do
+  defp handle_error!(ex_aws_request_result, repo, params) do
     case ex_aws_request_result do
       {:ok, result} ->
         result
 
       {:error, {error_name, _} = error} ->
         # Check for inappropriate insert into indexed field
-        indexed_fields = Ecto.Adapters.DynamoDB.Info.indexed_attributes(params.table)
+        indexed_fields = Ecto.Adapters.DynamoDB.Info.indexed_attributes(repo, params.table)
 
         # Repo.insert_all can present multiple records at once
         forbidden_insert_on_indexed_field =
@@ -1633,6 +1644,12 @@ defmodule Ecto.Adapters.DynamoDB do
       if String.valid?(log_path) and Regex.match?(~r/\S/, log_path),
         do: log_pipe(log_path, log_message)
     end
+  end
+
+  def ex_aws_config(repo) do
+    repo.config()
+    |> Keyword.take([:debug_requests, :access_key_id, :secret_access_key, :region])
+    |> Keyword.merge(Keyword.get(repo.config(), :dynamodb, []))
   end
 
   defp chisel(str, _depth) when is_binary(str), do: str

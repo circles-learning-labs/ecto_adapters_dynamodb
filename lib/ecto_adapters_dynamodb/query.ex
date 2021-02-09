@@ -6,6 +6,10 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   import Ecto.Adapters.DynamoDB.Info
 
+  alias Ecto.Adapters.DynamoDB
+  alias Ecto.Adapters.DynamoDB.RepoConfig
+  alias Ecto.Repo
+
   @typep key :: String.t()
   @typep table_name :: String.t()
   @typep query_op :: :== | :> | :< | :>= | :<= | :is_nil | :between | :begins_with | :in
@@ -27,13 +31,15 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   #
 
   # Repo.all(model), provide cached results for tables designated in :cached_tables
-  @spec get_item(table_name, search, keyword) :: dynamo_response | no_return
-  def get_item(table, search, opts) when search == [], do: maybe_scan(table, search, opts)
+  @spec get_item(Repo.t(), table_name, search, keyword) :: dynamo_response | no_return
+  def get_item(repo, table, search, opts) when search == [] do
+    maybe_scan(repo, table, search, opts)
+  end
 
   # Regular queries
-  def get_item(table, search, opts) do
+  def get_item(repo, table, search, opts) do
     parsed_index =
-      case get_best_index!(table, search, opts) do
+      case get_best_index!(repo, table, search, opts) do
         # Primary key without range
         {:primary, [_idx] = idxs} ->
           {:primary, idxs}
@@ -81,7 +87,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
                     construct_opts(:get_item, opts)
                   )
                 )
-                |> ExAws.request!()
+                |> ExAws.request!(DynamoDB.ex_aws_config(repo))
 
               Kernel.put_in(
                 acc,
@@ -95,7 +101,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
             query = construct_search(index, search, opts)
 
             ExAws.Dynamo.get_item(table, query, construct_opts(:get_item, opts))
-            |> ExAws.request!()
+            |> ExAws.request!(DynamoDB.ex_aws_config(repo))
           end
 
         # secondary index based lookups need the query functionality. 
@@ -113,9 +119,10 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
             Enum.reduce(hash_values, response_map, fn hash_value, acc ->
               # When receiving a list of values to query on, construct a custom query for each of those values to pass into do_fetch_recursive/1.
-              %{"Items" => items} =
+              new_query =
                 Kernel.put_in(query, [:expression_attribute_values, :hash_key], hash_value)
-                |> do_fetch_recursive(table, opts)
+
+              %{"Items" => items} = do_fetch_recursive(repo, new_query, table, opts)
 
               Kernel.put_in(
                 acc,
@@ -124,18 +131,19 @@ defmodule Ecto.Adapters.DynamoDB.Query do
               )
             end)
           else
-            do_fetch_recursive(query, table, opts)
+            do_fetch_recursive(repo, query, table, opts)
           end
 
         :scan ->
-          maybe_scan(table, search, opts)
+          maybe_scan(repo, table, search, opts)
       end
 
     results
   end
 
-  defp do_fetch_recursive(query, table, opts) do
+  defp do_fetch_recursive(repo, query, table, opts) do
     fetch_recursive(
+      repo,
       &ExAws.Dynamo.query/2,
       table,
       query,
@@ -182,8 +190,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   @doc """
   Returns an atom, :scan or :query, specifying whether the current search will be a DynamoDB scan or a query.
   """
-  def scan_or_query?(table, search) do
-    if get_best_index!(table, search) == :scan, do: :scan, else: :query
+  def scan_or_query?(repo, table, search) do
+    if get_best_index!(repo, table, search) == :scan, do: :scan, else: :query
   end
 
   # we've a list of fields from an index that matches (some of) the search fields, so construct
@@ -478,15 +486,15 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
   Exception if the index doesn't exist.
   """
-  @spec get_best_index(table_name, search, query_opts) ::
+  @spec get_best_index(Repo.t(), table_name, search, query_opts) ::
           :not_found
           | {:primary, [String.t()]}
           | {:primary_partial, [String.t()]}
           | {String.t(), [String.t()]}
           | {:secondary_partial, String.t(), [String.t()]}
           | no_return
-  def get_best_index(tablename, search, opts) do
-    case get_matching_primary_index(tablename, search) do
+  def get_best_index(repo, tablename, search, opts) do
+    case get_matching_primary_index(repo, tablename, search) do
       # if we found a primary index with hash+range match, it's probably the best index.
       {:primary, _} = index ->
         index
@@ -494,7 +502,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       # we've found a primary hash index, but lets check if there's a more specific
       # secondary index with hash+sort available...
       {:primary_partial, _primary_hash} = index ->
-        case get_matching_secondary_index(tablename, search, opts) do
+        case get_matching_secondary_index(repo, tablename, search, opts) do
           # we've found a better, more specific index.
           {_, [_, _]} = sec_index -> sec_index
           # :not_found, or any other hash? default back to the primary.
@@ -503,15 +511,15 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
       # no primary found, so try for a secondary.
       :not_found ->
-        get_matching_secondary_index(tablename, search, opts)
+        get_matching_secondary_index(repo, tablename, search, opts)
     end
   end
 
   @doc """
   Same as get_best_index, but refers to a scan option on failure
   """
-  def get_best_index!(tablename, search, opts \\ []) do
-    case get_best_index(tablename, search, opts) do
+  def get_best_index!(repo, tablename, search, opts \\ []) do
+    case get_best_index(repo, tablename, search, opts) do
       :not_found -> :scan
       index -> index
     end
@@ -524,8 +532,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   or 
     :not_found
   """
-  def get_matching_primary_index(tablename, search) do
-    primary_key = primary_key!(tablename)
+  def get_matching_primary_index(repo, tablename, search) do
+    primary_key = primary_key!(repo, tablename)
 
     case match_index(primary_key, search) do
       # We found a full primary index
@@ -543,8 +551,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   TODO: Does not help with range queries. -> The match_index_hash_part function is
     beginning to address this.
   """
-  def get_matching_secondary_index(tablename, search, opts) do
-    secondary_indexes = tablename |> secondary_indexes()
+  def get_matching_secondary_index(repo, tablename, search, opts) do
+    secondary_indexes = secondary_indexes(repo, tablename)
 
     # A user may provide an :index opt in a query, in which case we will prioritize choosing that index.
     case opts[:index] do
@@ -573,7 +581,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp index_option_error(_index_option, []) do
     raise ArgumentError,
       message:
-        "#{inspect(__MODULE__)}.get_matching_secondary_index/3 error: :index option does not match existing secondary index names."
+        "#{inspect(__MODULE__)}.get_matching_secondary_index/4 error: :index option does not match existing secondary index names."
   end
 
   defp index_option_error(index_option, secondary_indexes) do
@@ -588,7 +596,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       true ->
         raise ArgumentError,
           message:
-            "#{inspect(__MODULE__)}.get_matching_secondary_index/3 error: :index option does not match existing secondary index names. Did you mean #{
+            "#{inspect(__MODULE__)}.get_matching_secondary_index/4 error: :index option does not match existing secondary index names. Did you mean #{
               nearest_index_name
             }?"
 
@@ -719,24 +727,24 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
   # scan
-  defp maybe_scan(table, [], opts) do
+  defp maybe_scan(repo, table, [], opts) do
     scan_enabled =
-      opts[:scan] == true || Application.get_env(:ecto_adapters_dynamodb, :scan_all) == true ||
-        Enum.member?(Application.get_env(:ecto_adapters_dynamodb, :scan_tables), table)
+      opts[:scan] == true || RepoConfig.config_val(repo, :scan_all) == true ||
+        scannable_table?(repo, table)
 
     cond do
       # TODO: we could use the cached scan and apply the search filters
       # ourselves when they are provided.
-      Enum.member?(Application.get_env(:ecto_adapters_dynamodb, :cached_tables), table) and
-          opts[:scan] != true ->
-        Ecto.Adapters.DynamoDB.Cache.scan!(table)
+      cached_table?(repo, table) and opts[:scan] != true ->
+        Ecto.Adapters.DynamoDB.Cache.scan!(repo, table)
 
       scan_enabled ->
-        limit_option = opts[:limit] || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
+        limit_option = opts[:limit] || RepoConfig.config_val(repo, :scan_limit)
         scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
         updated_opts = Keyword.drop(opts, [:recursive, :limit, :scan]) ++ scan_limit
 
         fetch_recursive(
+          repo,
           &ExAws.Dynamo.scan/2,
           table,
           updated_opts,
@@ -749,12 +757,12 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     end
   end
 
-  defp maybe_scan(table, search, opts) do
+  defp maybe_scan(repo, table, search, opts) do
     scan_enabled =
-      opts[:scan] == true || Application.get_env(:ecto_adapters_dynamodb, :scan_all) == true ||
-        Enum.member?(Application.get_env(:ecto_adapters_dynamodb, :scan_tables), table)
+      opts[:scan] == true || RepoConfig.config_val(repo, :scan_all) == true ||
+        scannable_table?(repo, table)
 
-    limit_option = opts[:limit] || Application.get_env(:ecto_adapters_dynamodb, :scan_limit)
+    limit_option = opts[:limit] || RepoConfig.config_val(repo, :scan_limit)
     scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
     updated_opts = Keyword.drop(opts, [:recursive, :limit, :scan]) ++ scan_limit
 
@@ -769,6 +777,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         ] ++ updated_opts ++ filter_expression_tuple
 
       fetch_recursive(
+        repo,
         &ExAws.Dynamo.scan/2,
         table,
         expressions,
@@ -790,17 +799,21 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
   @typep fetch_func :: (table_name, keyword -> ExAws.Operation.JSON.t())
-  @spec fetch_recursive(fetch_func, table_name, keyword, boolean | number, map) :: dynamo_response
-  defp fetch_recursive(func, table, expressions, recursive, result) do
+  @spec fetch_recursive(Repo.t(), fetch_func, table_name, keyword, boolean | number, map) ::
+          dynamo_response
+  defp fetch_recursive(repo, func, table, expressions, recursive, result) do
     updated_expressions =
       if recursive == true, do: Keyword.delete(expressions, :limit), else: expressions
 
-    fetch_result = func.(table, updated_expressions) |> ExAws.request!()
+    fetch_result =
+      func.(table, updated_expressions) |> ExAws.request!(DynamoDB.ex_aws_config(repo))
+
     # recursive can be a boolean or a page limit
     updated_recursive = update_recursive_option(recursive)
 
     if fetch_result["LastEvaluatedKey"] != nil and updated_recursive.continue do
       fetch_recursive(
+        repo,
         func,
         table,
         updated_expressions ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]],
@@ -839,4 +852,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       }
     end
   end
+
+  defp scannable_table?(repo, table), do: RepoConfig.table_in_list?(repo, table, :scan_tables)
+  defp cached_table?(repo, table), do: RepoConfig.table_in_list?(repo, table, :cached_tables)
 end
