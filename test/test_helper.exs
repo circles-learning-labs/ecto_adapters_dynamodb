@@ -8,6 +8,7 @@ end)
 
 defmodule TestHelper do
   alias ExAws.Dynamo
+  alias Ecto.Adapters.DynamoDB
   alias Ecto.Adapters.DynamoDB.TestRepo
 
   def setup_all() do
@@ -17,10 +18,10 @@ defmodule TestHelper do
     TestRepo.start_link()
 
     IO.puts("deleting any leftover test tables that may exist")
-    Dynamo.delete_table("test_person") |> ExAws.request()
-    Dynamo.delete_table("test_book_page") |> ExAws.request()
-    Dynamo.delete_table("test_planet") |> ExAws.request()
-    Dynamo.delete_table("test_fruit") |> ExAws.request()
+    Dynamo.delete_table("test_person") |> request()
+    Dynamo.delete_table("test_book_page") |> request()
+    Dynamo.delete_table("test_planet") |> request()
+    Dynamo.delete_table("test_fruit") |> request()
 
     IO.puts("creating test_person table")
     # Only need to define types for indexed fields:
@@ -112,7 +113,7 @@ defmodule TestHelper do
     ]
 
     Dynamo.create_table("test_person", [id: :hash], key_definitions, 100, 100, indexes, [])
-    |> ExAws.request!()
+    |> request()
 
     IO.puts("creating test_book_page table")
     key_definitions = %{id: :string, page_num: :number}
@@ -126,7 +127,7 @@ defmodule TestHelper do
       [],
       []
     )
-    |> ExAws.request!()
+    |> request()
 
     IO.puts("creating test_planet table")
     key_definitions = %{id: :string, name: :string, mass: :number}
@@ -161,18 +162,19 @@ defmodule TestHelper do
       indexes,
       []
     )
-    |> ExAws.request!()
+    |> request()
 
     IO.puts("creating test_fruit table")
 
     Dynamo.create_table("test_fruit", [id: :hash], %{id: :string}, 100, 100, [], [])
-    |> ExAws.request!()
+    |> request()
 
     :ok
   end
 
   def setup_all(:migration) do
     IO.puts("========== migration test suite ==========")
+    Dynamo.delete_table("test_schema_migrations") |> request()
 
     IO.puts("starting test repo")
     TestRepo.start_link()
@@ -180,10 +182,10 @@ defmodule TestHelper do
 
   def on_exit() do
     IO.puts("deleting main test tables")
-    Dynamo.delete_table("test_person") |> ExAws.request()
-    Dynamo.delete_table("test_book_page") |> ExAws.request()
-    Dynamo.delete_table("test_planet") |> ExAws.request()
-    Dynamo.delete_table("test_fruit") |> ExAws.request()
+    Dynamo.delete_table("test_person") |> request()
+    Dynamo.delete_table("test_book_page") |> request()
+    Dynamo.delete_table("test_planet") |> request()
+    Dynamo.delete_table("test_fruit") |> request()
   end
 
   def on_exit(:migration) do
@@ -191,12 +193,14 @@ defmodule TestHelper do
 
     # Except for test_schema_migrations, these tables should be deleted during the "down" migration test.
     # Just to make sure, we'll clean up here anyway.
-    Dynamo.delete_table("dog") |> ExAws.request()
-    Dynamo.delete_table("cat") |> ExAws.request()
-    Dynamo.delete_table("rabbit") |> ExAws.request()
-    Dynamo.delete_table("billing_mode_test") |> ExAws.request()
-    Dynamo.delete_table("test_schema_migrations") |> ExAws.request()
+    Dynamo.delete_table("dog") |> request()
+    Dynamo.delete_table("cat") |> request()
+    Dynamo.delete_table("rabbit") |> request()
+    Dynamo.delete_table("billing_mode_test") |> request()
+    Dynamo.delete_table("test_schema_migrations") |> request()
   end
+
+  defp request(operation), do: ExAws.request(operation, DynamoDB.ex_aws_config(TestRepo))
 end
 
 # Skip EQC testing if we don't have it installed:

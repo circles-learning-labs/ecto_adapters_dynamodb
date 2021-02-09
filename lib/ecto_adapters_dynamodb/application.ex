@@ -12,7 +12,6 @@ defmodule Ecto.Adapters.DynamoDB.Application do
     children = [
       # Starts a worker by calling: Ecto.Adapters.DynamoDB.Worker.start_link(arg1, arg2, arg3)
       # worker(Ecto.Adapters.DynamoDB.Worker, [arg1, arg2, arg3]),
-      worker(Ecto.Adapters.DynamoDB.Cache, []),
       worker(Ecto.Adapters.DynamoDB.QueryInfo, [])
     ]
 

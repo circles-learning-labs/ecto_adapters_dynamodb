@@ -15,6 +15,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
   use ExUnit.Case
 
+  alias Ecto.Adapters.DynamoDB
   alias Ecto.Adapters.DynamoDB.TestRepo
 
   @migration_path Path.expand("test/priv/test_repo/migrations")
@@ -30,12 +31,12 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
   describe "execute_ddl" do
     test "create_if_not_exists: on-demand table" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
-      table_info = Ecto.Adapters.DynamoDB.Info.table_info("dog")
+      table_info = Ecto.Adapters.DynamoDB.Info.table_info(TestRepo, "dog")
 
       assert length(result) == 1
       assert table_info["BillingModeSummary"]["BillingMode"] == "PAY_PER_REQUEST"
 
-      {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info("dog")
+      {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info(TestRepo, "dog")
 
       assert %{
                "TimeToLiveDescription" => %{
@@ -53,7 +54,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
     test "alter table: add index to on-demand table" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
-      {:ok, table_info} = ExAws.Dynamo.describe_table("dog") |> ExAws.request()
+      {:ok, table_info} = ExAws.Dynamo.describe_table("dog") |> request()
       [index] = table_info["Table"]["GlobalSecondaryIndexes"]
 
       assert length(result) == 1
@@ -61,7 +62,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
       assert index["ProvisionedThroughput"]["ReadCapacityUnits"] == 0
       assert index["ProvisionedThroughput"]["WriteCapacityUnits"] == 0
 
-      {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info("dog")
+      {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info(TestRepo, "dog")
 
       assert %{
                "TimeToLiveDescription" => %{
@@ -73,7 +74,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
     test "alter table: add index to provisioned table" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
-      {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> ExAws.request()
+      {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> request()
       [index] = table_info["Table"]["GlobalSecondaryIndexes"]
 
       assert length(result) == 1
@@ -84,7 +85,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
     test "create_if_not_exists: on-demand table with index" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
-      {:ok, table_info} = ExAws.Dynamo.describe_table("rabbit") |> ExAws.request()
+      {:ok, table_info} = ExAws.Dynamo.describe_table("rabbit") |> request()
       [foo_index, name_index] = table_info["Table"]["GlobalSecondaryIndexes"]
 
       assert length(result) == 1
@@ -98,7 +99,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
     test "alter table: modify index throughput" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
-      {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> ExAws.request()
+      {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> request()
       [index] = table_info["Table"]["GlobalSecondaryIndexes"]
 
       assert length(result) == 1
@@ -109,7 +110,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
     test "alter table: attempt to add an index that already exists" do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
-      {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> ExAws.request()
+      {:ok, table_info} = ExAws.Dynamo.describe_table("cat") |> request()
       [index] = table_info["Table"]["GlobalSecondaryIndexes"]
 
       assert length(result) == 1
@@ -140,7 +141,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
       assert length(result) == 1
 
-      {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info("cat")
+      {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info(TestRepo, "cat")
 
       assert %{
                "TimeToLiveDescription" => %{
@@ -154,7 +155,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
       result = Ecto.Migrator.run(TestRepo, @migration_path, :up, step: 1)
       assert length(result) == 1
 
-      {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info("dog")
+      {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info(TestRepo, "dog")
 
       assert %{
                "TimeToLiveDescription" => %{
@@ -173,4 +174,6 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
     result = Ecto.Migrator.run(TestRepo, @migration_path, :down, all: true)
     assert length(result) == length(migrations)
   end
+
+  defp request(request), do: ExAws.request(request, DynamoDB.ex_aws_config(TestRepo))
 end
