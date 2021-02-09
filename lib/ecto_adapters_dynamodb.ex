@@ -41,17 +41,16 @@ defmodule Ecto.Adapters.DynamoDB do
     log = Keyword.get(config, :log, :debug)
     telemetry_prefix = Keyword.fetch!(config, :telemetry_prefix)
 
+    ex_aws_config = Keyword.take(config, [:debug_requests, :access_key_id, :secret_access_key, :region, :dynamodb])
+
     meta = %{
       opts: Keyword.take(config, @pool_opts),
       telemetry: {config[:repo], log, telemetry_prefix},
-      migration_source: Keyword.get(config, :migration_source, "schema_migrations")
+      migration_source: Keyword.get(config, :migration_source, "schema_migrations"),
+      ex_aws_config: ex_aws_config
     }
 
     # Pass some config values through to ex_aws.
-    [:debug_requests, :access_key_id, :secret_access_key, :region, :dynamodb]
-    |> Enum.each(fn key ->
-      if config[key] != nil, do: Application.put_env(:ex_aws, key, config[key])
-    end)
 
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.init", %{
       "#{inspect(__MODULE__)}.init-params" => %{config: config}
@@ -216,7 +215,7 @@ defmodule Ecto.Adapters.DynamoDB do
   #                 {:cache, (cached -> :ok), prepared}
   @impl Ecto.Adapter.Queryable
   def execute(
-        %{repo: repo, migration_source: migration_source},
+        %{repo: repo, migration_source: migration_source, ex_aws_config: ex_aws_config},
         query_meta,
         {:nocache, {func, prepared}},
         params,
@@ -254,6 +253,9 @@ defmodule Ecto.Adapters.DynamoDB do
       else
         Keyword.drop(opts, [:scan_limit, :limit]) ++ scan_limit
       end
+
+    updated_opts =
+      Keyword.put(updated_opts, :ex_aws_config, ex_aws_config)
 
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.execute: local variables", %{
       "#{inspect(__MODULE__)}.execute-vars" => %{
@@ -388,7 +390,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
     unprocessed_items =
       if prepared_data != [] do
-        batch_delete(table, prepared_data)
+        batch_delete(table, prepared_data, opts)
       else
         %{}
       end
@@ -441,12 +443,12 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # Returns unprocessed_items
   # Similarly to a batch insert, batch delete is also restricted by DDB's batch write limit of 25 records - these requests will be chunked as well.
-  defp batch_delete(table, prepared_data) do
+  defp batch_delete(table, prepared_data, opts) do
     Enum.chunk_every(prepared_data, @batch_write_item_limit)
     |> Enum.reduce(%{}, fn batch, unprocessed_items ->
       batch_write_attempt =
         Dynamo.batch_write_item(%{table => batch})
-        |> ExAws.request()
+        |> ExAws.request(opts[:ex_aws_config])
         |> handle_error!(%{table: table, records: []})
 
       case batch_write_attempt do
@@ -640,7 +642,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
       if options_with_set_and_remove[:update_expression] |> String.trim() != "" do
         Dynamo.update_item(table, filters, options_with_set_and_remove)
-        |> ExAws.request()
+        |> ExAws.request(opts[:ex_aws_config])
         |> handle_error!(%{table: table, records: record ++ []})
 
         acc + 1
@@ -765,7 +767,7 @@ defmodule Ecto.Adapters.DynamoDB do
       end
 
     case Dynamo.put_item(table, record, options)
-         |> ExAws.request()
+         |> ExAws.request(repo.ex_aws_config)
          |> handle_error!(%{table: table, records: [record]}) do
       {:error, "ConditionalCheckFailedException"} ->
         case on_conflict_action do
@@ -789,7 +791,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   @impl Ecto.Adapter.Schema
-  def insert_all(%{repo: repo}, schema_meta, field_list, rows, on_conflict, return_sources, opts) do
+  def insert_all(%{repo: repo, ex_aws_config: ex_aws_config}, schema_meta, field_list, rows, on_conflict, return_sources, opts) do
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.insert_all", %{
       "#{inspect(__MODULE__)}.insert_all-params" => %{
         repo: repo,
@@ -830,7 +832,7 @@ defmodule Ecto.Adapters.DynamoDB do
       }
     })
 
-    batch_write(table, prepared_rows, opts)
+    batch_write(table, prepared_rows, Keyword.put(opts, :ex_aws_config, ex_aws_config))
   end
 
   # DynamoDB will reject an entire batch of insert_all() records if there are more than 25 requests.
@@ -849,7 +851,7 @@ defmodule Ecto.Adapters.DynamoDB do
       |> Enum.reduce({0, []}, fn {field_group, i},
                                  {running_total_processed, batch_write_results} ->
         {total_batch_processed, batch_write_attempt} =
-          handle_batch_write(field_group, table, unprocessed_items_element)
+          handle_batch_write(field_group, table, unprocessed_items_element, opts)
 
         # Log depth of 11 will capture the full data structure returned in any UnprocessedItems - https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
         ecto_dynamo_log(
@@ -893,10 +895,10 @@ defmodule Ecto.Adapters.DynamoDB do
     {total_processed, nil}
   end
 
-  defp handle_batch_write(field_group, table, unprocessed_items_element) do
+  defp handle_batch_write(field_group, table, unprocessed_items_element, opts) do
     results =
       Dynamo.batch_write_item(%{table => field_group})
-      |> ExAws.request()
+      |> ExAws.request(opts[:ex_aws_config])
       |> handle_error!(%{table: table, records: get_records_from_fields(field_group)})
 
     if results[unprocessed_items_element] == %{} do
@@ -962,7 +964,7 @@ defmodule Ecto.Adapters.DynamoDB do
         else: []
 
     case Dynamo.delete_item(table, updated_filters, options)
-         |> ExAws.request()
+         |> ExAws.request(repo.ex_aws_config)
          |> handle_error!(%{table: table, records: record ++ []}) do
       %{} -> {:ok, []}
       {:error, "ConditionalCheckFailedException"} -> {:error, :stale}
@@ -970,7 +972,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   @impl Ecto.Adapter.Schema
-  def update(%{repo: repo}, schema_meta, fields, filters, returning, opts) do
+  def update(%{repo: repo, ex_aws_config: ex_aws_config}, schema_meta, fields, filters, returning, opts) do
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.update", %{
       "#{inspect(__MODULE__)}.update-params" => %{
         repo: repo,
@@ -1010,7 +1012,7 @@ defmodule Ecto.Adapters.DynamoDB do
         else: []
 
     case Dynamo.update_item(table, updated_filters, options)
-         |> ExAws.request()
+         |> ExAws.request(ex_aws_config)
          |> handle_error!(%{table: table, records: record ++ []}) do
       %{} -> {:ok, []}
       {:error, "ConditionalCheckFailedException"} -> {:error, :stale}
