@@ -36,12 +36,13 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
       assert table_info["BillingModeSummary"]["BillingMode"] == "PAY_PER_REQUEST"
 
       {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info("dog")
+
       assert %{
-        "TimeToLiveDescription" => %{
-          "AttributeName" => "ttl",
-          "TimeToLiveStatus" => "ENABLED"
-        }
-      } == ttl_description
+               "TimeToLiveDescription" => %{
+                 "AttributeName" => "ttl",
+                 "TimeToLiveStatus" => "ENABLED"
+               }
+             } == ttl_description
     end
 
     test "create: provisioned table" do
@@ -61,12 +62,13 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
       assert index["ProvisionedThroughput"]["WriteCapacityUnits"] == 0
 
       {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info("dog")
+
       assert %{
-        "TimeToLiveDescription" => %{
-          "AttributeName" => "ttl",
-          "TimeToLiveStatus" => "ENABLED"
-        }
-      } == ttl_description
+               "TimeToLiveDescription" => %{
+                 "AttributeName" => "ttl",
+                 "TimeToLiveStatus" => "ENABLED"
+               }
+             } == ttl_description
     end
 
     test "alter table: add index to provisioned table" do
@@ -112,6 +114,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
       assert length(result) == 1
       assert index["IndexName"] == "name"
+
       # If the migration is successful, the throughput specified by the preceding migration will not have been altered.
       assert index["ProvisionedThroughput"]["ReadCapacityUnits"] == 3
       assert index["ProvisionedThroughput"]["WriteCapacityUnits"] == 2
@@ -138,12 +141,13 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
       assert length(result) == 1
 
       {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info("cat")
+
       assert %{
-        "TimeToLiveDescription" => %{
-          "AttributeName" => "ttl",
-          "TimeToLiveStatus" => "ENABLED"
-        }
-      } == ttl_description
+               "TimeToLiveDescription" => %{
+                 "AttributeName" => "ttl",
+                 "TimeToLiveStatus" => "ENABLED"
+               }
+             } == ttl_description
     end
 
     test "remove TTL" do
@@ -151,11 +155,12 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
       assert length(result) == 1
 
       {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info("dog")
+
       assert %{
-        "TimeToLiveDescription" => %{
-          "TimeToLiveStatus" => "DISABLED"
-        }
-      } == ttl_description
+               "TimeToLiveDescription" => %{
+                 "TimeToLiveStatus" => "DISABLED"
+               }
+             } == ttl_description
     end
   end
 

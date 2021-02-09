@@ -18,7 +18,7 @@ defmodule Ecto.Adapters.DynamoDB.DynamoDBSet do
   def cast(mapset) do
     case mapset do
       %MapSet{} -> if valid?(mapset), do: {:ok, mapset}, else: :error
-      _         -> :error
+      _ -> :error
     end
   end
 
@@ -48,7 +48,6 @@ defmodule Ecto.Adapters.DynamoDB.DynamoDBSet do
 
   defp valid?(mapset) do
     Enum.all?(mapset, fn x -> is_number(x) end) or
-    Enum.all?(mapset, fn x -> is_binary(x) end)
+      Enum.all?(mapset, fn x -> is_binary(x) end)
   end
-
 end

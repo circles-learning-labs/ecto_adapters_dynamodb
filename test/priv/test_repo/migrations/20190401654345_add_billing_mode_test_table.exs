@@ -27,19 +27,18 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddBillingModeTestTable do
 
   def up do
     create_if_not_exists table(:billing_mode_test,
-      primary_key: false,
-      options: [
-        provisioned_throughput: [1,1]
-      ]) do
-
-      add :id, :string, primary_key: true
+                           primary_key: false,
+                           options: [
+                             provisioned_throughput: [1, 1]
+                           ]
+                         ) do
+      add(:id, :string, primary_key: true)
 
       timestamps()
     end
   end
 
   def down do
-    drop_if_exists table(:billing_mode_test)
+    drop_if_exists(table(:billing_mode_test))
   end
-
 end
