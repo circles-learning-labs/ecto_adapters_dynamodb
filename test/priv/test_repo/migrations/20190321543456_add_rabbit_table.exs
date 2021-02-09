@@ -8,27 +8,24 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddRabbitTable do
 
   def up do
     create_if_not_exists table(:rabbit,
-      primary_key: false,
-      options: [
-        billing_mode: :pay_per_request,
-        global_indexes: [
-          [index_name: "name",
-            keys: [:name]],
-          [index_name: "foo",
-            keys: [:foo]]
-        ]
-      ]) do
-
-      add :id, :string, primary_key: true
-      add :name, :string, hash_key: true
-      add :foo, :string, hash_key: true
+                           primary_key: false,
+                           options: [
+                             billing_mode: :pay_per_request,
+                             global_indexes: [
+                               [index_name: "name", keys: [:name]],
+                               [index_name: "foo", keys: [:foo]]
+                             ]
+                           ]
+                         ) do
+      add(:id, :string, primary_key: true)
+      add(:name, :string, hash_key: true)
+      add(:foo, :string, hash_key: true)
 
       timestamps()
     end
   end
 
   def down do
-    drop_if_exists table(:rabbit)
+    drop_if_exists(table(:rabbit))
   end
-
 end

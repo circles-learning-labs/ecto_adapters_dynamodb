@@ -8,18 +8,20 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.RemoveTTLFromDog do
 
   def up do
     alter table(:dog,
-      options: [
-        ttl_attribute: nil
-      ]) do
-        :ok
+            options: [
+              ttl_attribute: nil
+            ]
+          ) do
+      :ok
     end
   end
 
   def down do
     alter table(:dog,
-      options: [
-        ttl_attribute: "ttl"
-      ]) do
+            options: [
+              ttl_attribute: "ttl"
+            ]
+          ) do
       :ok
     end
   end

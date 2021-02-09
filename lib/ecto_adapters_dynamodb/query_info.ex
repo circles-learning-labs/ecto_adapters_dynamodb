@@ -8,7 +8,7 @@ defmodule Ecto.Adapters.DynamoDB.QueryInfo do
   @doc """
   Provides a random 32 character, base 64 encoded string.
   """
-  def get_key, do: :crypto.strong_rand_bytes(32) |> Base.url_encode64
+  def get_key, do: :crypto.strong_rand_bytes(32) |> Base.url_encode64()
 
   @doc """
   Updates the value of a given key in the Agent map.
@@ -18,16 +18,17 @@ defmodule Ecto.Adapters.DynamoDB.QueryInfo do
   @doc """
   Updates the value of a given key in the Agent map according to a specific function.
   """
-  def update(key, initial, fun), do: Agent.update(__MODULE__, fn map -> Map.update(map, key, initial, fun) end)
+  def update(key, initial, fun),
+    do: Agent.update(__MODULE__, fn map -> Map.update(map, key, initial, fun) end)
 
   @doc """
   Returns the value (query info) in the QueryInfo agent associated with the provided key.
   """
-  def get(key), do: Agent.get_and_update(__MODULE__, fn map -> {map[key], Map.delete(map, key)} end)
+  def get(key),
+    do: Agent.get_and_update(__MODULE__, fn map -> {map[key], Map.delete(map, key)} end)
 
   @doc """
   Returns the complete current map recorded by the agent.
   """
   def get_map, do: Agent.get(__MODULE__, fn map -> map end)
-
 end

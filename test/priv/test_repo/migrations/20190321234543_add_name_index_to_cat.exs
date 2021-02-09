@@ -9,29 +9,30 @@ defmodule Ecto.Adapters.DynamoDB.TestRepo.Migrations.AddNameIndexToCat do
 
   def up do
     alter table(:cat,
-      options: [
-        global_indexes: [
-          [index_name: "name",
-            keys: [:name],
-            provisioned_throughput: [2,1],
-            create_if_not_exists: true]
-        ]
-      ]) do
-
-      add :name, :string, hash_key: true
+            options: [
+              global_indexes: [
+                [
+                  index_name: "name",
+                  keys: [:name],
+                  provisioned_throughput: [2, 1],
+                  create_if_not_exists: true
+                ]
+              ]
+            ]
+          ) do
+      add(:name, :string, hash_key: true)
     end
   end
 
   def down do
     alter table(:cat,
-      options: [
-        global_indexes: [
-          [index_name: "name",
-            drop_if_exists: true]]
-      ]
-    ) do
-      remove :name
+            options: [
+              global_indexes: [
+                [index_name: "name", drop_if_exists: true]
+              ]
+            ]
+          ) do
+      remove(:name)
     end
   end
-
 end
