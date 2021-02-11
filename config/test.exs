@@ -1,9 +1,7 @@
 use Mix.Config
 
 config :ecto_adapters_dynamodb, Ecto.Adapters.DynamoDB.TestRepo,
-  migration_source: "test_schema_migrations"
-
-config :ex_aws,
+  migration_source: "test_schema_migrations",
   debug_requests: true,
   # Unlike for prod config, we hardcode fake values for local version of DynamoDB
   access_key_id: "abcd",

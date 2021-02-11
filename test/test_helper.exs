@@ -11,16 +11,21 @@ defmodule TestHelper do
   alias Ecto.Adapters.DynamoDB.TestRepo
 
   def setup_all() do
+    ex_aws_config =
+      :ecto_adapters_dynamodb
+      |> Application.get_env(TestRepo)
+      |> Keyword.take([:debug_requests, :access_key_id, :secret_access_key, :region, :dynamodb])
+
     IO.puts("========== main test suite ==========")
 
     IO.puts("starting test repo")
     TestRepo.start_link()
 
     IO.puts("deleting any leftover test tables that may exist")
-    Dynamo.delete_table("test_person") |> ExAws.request()
-    Dynamo.delete_table("test_book_page") |> ExAws.request()
-    Dynamo.delete_table("test_planet") |> ExAws.request()
-    Dynamo.delete_table("test_fruit") |> ExAws.request()
+    Dynamo.delete_table("test_person") |> ExAws.request(ex_aws_config)
+    Dynamo.delete_table("test_book_page") |> ExAws.request(ex_aws_config)
+    Dynamo.delete_table("test_planet") |> ExAws.request(ex_aws_config)
+    Dynamo.delete_table("test_fruit") |> ExAws.request(ex_aws_config)
 
     IO.puts("creating test_person table")
     # Only need to define types for indexed fields:
@@ -112,7 +117,7 @@ defmodule TestHelper do
     ]
 
     Dynamo.create_table("test_person", [id: :hash], key_definitions, 100, 100, indexes, [])
-    |> ExAws.request!()
+    |> ExAws.request!(ex_aws_config)
 
     IO.puts("creating test_book_page table")
     key_definitions = %{id: :string, page_num: :number}
@@ -126,7 +131,7 @@ defmodule TestHelper do
       [],
       []
     )
-    |> ExAws.request!()
+    |> ExAws.request!(ex_aws_config)
 
     IO.puts("creating test_planet table")
     key_definitions = %{id: :string, name: :string, mass: :number}
@@ -161,12 +166,12 @@ defmodule TestHelper do
       indexes,
       []
     )
-    |> ExAws.request!()
+    |> ExAws.request!(ex_aws_config)
 
     IO.puts("creating test_fruit table")
 
     Dynamo.create_table("test_fruit", [id: :hash], %{id: :string}, 100, 100, [], [])
-    |> ExAws.request!()
+    |> ExAws.request!(ex_aws_config)
 
     :ok
   end
