@@ -36,8 +36,6 @@ defmodule Ecto.Adapters.DynamoDB do
       migration_source: Keyword.get(config, :migration_source, "schema_migrations")
     }
 
-    # Pass some config values through to ex_aws.
-
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.init", %{
       "#{inspect(__MODULE__)}.init-params" => %{config: config}
     })
