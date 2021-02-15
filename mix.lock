@@ -1,5 +1,6 @@
 %{
   "certifi": {:hex, :certifi, "2.5.3", "70bdd7e7188c804f3a30ee0e7c99655bc35d8ac41c23e12325f36ab449b70651", [:rebar3], [{:parse_trans, "~>3.3", [hex: :parse_trans, repo: "hexpm", optional: false]}], "hexpm", "ed516acb3929b101208a9d700062d520f3953da3b6b918d866106ffa980e1c10"},
+  "confex": {:hex, :confex, "3.5.0", "163857c73dd8f88a3815663f4bc00bee1b9c65daf40aa6e0d6ef272757fd22c7", [:mix], [], "hexpm", "34a9e31230c7fbb3dbe60db00341d0c84ee44ba3caf84b498f501c0bc8563570"},
   "connection": {:hex, :connection, "1.0.4", "a1cae72211f0eef17705aaededacac3eb30e6625b04a6117c1b2db6ace7d5976", [:mix], [], "hexpm", "4a0850c9be22a43af9920a71ab17c051f5f7d45c209e40269a1938832510e4d9"},
   "db_connection": {:hex, :db_connection, "2.2.2", "3bbca41b199e1598245b716248964926303b5d4609ff065125ce98bcd368939e", [:mix], [{:connection, "~> 1.0.2", [hex: :connection, repo: "hexpm", optional: false]}], "hexpm", "642af240d8a8affb93b4ba5a6fcd2bbcbdc327e1a524b825d383711536f8070c"},
   "decimal": {:hex, :decimal, "1.8.1", "a4ef3f5f3428bdbc0d35374029ffcf4ede8533536fa79896dd450168d9acdf3c", [:mix], [], "hexpm", "3cb154b00225ac687f6cbd4acc4b7960027c757a5152b369923ead9ddbca7aec"},

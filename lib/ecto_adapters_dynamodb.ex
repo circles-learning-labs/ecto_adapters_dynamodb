@@ -1617,12 +1617,12 @@ defmodule Ecto.Adapters.DynamoDB do
   Logs message to console and optionally to file. Log levels, colours and file path may be set in configuration (details in README.md).
   """
   def ecto_dynamo_log(level, message, attributes \\ %{}, opts \\ []) do
-    log_levels = Application.get_env(:ecto_adapters_dynamodb, :log_levels) || [:info]
+    log_levels = Confex.get_env(:ecto_adapters_dynamodb, :log_levels) || [:info]
 
     if level in log_levels do
-      log_path = Application.get_env(:ecto_adapters_dynamodb, :log_path)
+      log_path = Confex.get_env(:ecto_adapters_dynamodb, :log_path)
       depth = opts[:depth] || 4
-      colours = Application.get_env(:ecto_adapters_dynamodb, :log_colours)
+      colours = Confex.get_env(:ecto_adapters_dynamodb, :log_colours)
       d = DateTime.utc_now()
 
       formatted_message =
@@ -1633,7 +1633,7 @@ defmodule Ecto.Adapters.DynamoDB do
       {:ok, log_message} =
         Jason.encode(%{message: formatted_message, attributes: chisel(attributes, depth)})
 
-      if Application.get_env(:ecto_adapters_dynamodb, :log_in_colour) do
+      if Confex.get_env(:ecto_adapters_dynamodb, :log_in_colour) do
         IO.ANSI.format([colours[level] || :normal, log_message], true) |> IO.puts()
       else
         log_message |> IO.puts()
@@ -1645,9 +1645,11 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   def ex_aws_config(repo) do
-    repo.config()
+    config = Confex.get_env(:ecto_adapters_dynamodb, repo)
+
+    config
     |> Keyword.take([:debug_requests, :access_key_id, :secret_access_key, :region])
-    |> Keyword.merge(Keyword.get(repo.config(), :dynamodb, []))
+    |> Keyword.merge(Keyword.get(config, :dynamodb, []))
   end
 
   defp chisel(str, _depth) when is_binary(str), do: str

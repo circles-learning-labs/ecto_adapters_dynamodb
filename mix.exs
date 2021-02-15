@@ -53,6 +53,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   # Type "mix help deps" for more examples and options
   defp deps do
     [
+      {:confex, "~> 3.5.0"},
       {:ecto_sql, "~> 3.4"},
       {:ex_aws_dynamo, "~> 3.0"},
       {:jason, "~> 1.0"},
