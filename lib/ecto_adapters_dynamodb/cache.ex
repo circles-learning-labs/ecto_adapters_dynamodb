@@ -31,7 +31,7 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
   def start_link(repo) do
     cached_table_list =
       :ecto_adapters_dynamodb
-      |> Application.get_env(repo)
+      |> Confex.get_env(repo)
       |> Keyword.get(:cached_tables, [])
 
     Agent.start_link(
