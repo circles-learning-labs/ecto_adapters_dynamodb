@@ -102,6 +102,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         index when is_tuple(index) ->
           index_fields = get_hash_range_key_list(index)
           {hash_values, op} = deep_find_key(search, hd(index_fields))
+
           # https://hexdocs.pm/ex_aws/ExAws.Dynamo.html#query/2
 
           query = construct_search(index, search, opts)
