@@ -675,7 +675,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
           }. Please specify one primary key in migration."
         )
 
-    key_definitions = for {field, type} <- key_list, into: %{}, do: {field, convert_type(type)}
+    key_definitions = for {field, type} <- key_list, do: {field, convert_type(type)}
 
     case range_key do
       nil ->
