@@ -217,6 +217,8 @@ You may also omit all these ExAws options from the adapter config if you wish to
 
 Note that as of version 3, with the exception of logging configuration, all config options are set *per-repo*.
 
+The adapter also supports [Confex](https://hexdocs.pm/confex)-style configuration options.
+
 **config/config.exs**
 
 Include the repo module that's configured for the adapter among the project's Ecto repos:
