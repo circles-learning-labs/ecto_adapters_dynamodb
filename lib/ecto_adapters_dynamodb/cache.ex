@@ -6,6 +6,7 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
   @typep table_name_t :: String.t()
   @typep dynamo_response_t :: %{required(String.t()) => term}
 
+  alias Confex.Resolver
   alias Ecto.Adapters.DynamoDB
   alias Ecto.Repo
 
@@ -15,9 +16,10 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
     :ex_aws_config
   ]
 
+  @type cached_table :: {String.t(), map()}
   @type t :: %__MODULE__{
-          schemas: Map.t(),
-          tables: [CachedTable.t()]
+          schemas: map(),
+          tables: [cached_table()]
         }
 
   def child_spec([repo]) do
@@ -30,8 +32,8 @@ defmodule Ecto.Adapters.DynamoDB.Cache do
   @spec start_link(Repo.t()) :: Agent.on_start()
   def start_link(repo) do
     cached_table_list =
-      :ecto_adapters_dynamodb
-      |> Confex.get_env(repo)
+      repo.config()
+      |> Resolver.resolve!()
       |> Keyword.get(:cached_tables, [])
 
     Agent.start_link(

@@ -14,6 +14,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   use Bitwise, only_operators: true
 
+  alias Confex.Resolver
   alias Ecto.Adapters.DynamoDB.Cache
   alias Ecto.Adapters.DynamoDB.RepoConfig
   alias Ecto.Query.BooleanExpr
@@ -1645,7 +1646,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   def ex_aws_config(repo) do
-    config = Confex.get_env(:ecto_adapters_dynamodb, repo)
+    config = Resolver.resolve!(repo.config())
 
     config
     |> Keyword.take([:debug_requests, :access_key_id, :secret_access_key, :region])

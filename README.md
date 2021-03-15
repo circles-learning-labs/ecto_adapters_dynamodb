@@ -314,7 +314,7 @@ config :my_app, MyApp.Repo,
 The following are adapter options that apply to the Ecto adapter, and are NOT related to ExAws configuration. They control certain behavioural aspects for the driver, enabling and disabling default behaviours and features on queries.
 
 ```elixir
-config :ecto_adapters_dynamodb, MyApp.Repo
+config :my_app, MyApp.Repo
   dynamodb_local: true,
   insert_nil_fields: false,
   remove_nil_fields_on_update: true,
