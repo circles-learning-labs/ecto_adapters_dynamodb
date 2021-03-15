@@ -209,11 +209,13 @@ Configuring a repository to use the DynamoDB ecto adapter is pretty similar to m
 
 These values are **different** from the normal Ecto options. For example, in DynamoDB you don't have `username`, `password`, or `database` options - you'll need to delete these lines. Instead you'll add Amazon `access_key_id`, `secret_access_key`, `region`, and the optional `dynamodb` `host` and `scheme` options if you're not running against the default live Amazon instances (for example, running the local Amazon dev version of DynamoDB for testing and development).
 
-All these options are quietly passed through to ExAws. See [ExAws Getting Started](https://hexdocs.pm/ex_aws/ExAws.html#module-getting-started) for more information on these options.
+All these options are quietly passed through to ExAws. Prior to version 3, existing ExAws configuration would be overwritten by these options. From version 3, the options are only used in calls made by the adapter, and other global ExAws configuration is maintained. See [ExAws Getting Started](https://hexdocs.pm/ex_aws/ExAws.html#module-getting-started) for more information on these options.
 
 A note on `access_key_id` and `secret_access_key`: This can simply be the actual key string, or it can be set to pull these from environment variables or Amazon roles (as per ExAws configuration). Some basic examples follow.
 
 You may also omit all these ExAws options from the adapter config if you wish to configure ExAws manually (for example if you're using other features from ExAws such as S3, or dynamo_streams).
+
+Note that as of version 3, with the exception of logging configuration, all config options are set *per-repo*.
 
 **config/config.exs**
 
@@ -272,7 +274,7 @@ For development, we use the [local version](http://docs.aws.amazon.com/amazondyn
 
 **config/dev.exs**
 
-```elixir               
+```elixir
 config :my_app, MyApp.Repo,
   # ExAws configuration
   access_key_id: "abcd",
@@ -310,7 +312,7 @@ config :my_app, MyApp.Repo,
 The following are adapter options that apply to the Ecto adapter, and are NOT related to ExAws configuration. They control certain behavioural aspects for the driver, enabling and disabling default behaviours and features on queries.
 
 ```elixir
-config :ecto_adapters_dynamodb,
+config :ecto_adapters_dynamodb, MyApp.Repo
   dynamodb_local: true,
   insert_nil_fields: false,
   remove_nil_fields_on_update: true,
@@ -355,18 +357,6 @@ Determines if fields in the changeset with `nil` values will be inserted as Dyna
 
 Determines if, during **Repo.update** or **Repo.update_all**, fields in the changeset with `nil` values will be removed from the record/s or set to the DynamoDB `null` value. This option is also available inline per query.
 
-#### Logging Configuration
-
-The adapter's logging options are configured during compile time, and can be altered in the application's configuration files (`config/config.exs`, `config/dev.exs`, `config/test.exs` and `config/test.exs`). To enable logging in colour, the `MIX_ENV` environment variable must be explicitly exported as `dev` during compilation.
-
-We provide a few informational log lines, such as which adapter call is being processed, as well as the table, lookup fields, and options detected. Configure an optional log path to have the messages recorded on file.
-
-**:log_levels** :: `[:info, :debug]`, *default:* `[:info]`
-
-**:log_colours** :: %{log-level-atom: IO.ANSI-colour-atom}, *default:* `info: :green, debug: :normal`
-
-**:log_path** :: string, *default:* `""`
-
 #### Scan-related options
 
 **:scan_tables** :: [string], *default:* `[]`
@@ -402,6 +392,27 @@ The maximum wait time in milliseconds over sequential retries of a particular **
 **:migration_table_capacity** :: [integer, integer], *default:* `[1,1]`
 
 ProvisionedThroughput as `[ReadCapacityUnits, WriteCapacityUnits]`, for the Schema Migrations table only, automatically created by Ecto if it does not exist.
+
+#### Logging Configuration
+
+The adapter's logging options are configured during compile time, and can be altered in the application's configuration files (`config/config.exs`, `config/dev.exs`, `config/test.exs` and `config/test.exs`). To enable logging in colour, the `MIX_ENV` environment variable must be explicitly exported as `dev` during compilation.
+
+We provide a few informational log lines, such as which adapter call is being processed, as well as the table, lookup fields, and options detected. Configure an optional log path to have the messages recorded on file.
+
+Note that logging configuration is at the adapter level and is common to all repos.
+
+**:log_levels** :: `[:info, :debug]`, *default:* `[:info]`
+
+**:log_colours** :: %{log-level-atom: IO.ANSI-colour-atom}, *default:* `info: :green, debug: :normal`
+
+**:log_path** :: string, *default:* `""`
+
+Example:
+
+```elixir
+config :ecto_adapters_dynamodb,
+  log_levels: [:info, :debug]
+```
 
 ## Inline Options
 
@@ -567,9 +578,13 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 
 Please see the instructions [here](/upgrade_guides/version_1_upgrade_guide.md)
 
-### 0.X.X -> 2.X.X
+### 1.X.X -> 2.X.X
 
 Please see the instructions [here](/upgrade_guides/version_2_upgrade_guide.md)
+
+### 2.X.X -> 3.X.X
+
+Please see the instructions [here](/upgrade_guides/version_3_upgrade_guide.md)
 
 # License
 Copyright Circles Learning Labs
