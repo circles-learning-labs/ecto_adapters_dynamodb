@@ -379,6 +379,10 @@ A list of table names for tables assigned for caching of the first page of resul
 
 #### Migration-related options
 
+**:migration_source** :: string, *default:* `"schema_migrations"`
+
+The name of the table that should be used for tracking schema migrations.
+
 **:migration_initial_wait** :: integer, *default:* `1000`
 
 The time in milliseconds of the first wait period before retrying a DynamoDB **create_table** or **update_table** request.
