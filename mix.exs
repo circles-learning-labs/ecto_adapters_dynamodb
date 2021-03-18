@@ -54,7 +54,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   defp deps do
     [
       {:confex, "~> 3.5.0"},
-      {:ecto_sql, "~> 3.4"},
+      {:ecto_sql, "~> 3.5"},
       {:ex_aws_dynamo, "~> 4.0"},
       {:jason, "~> 1.0"},
       {:hackney, "~> 1.6"},
