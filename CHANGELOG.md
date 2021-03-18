@@ -10,6 +10,8 @@
 
 - Per-repo configuration support
 
-#### Ecto
+#### Dependencies
 
-- Support for version 3.5
+- Upgrade to and support for [Ecto](https://github.com/elixir-ecto/ecto) version 3.5 or higher (lower versions not supported by this release)
+- Upgrade [ExAws.Dynamo](https://github.com/ex-aws/ex_aws_dynamo) to version 4 - recommend reviewing upgrade guide in that repo
+- Upgrade Hackney to v1.17.3
