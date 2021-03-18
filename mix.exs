@@ -54,13 +54,13 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   defp deps do
     [
       {:confex, "~> 3.5.0"},
-      {:ecto_sql, "~> 3.4"},
-      {:ex_aws_dynamo, "~> 3.0"},
+      {:ecto_sql, "~> 3.5"},
+      {:ex_aws_dynamo, "~> 4.0"},
       {:jason, "~> 1.0"},
       {:hackney, "~> 1.6"},
       {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
       {:eqc_ex, "~> 1.4.2", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.23.0", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.24.0", only: :dev, runtime: false}
     ]
   end
 

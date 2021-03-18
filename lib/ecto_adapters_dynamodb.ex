@@ -1543,7 +1543,7 @@ defmodule Ecto.Adapters.DynamoDB do
         t when t in [:naive_datetime_usec, :naive_datetime] ->
           NaiveDateTime.from_iso8601!(val)
 
-        {:embed, _} ->
+        {:parameterized, _, _} ->
           decode_embed(val, type)
 
         _ ->
