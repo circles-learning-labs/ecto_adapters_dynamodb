@@ -2,6 +2,10 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.0.1
+
+- Maintain backwards compatibility for Ecto versions 3.0 <= 3.4 - all major version 3 releases of Ecto should now be supported
+
 ## v3.0.0
 
 ### Enhancements
