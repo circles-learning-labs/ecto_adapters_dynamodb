@@ -1,0 +1,18 @@
+name: on-push
+on: [push]
+env:
+  MIX_ENV: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: erlef/setup-elixir@v1
+        with:
+          otp-version: '23.0.4'
+          elixir-version: '1.10.4'
+      - uses: rrainn/dynamodb-action@v2.0.0
+      - run: mix deps.get
+      - run: mix compile
+      - run: mix format --check-formatted
+      - run: mix test
