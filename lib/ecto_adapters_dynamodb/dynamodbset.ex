@@ -38,7 +38,10 @@ defmodule Ecto.Adapters.DynamoDB.DynamoDBSet do
   Check if two terms are semantically equal
   """
   @impl Ecto.Type
-  def equal?(term_a, term_b), do: MapSet.equal?(term_a, term_b)
+  def equal?(%MapSet{} = term_a, %MapSet{} = term_b), do: MapSet.equal?(term_a, term_b)
+  def equal?(nil, %MapSet{}), do: false
+  def equal?(%MapSet{}, nil), do: false
+  def equal?(nil, nil), do: true
 
   @doc """
   Dictates how the type should be treated inside embeds
