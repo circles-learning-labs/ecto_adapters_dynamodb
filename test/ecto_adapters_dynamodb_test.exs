@@ -103,16 +103,31 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         first_name: "Update",
         last_name: "Test",
         age: 12,
-        email: "update@test.com"
+        email: "update@test.com",
+        # field nil_to_tags tests adding
+        # the MapSet type where the value
+        # was previously nil
+        tags_to_tags: MapSet.new(["a", "b", "c"])
       })
 
-      {:ok, result} =
-        TestRepo.get(Person, "person-update")
-        |> Ecto.Changeset.change(first_name: "Updated", last_name: "Tested")
+      person = TestRepo.get(Person, "person-update")
+      existing_tags = person.tags_to_tags
+      new_tags = MapSet.put(existing_tags, "d")
+
+      {:ok, result} = person
+        |> Ecto.Changeset.change(
+          first_name: "Updated",
+          last_name: "Tested",
+          tags_to_tags: new_tags,
+          nil_to_tags: MapSet.new(["a", "b"])
+        )
         |> TestRepo.update()
 
       assert result.first_name == "Updated"
       assert result.last_name == "Tested"
+      assert MapSet.member?(result.tags_to_tags, "d")
+      assert MapSet.member?(result.nil_to_tags, "a")
+      assert MapSet.member?(result.nil_to_tags, "b")
     end
 
     test ":remove_nil_fields_on_update option" do

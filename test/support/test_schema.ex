@@ -17,6 +17,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
   @timestamps_opts [type: :naive_datetime_usec]
 
   alias Ecto.Adapters.DynamoDB.TestSchema.Address
+  alias Ecto.Adapters.DynamoDB.DynamoDBSet
 
   schema "test_person" do
     field(:first_name, :string)
@@ -24,6 +25,8 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
     field(:age, :integer)
     field(:email, :string)
     field(:country, :string, source: :data1)
+    field(:tags_to_tags, DynamoDBSet)
+    field(:nil_to_tags, DynamoDBSet)
     embeds_many(:addresses, Address)
 
     timestamps()
