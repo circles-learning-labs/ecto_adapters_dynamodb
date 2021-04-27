@@ -114,7 +114,8 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       existing_tags = person.tags_to_tags
       new_tags = MapSet.put(existing_tags, "d")
 
-      {:ok, result} = person
+      {:ok, result} =
+        person
         |> Ecto.Changeset.change(
           first_name: "Updated",
           last_name: "Tested",
