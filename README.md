@@ -194,7 +194,7 @@ Otherwise, to fetch from GitHub:
 ```elixir
 defp deps do
   [
-  	{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "3.0.2"}
+  	{:ecto_adapters_dynamodb, git: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb", tag: "3.0.3"}
   ]
 end
 ```

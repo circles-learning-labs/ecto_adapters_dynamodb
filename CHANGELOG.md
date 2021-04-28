@@ -2,6 +2,10 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.0.3
+
+- Constrain ecto_sql requirement to 3.5.x. 3.6 introduces interface changes that are not yet supported.
+
 ## v3.0.2
 
 - Add handling for `nil` values in `DynamoDBSet.is_equal?`
