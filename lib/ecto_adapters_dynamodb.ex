@@ -68,12 +68,12 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   @impl Ecto.Adapter.Migration
-  def lock_for_migrations(%{opts: adapter_opts} = _meta, query, _opts, callback) do
+  def lock_for_migrations(%{opts: adapter_opts} = _meta, _opts, callback) do
     # TODO - consider adding support for this? See https://github.com/circles-learning-labs/ecto_adapters_dynamodb/issues/34
     if Keyword.get(adapter_opts, :migration_lock) do
       raise "#{inspect(__MODULE__)}.lock_for_migrations error: #{inspect(__MODULE__)} does not currently support migration table lock; please remove the :migration_lock option from your repo configuration or set it to nil"
     else
-      callback.(query)
+      callback.()
     end
   end
 
