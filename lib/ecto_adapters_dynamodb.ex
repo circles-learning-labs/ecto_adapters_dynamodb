@@ -16,6 +16,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   alias Confex.Resolver
   alias Ecto.Adapters.DynamoDB.Cache
+  alias Ecto.Adapters.DynamoDB.DynamoDBSet
   alias Ecto.Adapters.DynamoDB.RepoConfig
   alias Ecto.Query.BooleanExpr
   alias ExAws.Dynamo
@@ -283,11 +284,11 @@ defmodule Ecto.Adapters.DynamoDB do
           case query_meta do
             %{select: %{from: {_, {_, _, _, types}}}} ->
               types = types_to_source_fields(model, types)
-              handle_type_decode(table, result, types)
+              handle_type_decode(table, result, types, repo, opts)
 
             _ ->
               if table == migration_source do
-                decoded = Enum.map(result["Items"], &decode_item(&1))
+                decoded = Enum.map(result["Items"], &decode_item(&1, repo, opts))
 
                 {length(decoded), decoded}
               else
@@ -295,16 +296,16 @@ defmodule Ecto.Adapters.DynamoDB do
                 # instead construct them from prepared.select
                 types = construct_types_from_select_fields(prepared.select)
 
-                handle_type_decode(table, result, types)
+                handle_type_decode(table, result, types, repo, opts)
               end
           end
         end
     end
   end
 
-  defp handle_type_decode(table, result, types) do
+  defp handle_type_decode(table, result, types, repo, opts) do
     if !result["Count"] and !result["Responses"] do
-      decoded = decode_item(result["Item"], types)
+      decoded = decode_item(result["Item"], types, repo, opts)
 
       {1, [decoded]}
     else
@@ -312,7 +313,7 @@ defmodule Ecto.Adapters.DynamoDB do
       results_to_decode =
         if result["Items"], do: result["Items"], else: result["Responses"][table]
 
-      decoded = Enum.map(results_to_decode, &decode_item(&1, types))
+      decoded = Enum.map(results_to_decode, &decode_item(&1, types, repo, opts))
 
       {length(decoded), decoded}
     end
@@ -735,19 +736,15 @@ defmodule Ecto.Adapters.DynamoDB do
       }
     })
 
-    insert_nil_field_option = Keyword.get(opts, :insert_nil_fields, true)
-
-    do_not_insert_nil_fields =
-      insert_nil_field_option == false ||
-        RepoConfig.config_val(repo_meta.repo, :insert_nil_fields) == false
-
     table = schema_meta.source
 
     model = schema_meta.schema
     fields_map = Enum.into(fields, %{})
 
-    record =
-      if do_not_insert_nil_fields, do: fields_map, else: build_record_map(model, fields_map)
+    record = maybe_replace_empty_mapsets(fields_map, repo_meta.repo, opts)
+
+    insert_nil_fields = opt_config(:insert_nil_fields, repo_meta.repo, opts, true)
+    record = unless insert_nil_fields, do: record, else: build_record_map(model, record)
 
     ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.insert: local variables", %{
       "#{inspect(__MODULE__)}.insert-vars" => %{table: table, record: record}
@@ -1517,45 +1514,37 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  defp decode_item(item, types) do
+  defp decode_item(item, types, repo, opts) do
     types
     |> Enum.map(fn {field, type} ->
       Map.get(item, Atom.to_string(field), %{"NULL" => true})
       |> Dynamo.Decoder.decode()
-      |> decode_type(type)
+      |> decode_type(type, repo, opts)
     end)
   end
 
-  defp decode_item(%{"version" => version}) do
+  defp decode_item(%{"version" => version}, _repo, _opts) do
     [version |> Dynamo.Decoder.decode()]
   end
 
   # Decodes datetime, seemingly unhandled by ExAws Dynamo decoder
-  defp decode_type(val, type) do
-    if is_nil(val) do
-      val
-    else
-      case type do
-        t when t in [:utc_datetime_usec, :utc_datetime] ->
-          {:ok, dt, _offset} = DateTime.from_iso8601(val)
-          dt
+  defp decode_type(nil, DynamoDBSet, repo, opts), do: maybe_replace_nil_mapset(repo, opts)
 
-        t when t in [:naive_datetime_usec, :naive_datetime] ->
-          NaiveDateTime.from_iso8601!(val)
+  defp decode_type(nil, _type, _repo, _opts), do: nil
 
-        # Support for Ecto >= 3.5
-        {:parameterized, _, _} ->
-          decode_embed(val, type)
-
-        # Support for Ecto 3.0 <= 3.4
-        {:embed, _} ->
-          decode_embed(val, type)
-
-        _ ->
-          val
-      end
-    end
+  defp decode_type(val, type, _repo, _opts) when type in [:utc_datetime_usec, :utc_datetime] do
+    {:ok, dt, _offset} = DateTime.from_iso8601(val)
+    dt
   end
+
+  defp decode_type(val, type, _repo, _opts) when type in [:naive_datetime_usec, :naive_datetime],
+    do: NaiveDateTime.from_iso8601!(val)
+
+  defp decode_type(val, {:parameterized, _, _} = type, _repo, _opts), do: decode_embed(val, type)
+
+  defp decode_type(val, {:embed, _} = type, _repo, _opts), do: decode_embed(val, type)
+
+  defp decode_type(val, _type, _repo, _opts), do: val
 
   defp decode_embed(val, type) do
     case Ecto.Type.embedded_load(type, val, :json) do
@@ -1678,5 +1667,34 @@ defmodule Ecto.Adapters.DynamoDB do
     {:ok, file} = File.open(path, [:append])
     IO.binwrite(file, str)
     File.close(file)
+  end
+
+  defp opt_config(key, repo, opts, default \\ false) do
+    case Keyword.get(opts, key) do
+      nil -> RepoConfig.config_val(repo, key, default)
+      x -> x
+    end
+  end
+
+  defp maybe_replace_empty_mapsets(record, repo, opts) do
+    if opt_config(:empty_mapset_to_nil, repo, opts) do
+      record
+      |> Enum.map(fn {k, v} -> {k, empty_mapset_to_nil(v)} end)
+      |> Enum.into(%{})
+    else
+      record
+    end
+  end
+
+  defp empty_mapset_to_nil(%MapSet{} = m), do: if(MapSet.size(m) == 0, do: nil, else: m)
+
+  defp empty_mapset_to_nil(x), do: x
+
+  defp maybe_replace_nil_mapset(repo, opts) do
+    if opt_config(:nil_to_empty_mapset, repo, opts) do
+      MapSet.new()
+    else
+      nil
+    end
   end
 end

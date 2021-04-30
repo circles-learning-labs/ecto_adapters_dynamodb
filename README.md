@@ -359,6 +359,14 @@ Determines if fields in the changeset with `nil` values will be inserted as Dyna
 
 Determines if, during **Repo.update** or **Repo.update_all**, fields in the changeset with `nil` values will be removed from the record/s or set to the DynamoDB `null` value. This option is also available inline per query.
 
+**:empty_mapset_to_nil** :: boolean, *default:* `false`
+
+When a field contains a `DynamoDBSet` type and has a MapSet in it, by default the mapset must contain one or more values, otherwise an `insert` on the object will fail. This is due to DynamoDB not supporting empty sets. Setting this value to `true` will convert empty mapset values to `nil` before writting, allowing them to be written to DynamoDB as a null value.
+
+**:nil_to_empty_mapset** :: boolean, *default:* `false`
+
+When a field contains a `DynmamoDBSet` type, and the value in DynamoDB is null, setting this option causes the loaded value to be populated with an empty MapSet (the result of `MapSet.new()`) rather than being left as `nil`.
+
 #### Scan-related options
 
 **:scan_tables** :: [string], *default:* `[]`

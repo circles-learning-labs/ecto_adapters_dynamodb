@@ -69,30 +69,80 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert get_result == insert_result
     end
 
-    test ":insert_nil_fields option" do
-      planet_1 = %Planet{
+    test "without :insert_nil_fields option" do
+      planet = %Planet{
         name: "Earth",
         mass: 1
       }
 
-      planet_2 = %Planet{
-        name: "Venus",
-        mass: 2
-      }
-
-      {:ok, earth} = TestRepo.insert(planet_1, insert_nil_fields: false)
-      {:ok, venus} = TestRepo.insert(planet_2)
+      {:ok, earth} = TestRepo.insert(planet)
 
       %{"Item" => earth_result} =
         ExAws.Dynamo.get_item("test_planet", %{id: earth.id, name: earth.name})
         |> request!()
 
+      assert Map.has_key?(earth_result, "moons")
+    end
+
+    test ":insert_nil_fields option" do
+      planet = %Planet{
+        name: "Venus",
+        mass: 2
+      }
+
+      {:ok, venus} = TestRepo.insert(planet, insert_nil_fields: false)
+
       %{"Item" => venus_result} =
         ExAws.Dynamo.get_item("test_planet", %{id: venus.id, name: venus.name})
         |> request!()
 
-      refute Map.has_key?(earth_result, "moons")
-      assert Map.has_key?(venus_result, "moons")
+      refute Map.has_key?(venus_result, "moons")
+    end
+  end
+
+  describe "empty MapSet handling" do
+    test "without empty_mapset_to_nil" do
+      assert_raise RuntimeError, "Cannot determine a proper data type for an empty MapSet", fn ->
+        TestRepo.insert!(base_person_record())
+      end
+    end
+
+    test "empty_mapset_to_nil" do
+      item = TestRepo.insert!(base_person_record(), empty_mapset_to_nil: true)
+
+      %{"Item" => result} =
+        "test_person"
+        |> ExAws.Dynamo.get_item(%{id: item.id})
+        |> request!()
+
+      assert Map.has_key?(result, "tags_to_tags")
+      assert result["tags_to_tags"] == %{"NULL" => true}
+    end
+
+    test "without nil_to_empty_mapset" do
+      item = TestRepo.insert!(base_person_record(), empty_mapset_to_nil: true)
+
+      result = TestRepo.get(Person, item.id)
+
+      assert is_nil(result.tags_to_tags)
+    end
+
+    test "with nil_to_empty_mapset" do
+      item = TestRepo.insert!(base_person_record(), empty_mapset_to_nil: true)
+
+      result = TestRepo.get(Person, item.id, nil_to_empty_mapset: true)
+
+      assert MapSet.equal?(result.tags_to_tags, MapSet.new())
+    end
+
+    defp base_person_record() do
+      %Person{
+        first_name: "Update",
+        last_name: "Test",
+        age: 12,
+        email: "update@test.com",
+        tags_to_tags: MapSet.new()
+      }
     end
   end
 
