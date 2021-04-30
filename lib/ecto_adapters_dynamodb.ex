@@ -796,7 +796,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   @impl Ecto.Adapter.Schema
-  def insert_all(%{repo: repo}, schema_meta, field_list, rows, on_conflict, return_sources, opts) do
+  def insert_all(%{repo: repo}, schema_meta, field_list, rows, on_conflict, return_sources, _placeholders, opts) do
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.insert_all", %{
       "#{inspect(__MODULE__)}.insert_all-params" => %{
         repo: repo,
