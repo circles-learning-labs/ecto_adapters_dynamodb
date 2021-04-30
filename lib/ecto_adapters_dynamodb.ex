@@ -1540,8 +1540,10 @@ defmodule Ecto.Adapters.DynamoDB do
   defp decode_type(val, type, _repo, _opts) when type in [:naive_datetime_usec, :naive_datetime],
     do: NaiveDateTime.from_iso8601!(val)
 
+  # Support for Ecto >= 3.5
   defp decode_type(val, {:parameterized, _, _} = type, _repo, _opts), do: decode_embed(val, type)
 
+  # Support for Ecto 3.0-3.4
   defp decode_type(val, {:embed, _} = type, _repo, _opts), do: decode_embed(val, type)
 
   defp decode_type(val, _type, _repo, _opts), do: val
