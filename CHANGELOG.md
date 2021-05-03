@@ -2,6 +2,10 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.1.1
+
+- Support for `ecto_sql` version 3.6.
+
 ## v3.1.0
 
 - Add `:nil_to_empty_mapset` and `:empty_mapset_to_nil` configuration options.
