@@ -361,7 +361,7 @@ Determines if, during **Repo.update** or **Repo.update_all**, fields in the chan
 
 **:empty_mapset_to_nil** :: boolean, *default:* `false`
 
-When a field contains a `DynamoDBSet` type and has a MapSet in it, by default the mapset must contain one or more values, otherwise an `insert` on the object will fail. This is due to DynamoDB not supporting empty sets. Setting this value to `true` will convert empty mapset values to `nil` before writting, allowing them to be written to DynamoDB as a null value.
+When a field contains a `DynamoDBSet` type and has a MapSet in it, by default the mapset must contain one or more values, otherwise an `insert` on the object will fail. This is due to DynamoDB not supporting empty sets. Setting this value to `true` will convert empty mapset values to `nil` before writing, allowing them to be written to DynamoDB as a null value.
 
 **:nil_to_empty_mapset** :: boolean, *default:* `false`
 
