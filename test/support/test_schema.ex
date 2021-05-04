@@ -34,7 +34,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
 
   def changeset(person, params \\ %{}) do
     person
-    |> Ecto.Changeset.cast(params, [:first_name, :last_name, :age, :email])
+    |> Ecto.Changeset.cast(params, [:first_name, :last_name, :age, :email, :tags_to_tags])
     |> Ecto.Changeset.validate_required([:first_name, :last_name])
     |> Ecto.Changeset.unique_constraint(:id)
   end
