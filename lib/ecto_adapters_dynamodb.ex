@@ -1191,7 +1191,7 @@ defmodule Ecto.Adapters.DynamoDB do
   defp maybe_list(l) when is_list(l), do: l
   defp maybe_list(_), do: []
 
-  defp format_nil_or_val(_k, v, _opts) when is_nil(v), do: %{"NULL" => "true"}
+  defp format_nil_or_val(_k, nil, _opts), do: %{"NULL" => "true"}
   defp format_nil_or_val(k, v, opts), do: format_val(k, v, opts)
 
   defp format_val(k, v, opts) do
