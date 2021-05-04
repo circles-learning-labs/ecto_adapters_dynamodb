@@ -1176,19 +1176,23 @@ defmodule Ecto.Adapters.DynamoDB do
     # If the value is nil and the :remove_nil_fields option is set,
     # we're removing this attribute, not updating it, so filter out any such fields:
 
-    if remove_rather_than_set_to_null do
-      for {k, v} <- fields, !is_nil(v), do: {k, format_val(k, v, opts)}
-    else
-      for {k, v} <- fields, do: {k, format_nil(k, v, opts)}
-    end
+    fields
+    |> maybe_replace_empty_mapsets(repo, opts)
+    |> Enum.reduce([], &format_update_field(&1, &2, remove_rather_than_set_to_null, opts))
     |> Enum.filter(fn {x, _} -> not Keyword.has_key?(maybe_list(opts[:pull]), x) end)
   end
+
+  defp format_update_field({_k, nil}, acc, true, _opts), do: acc
+  defp format_update_field({k, v}, acc, true, opts), do: [{k, format_val(k, v, opts)} | acc]
+
+  defp format_update_field({k, v}, acc, false, opts),
+    do: [{k, format_nil_or_val(k, v, opts)} | acc]
 
   defp maybe_list(l) when is_list(l), do: l
   defp maybe_list(_), do: []
 
-  defp format_nil(_k, v, _opts) when is_nil(v), do: %{"NULL" => "true"}
-  defp format_nil(k, v, opts), do: format_val(k, v, opts)
+  defp format_nil_or_val(_k, v, _opts) when is_nil(v), do: %{"NULL" => "true"}
+  defp format_nil_or_val(k, v, opts), do: format_val(k, v, opts)
 
   defp format_val(k, v, opts) do
     case opts[:push][k] do

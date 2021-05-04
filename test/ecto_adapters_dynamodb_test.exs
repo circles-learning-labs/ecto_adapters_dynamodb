@@ -135,6 +135,26 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert MapSet.equal?(result.tags_to_tags, MapSet.new())
     end
 
+    test "update with nil_to_empty_mapset" do
+      item =
+        %{base_person_record() | tags_to_tags: MapSet.new(["a", "b"])}
+        |> TestRepo.insert!()
+        |> Person.changeset(%{tags_to_tags: MapSet.new()})
+        |> TestRepo.update!(empty_mapset_to_nil: true)
+
+      result = TestRepo.get(Person, item.id, nil_to_empty_mapset: true)
+      assert MapSet.equal?(result.tags_to_tags, MapSet.new())
+    end
+
+    test "update without nil_to_empty_mapset" do
+      assert_raise RuntimeError, "Cannot determine a proper data type for an empty MapSet", fn ->
+        %{base_person_record() | tags_to_tags: MapSet.new(["a", "b"])}
+        |> TestRepo.insert!()
+        |> Person.changeset(%{tags_to_tags: MapSet.new()})
+        |> TestRepo.update!()
+      end
+    end
+
     defp base_person_record() do
       %Person{
         first_name: "Update",
