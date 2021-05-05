@@ -2,6 +2,10 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+@@ v3.1.2
+
+- Support update operations for the `:empty_map_set_to_nil` option.
+
 ## v3.1.1
 
 - Support for `ecto_sql` version 3.6.
