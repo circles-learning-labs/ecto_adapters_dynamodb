@@ -1516,6 +1516,9 @@ defmodule Ecto.Adapters.DynamoDB do
 
   defp construct_types_from_select_fields(%Ecto.Query.SelectExpr{expr: expr}) do
     case expr do
+      {:{}, [], clauses = [{{:., [type: type], [{:&, [], [0]}, field]}, [], []} | _]} ->
+        for {{:., [type: type], [{:&, [], [0]}, field]}, [], []} <- clauses, do: {field, type}
+
       {_, _, [0]} ->
         []
 
