@@ -823,6 +823,33 @@ defmodule Ecto.Adapters.DynamoDB.Test do
            |> length() == 0
   end
 
+  test "tuple argument for select" do
+    id = "person:tuple_argument_for_select"
+    email = "hj@test.com"
+
+    TestRepo.insert(%Person{
+      id: id,
+      first_name: "heebie",
+      last_name: "jeebie",
+      email: email,
+      age: 12553
+    })
+
+    assert from(p in Person,
+             where: p.first_name == "heebie",
+             select: {p.email}
+           )
+           |> TestRepo.all() == [{email}]
+
+    assert from(p in Person,
+             where: p.first_name == "heebie",
+             select: {p.id, p.email}
+           )
+           |> TestRepo.all() == [{id, email}]
+  end
+
+  # Private
+
   defp make_list_of_people_for_batch_insert(total_records) do
     for i <- 0..total_records, i > 0 do
       id_string = :crypto.strong_rand_bytes(16) |> Base.url_encode64() |> binary_part(0, 16)
