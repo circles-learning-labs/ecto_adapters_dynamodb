@@ -69,6 +69,33 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert get_result == insert_result
     end
 
+    test "handles embedded records with parameterized fields" do
+      {:ok, insert_result} =
+        TestRepo.insert(%Person{
+          id: "person:address:parameterized_test",
+          first_name: "Ringo",
+          last_name: "Starr",
+          email: "ringo@test.com",
+          age: 76,
+          country: "England",
+          type: :bar,
+          addresses: [
+            %Address{
+              street_number: 245,
+              street_name: "W 17th St",
+              type: :foo
+            },
+            %Address{
+              street_number: 1385,
+              street_name: "Broadway"
+            }
+          ]
+        })
+
+      get_result = TestRepo.get(Person, insert_result.id)
+      assert get_result == insert_result
+    end
+
     test "without :insert_nil_fields option" do
       planet = %Planet{
         name: "Earth",

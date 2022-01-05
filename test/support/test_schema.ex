@@ -5,6 +5,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Address do
   embedded_schema do
     field(:street_number, :integer)
     field(:street_name, :string)
+    field(:type, Ecto.Enum, values: [:foo, :bar])
 
     timestamps()
   end
@@ -27,6 +28,7 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Person do
     field(:country, :string, source: :data1)
     field(:tags_to_tags, DynamoDBSet)
     field(:nil_to_tags, DynamoDBSet)
+    field(:type, Ecto.Enum, values: [foo: 1, bar: 2])
     embeds_many(:addresses, Address)
 
     timestamps()
