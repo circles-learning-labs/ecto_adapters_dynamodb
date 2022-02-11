@@ -1560,7 +1560,8 @@ defmodule Ecto.Adapters.DynamoDB do
     do: NaiveDateTime.from_iso8601!(val)
 
   # Support for Ecto >= 3.5
-  defp decode_type(val, {:parameterized, _, _} = type, _repo, _opts), do: decode_embed(val, type)
+  defp decode_type(val, {:parameterized, Ecto.Embedded, _} = type, _repo, _opts),
+    do: decode_embed(val, type)
 
   # Support for Ecto 3.0-3.4
   defp decode_type(val, {:embed, _} = type, _repo, _opts), do: decode_embed(val, type)
@@ -1570,7 +1571,7 @@ defmodule Ecto.Adapters.DynamoDB do
   defp decode_embed(val, type) do
     case Ecto.Type.embedded_load(type, val, :json) do
       {:ok, decoded_value} ->
-        decoded_value
+        handle_decoded_embeded(decoded_value)
 
       :error ->
         ecto_dynamo_log(
@@ -1581,6 +1582,31 @@ defmodule Ecto.Adapters.DynamoDB do
         nil
     end
   end
+
+  defp handle_decoded_embeded(embedded) when is_list(embedded),
+    do: Enum.map(embedded, &unload_parameterized_fields/1)
+
+  defp handle_decoded_embeded(embedded), do: unload_parameterized_fields(embedded)
+
+  # Rebuilds the embedded schema unloading the parameterized fields, so the parameterized
+  # type can load it in the ecto schema.
+  defp unload_parameterized_fields(%schema{} = embedded) do
+    fields = schema.__schema__(:fields)
+
+    Enum.reduce(fields, embedded, fn field, acc ->
+      field_type = schema.__schema__(:type, field)
+      field_value = Map.get(embedded, field)
+
+      Map.put(acc, field, maybe_dump_field(field_value, field_type))
+    end)
+  end
+
+  defp maybe_dump_field(val, {:parameterized, _type, _params} = field_type) do
+    {:ok, unloaded_value} = Ecto.Type.dump(field_type, val)
+    unloaded_value
+  end
+
+  defp maybe_dump_field(val, _field_type), do: val
 
   # We found one instance where DynamoDB's error message could
   # be more instructive - when trying to set an indexed field to something
