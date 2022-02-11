@@ -2,7 +2,12 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
-@@ v3.1.2
+## v3.1.3
+
+- Support `:empty_mapset_to_nil` for `insert_all` function
+- Fix error decoding parameterized field on schema load
+
+## v3.1.2
 
 - Support update operations for the `:empty_map_set_to_nil` option.
 
