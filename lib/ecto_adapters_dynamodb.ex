@@ -829,7 +829,10 @@ defmodule Ecto.Adapters.DynamoDB do
 
     prepared_rows =
       Enum.map(rows, fn row ->
-        mapped_fields = Enum.into(row, %{})
+        mapped_fields =
+          row
+          |> Enum.into(%{})
+          |> maybe_replace_empty_mapsets(repo, opts)
 
         record =
           if do_not_insert_nil_fields,

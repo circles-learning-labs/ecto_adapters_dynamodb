@@ -101,13 +101,13 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   end
 
   describe "empty MapSet handling" do
-    test "without empty_mapset_to_nil" do
+    test "Repo.insert without empty_mapset_to_nil" do
       assert_raise RuntimeError, "Cannot determine a proper data type for an empty MapSet", fn ->
         TestRepo.insert!(base_person_record())
       end
     end
 
-    test "empty_mapset_to_nil" do
+    test "Repo.insert with empty_mapset_to_nil" do
       item = TestRepo.insert!(base_person_record(), empty_mapset_to_nil: true)
 
       %{"Item" => result} =
@@ -119,7 +119,26 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert result["tags_to_tags"] == %{"NULL" => true}
     end
 
-    test "without nil_to_empty_mapset" do
+    test "Repo.insert_all without empty_mapset_to_nil" do
+      assert_raise RuntimeError, "Cannot determine a proper data type for an empty MapSet", fn ->
+        TestRepo.insert_all(Person, [base_person_struct()])
+      end
+    end
+
+    test "Repo.insert_all with empty_mapset_to_nil" do
+      struct = base_person_struct()
+      {1, nil} = TestRepo.insert_all(Person, [struct], empty_mapset_to_nil: true)
+
+      %{"Item" => result} =
+        "test_person"
+        |> ExAws.Dynamo.get_item(%{id: struct.id})
+        |> request!()
+
+      assert Map.has_key?(result, "tags_to_tags")
+      assert result["tags_to_tags"] == %{"NULL" => true}
+    end
+
+    test "Repo.get without nil_to_empty_mapset" do
       item = TestRepo.insert!(base_person_record(), empty_mapset_to_nil: true)
 
       result = TestRepo.get(Person, item.id)
@@ -127,7 +146,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       assert is_nil(result.tags_to_tags)
     end
 
-    test "with nil_to_empty_mapset" do
+    test "Repo.get with nil_to_empty_mapset" do
       item = TestRepo.insert!(base_person_record(), empty_mapset_to_nil: true)
 
       result = TestRepo.get(Person, item.id, nil_to_empty_mapset: true)
@@ -153,6 +172,13 @@ defmodule Ecto.Adapters.DynamoDB.Test do
         |> Person.changeset(%{tags_to_tags: MapSet.new()})
         |> TestRepo.update!()
       end
+    end
+
+    defp base_person_struct() do
+      base_person_record()
+      |> Map.from_struct()
+      |> Map.put(:id, "test:id")
+      |> Map.delete(:__meta__)
     end
 
     defp base_person_record() do
