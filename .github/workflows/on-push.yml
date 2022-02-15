@@ -20,4 +20,6 @@ jobs:
       - run: mix compile
       - run: mix format --check-formatted
         if: matrix.elixir == '1.13.3' # Only check formatting with the latest verison
+      - run: mix dialyzer
+        if: matrix.elixir == '1.13.3' # Only check dialyzer with latest version
       - run: mix test

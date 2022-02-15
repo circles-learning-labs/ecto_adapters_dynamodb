@@ -9,7 +9,10 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      dialyzer: [plt_add_apps: [:ecto]],
+      dialyzer: [
+        ignore_warnings: "dialyzer_ignore.exs",
+        plt_add_apps: [:ecto]
+      ],
       docs: [main: "readme", extras: ["README.md"]],
       description:
         "A DynamoDB adapter for Ecto supporting basic queries. See https://github.com/circles-learning-labs/ecto_adapters_dynamodb for detailed instructions.",
@@ -58,7 +61,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
       {:ex_aws_dynamo, "~> 4.0"},
       {:jason, "~> 1.0"},
       {:hackney, "~> 1.6"},
-      {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
+      {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
       {:eqc_ex, "~> 1.4.2", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.28.0", only: :dev, runtime: false}
     ]
