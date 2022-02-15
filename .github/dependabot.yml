@@ -6,22 +6,3 @@ updates:
   schedule:
     interval: daily
   open-pull-requests-limit: 10
-  ignore:
-  - dependency-name: ex_doc
-    versions:
-    - 0.24.0
-    - 0.24.1
-    - 0.24.2
-  - dependency-name: ecto_sql
-    versions:
-    - 3.5.3
-    - 3.6.0
-  - dependency-name: hackney
-    versions:
-    - 1.17.1
-    - 1.17.2
-    - 1.17.3
-    - 1.17.4
-  - dependency-name: ex_aws_dynamo
-    versions:
-    - 4.0.0

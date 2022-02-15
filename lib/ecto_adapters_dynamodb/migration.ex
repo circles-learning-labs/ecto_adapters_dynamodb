@@ -190,9 +190,17 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   defp execute_ddl(repo, {:drop, %Ecto.Migration.Table{} = table}) do
-    ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.execute_ddl: drop: removing table", %{
-      table_name: table.name
-    })
+    execute_ddl(repo, {:drop, table, []})
+  end
+
+  defp execute_ddl(repo, {:drop, %Ecto.Migration.Table{} = table, opts}) do
+    ecto_dynamo_log(
+      :info,
+      "#{inspect(__MODULE__)}.execute_ddl: drop: removing table, opts (ignored): #{inspect(opts)}",
+      %{
+        table_name: table.name
+      }
+    )
 
     Dynamo.delete_table(table.name) |> ExAws.request!(ex_aws_config(repo))
 
@@ -200,9 +208,16 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   defp execute_ddl(repo, {:drop_if_exists, %Ecto.Migration.Table{} = table}) do
+    execute_ddl(repo, {:drop_if_exists, table, []})
+  end
+
+  defp execute_ddl(repo, {:drop_if_exists, %Ecto.Migration.Table{} = table, opts}) do
     %{"TableNames" => table_list} = Dynamo.list_tables() |> ExAws.request!(ex_aws_config(repo))
 
-    ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.execute_ddl: drop_if_exists (table)")
+    ecto_dynamo_log(
+      :info,
+      "#{inspect(__MODULE__)}.execute_ddl: drop_if_exists (table) opts (ignored): #{inspect(opts)}"
+    )
 
     if Enum.member?(table_list, table.name) do
       ecto_dynamo_log(
