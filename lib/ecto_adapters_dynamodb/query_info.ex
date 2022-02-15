@@ -3,6 +3,13 @@ defmodule Ecto.Adapters.DynamoDB.QueryInfo do
   An Elixir agent to optionally record DynamoDB query information (like LastEvaluatedKey) that's not part of expected Ecto return values.
   """
 
+  def child_spec(_) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, []}
+    }
+  end
+
   def start_link, do: Agent.start_link(fn -> %{} end, name: __MODULE__)
 
   @doc """
