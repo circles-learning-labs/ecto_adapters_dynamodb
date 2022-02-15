@@ -83,6 +83,9 @@ defmodule Ecto.Adapters.DynamoDB do
     raise "#{inspect(__MODULE__)}.checkout: #{inspect(__MODULE__)} does not currently support checkout"
   end
 
+  @impl Ecto.Adapter
+  def checked_out?(_meta), do: false
+
   @impl Ecto.Adapter.Queryable
   def stream(_adapter_meta, _query_meta, _query, _params, _opts) do
     # TODO - consider adding support for this? See https://github.com/circles-learning-labs/ecto_adapters_dynamodb/issues/32
@@ -229,9 +232,7 @@ defmodule Ecto.Adapters.DynamoDB do
       if table == migration_source do
         ecto_dynamo_log(
           :debug,
-          "#{inspect(__MODULE__)}.execute: table name corresponds with migration source: #{
-            inspect(migration_source)
-          }. Setting options for recursive scan.",
+          "#{inspect(__MODULE__)}.execute: table name corresponds with migration source: #{inspect(migration_source)}. Setting options for recursive scan.",
           %{}
         )
 
@@ -1071,17 +1072,13 @@ defmodule Ecto.Adapters.DynamoDB do
             if items == [],
               do:
                 raise(
-                  "#{inspect(__MODULE__)}.#{action} error: no results found for record: #{
-                    inspect(filters)
-                  }"
+                  "#{inspect(__MODULE__)}.#{action} error: no results found for record: #{inspect(filters)}"
                 )
 
             if length(items) > 1,
               do:
                 raise(
-                  "#{inspect(__MODULE__)}.#{action} error: more than one result found for record: #{
-                    inspect(filters)
-                  } Please consider using the adapter's :range_key custom inline option (see README)."
+                  "#{inspect(__MODULE__)}.#{action} error: more than one result found for record: #{inspect(filters)} Please consider using the adapter's :range_key custom inline option (see README)."
                 )
 
             for {field, key_map} <- Map.to_list(hd(items)) do
@@ -1140,17 +1137,13 @@ defmodule Ecto.Adapters.DynamoDB do
   defp extract_update_params([a], _action_atom, _params),
     do:
       error(
-        "#{inspect(__MODULE__)}.extract_update_params: Updates is either missing the :expr key or does not contain a struct or map: #{
-          inspect(a)
-        }"
+        "#{inspect(__MODULE__)}.extract_update_params: Updates is either missing the :expr key or does not contain a struct or map: #{inspect(a)}"
       )
 
   defp extract_update_params(unsupported, _action_atom, _params),
     do:
       error(
-        "#{inspect(__MODULE__)}.extract_update_params: unsupported parameter construction. #{
-          inspect(unsupported)
-        }"
+        "#{inspect(__MODULE__)}.extract_update_params: unsupported parameter construction. #{inspect(unsupported)}"
       )
 
   # Ecto does not support push pull for types other than array.
@@ -1477,9 +1470,7 @@ defmodule Ecto.Adapters.DynamoDB do
   defp parse_raw_expr_mixed_list_error(raw_expr_mixed_list),
     do:
       raise(
-        "#{inspect(__MODULE__)}.parse_raw_expr_mixed_list parse error. We currently only support the Ecto fragments of the form, 'where: fragment(\"? between ? and ?\", FIELD_AS_VARIABLE, VALUE_AS_VARIABLE, VALUE_AS_VARIABLE)'; and 'where: fragment(\"begins_with(?, ?)\", FIELD_AS_VARIABLE, VALUE_AS_VARIABLE)'. Received: #{
-          inspect(raw_expr_mixed_list)
-        }"
+        "#{inspect(__MODULE__)}.parse_raw_expr_mixed_list parse error. We currently only support the Ecto fragments of the form, 'where: fragment(\"? between ? and ?\", FIELD_AS_VARIABLE, VALUE_AS_VARIABLE, VALUE_AS_VARIABLE)'; and 'where: fragment(\"begins_with(?, ?)\", FIELD_AS_VARIABLE, VALUE_AS_VARIABLE)'. Received: #{inspect(raw_expr_mixed_list)}"
       )
 
   defp get_op_clause(left, right, params) do
@@ -1519,7 +1510,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   defp construct_types_from_select_fields(%Ecto.Query.SelectExpr{expr: expr}) do
     case expr do
-      {:{}, [], clauses = [{{:., [type: type], [{:&, [], [0]}, field]}, [], []} | _]} ->
+      {:{}, [], clauses = [{{:., [type: _type], [{:&, [], [0]}, _field]}, [], []} | _]} ->
         for {{:., [type: type], [{:&, [], [0]}, field]}, [], []} <- clauses, do: {field, type}
 
       {_, _, [0]} ->
@@ -1643,11 +1634,7 @@ defmodule Ecto.Adapters.DynamoDB do
             {:error, error_name}
 
           forbidden_insert_on_indexed_field ->
-            raise "The following request error could be related to attempting to insert an empty string or attempting to insert a type other than a string or number on an indexed field. Indexed fields: #{
-                    inspect(indexed_fields)
-                  }. Records: #{inspect(params.records)}.\n\nExAws Request Error! #{
-                    inspect(error)
-                  }"
+            raise "The following request error could be related to attempting to insert an empty string or attempting to insert a type other than a string or number on an indexed field. Indexed fields: #{inspect(indexed_fields)}. Records: #{inspect(params.records)}.\n\nExAws Request Error! #{inspect(error)}"
 
           true ->
             raise ExAws.Error, message: "ExAws Request Error! #{inspect(error)}"
@@ -1668,9 +1655,7 @@ defmodule Ecto.Adapters.DynamoDB do
       d = DateTime.utc_now()
 
       formatted_message =
-        "#{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC [Ecto dynamo #{level}] #{
-          inspect(message)
-        }"
+        "#{d.year}-#{d.month}-#{d.day} #{d.hour}:#{d.minute}:#{d.second} UTC [Ecto dynamo #{level}] #{inspect(message)}"
 
       {:ok, log_message} =
         Jason.encode(%{message: formatted_message, attributes: chisel(attributes, depth)})

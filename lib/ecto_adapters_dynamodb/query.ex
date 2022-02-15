@@ -421,9 +421,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   @spec construct_conditional_statement({key, {term, query_op} | {[term], [query_op]}}) ::
           String.t()
   defp construct_conditional_statement({field, {[_val1, _val2], [op1, op2]}}) do
-    "##{field} #{to_string(op1)} :#{field <> "_val1"} and ##{field} #{to_string(op2)} :#{
-      field <> "_val2"
-    }"
+    "##{field} #{to_string(op1)} :#{field <> "_val1"} and ##{field} #{to_string(op2)} :#{field <> "_val2"}"
   end
 
   defp construct_conditional_statement({field, {_val, :is_nil}}) do
@@ -596,9 +594,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       true ->
         raise ArgumentError,
           message:
-            "#{inspect(__MODULE__)}.get_matching_secondary_index/4 error: :index option does not match existing secondary index names. Did you mean #{
-              nearest_index_name
-            }?"
+            "#{inspect(__MODULE__)}.get_matching_secondary_index/4 error: :index option does not match existing secondary index names. Did you mean #{nearest_index_name}?"
 
       false ->
         index_option_error(index_option, [])
@@ -793,9 +789,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   defp maybe_scan_error(table) do
     raise ArgumentError,
       message:
-        "#{inspect(__MODULE__)}.maybe_scan/3 error: :scan option or configuration have not been specified, and could not confirm the table, #{
-          inspect(table)
-        }, as listed for scan or caching in the application's configuration. Please see README file for details."
+        "#{inspect(__MODULE__)}.maybe_scan/3 error: :scan option or configuration have not been specified, and could not confirm the table, #{inspect(table)}, as listed for scan or caching in the application's configuration. Please see README file for details."
   end
 
   @typep fetch_func :: (table_name, keyword -> ExAws.Operation.JSON.t())

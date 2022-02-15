@@ -381,17 +381,13 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       if time_waited + to_wait <= max_wait(repo) do
         ecto_dynamo_log(
           :info,
-          "#{inspect(__MODULE__)}.update_table_recursive: waiting #{inspect(to_wait)} milliseconds (waited so far: #{
-            inspect(time_waited)
-          } ms)"
+          "#{inspect(__MODULE__)}.update_table_recursive: waiting #{inspect(to_wait)} milliseconds (waited so far: #{inspect(time_waited)} ms)"
         )
 
         :timer.sleep(to_wait)
         update_table_recursive(repo, table, data, to_wait, time_waited + to_wait)
       else
-        raise "Wait exceeding configured max wait time, stopping migration at update table #{
-                inspect(table.name)
-              }...\nData: #{inspect(data)}"
+        raise "Wait exceeding configured max wait time, stopping migration at update table #{inspect(table.name)}...\nData: #{inspect(data)}"
       end
     else
       # Before passinng the index data to Dynamo, do a little extra preparation:
@@ -440,17 +436,13 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
               if time_waited + to_wait <= max_wait(repo) do
                 ecto_dynamo_log(
                   :info,
-                  "#{inspect(__MODULE__)}.update_table_recursive: #{inspect(error)} ... waiting #{
-                    inspect(to_wait)
-                  } milliseconds (waited so far: #{inspect(time_waited)} ms)"
+                  "#{inspect(__MODULE__)}.update_table_recursive: #{inspect(error)} ... waiting #{inspect(to_wait)} milliseconds (waited so far: #{inspect(time_waited)} ms)"
                 )
 
                 :timer.sleep(to_wait)
                 update_table_recursive(repo, table, data, to_wait, time_waited + to_wait)
               else
-                raise "#{inspect(error)} ... wait exceeding configured max wait time, stopping migration at update table #{
-                        inspect(table.name)
-                      }...\nData: #{inspect(data)}"
+                raise "#{inspect(error)} ... wait exceeding configured max wait time, stopping migration at update table #{inspect(table.name)}...\nData: #{inspect(data)}"
               end
 
             {:error, error_tuple} ->
@@ -599,9 +591,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         if time_waited + to_wait <= max_wait(repo) do
           ecto_dynamo_log(
             :info,
-            "#{inspect(__MODULE__)}.create_table_recursive: #{inspect(error)} ... waiting #{
-              inspect(to_wait)
-            } milliseconds (waited so far: #{inspect(time_waited)} ms)"
+            "#{inspect(__MODULE__)}.create_table_recursive: #{inspect(error)} ... waiting #{inspect(to_wait)} milliseconds (waited so far: #{inspect(time_waited)} ms)"
           )
 
           :timer.sleep(to_wait)
@@ -620,9 +610,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
             time_waited + to_wait
           )
         else
-          raise "#{inspect(error)} ... wait exceeding configured max wait time, stopping migration at create table #{
-                  inspect(table_name)
-                }..."
+          raise "#{inspect(error)} ... wait exceeding configured max wait time, stopping migration at create table #{inspect(table_name)}..."
         end
 
       {:error, error_tuple} ->
@@ -689,9 +677,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     if is_nil(hash_key),
       do:
         raise(
-          "#{inspect(__MODULE__)}.build_key_schema error: no primary key was found for table #{
-            inspect(table_name)
-          }. Please specify one primary key in migration."
+          "#{inspect(__MODULE__)}.build_key_schema error: no primary key was found for table #{inspect(table_name)}. Please specify one primary key in migration."
         )
 
     key_definitions = for {field, type} <- key_list, do: {field, convert_type(type)}
