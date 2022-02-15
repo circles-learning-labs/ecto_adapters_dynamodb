@@ -2,6 +2,13 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.2.0
+
+- Fix migrations support for ecto_sql 3.7.2
+- Fix warnings on Elixir 1.13
+- Raise minimum Elixir version to 1.10
+- Add dialyzer run to CI workflow
+
 ## v3.1.3
 
 - Support `:empty_mapset_to_nil` for `insert_all` function
