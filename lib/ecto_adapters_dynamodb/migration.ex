@@ -270,6 +270,8 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       |> Map.merge(
         if create == [], do: %{}, else: %{attribute_definitions: attribute_definitions}
       )
+      |> maybe_add_opt(:stream_enabled, table.options[:stream_enabled])
+      |> maybe_add_opt(:stream_view_type, table.options[:stream_view_type])
 
     result = update_table_recursive(repo, table, data, initial_wait(repo), 0)
     set_ttl(repo, table.name, table.options)
@@ -395,77 +397,82 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       # - if the user is running against Dynamo's local development version (in config, dynamodb_local: true),
       #   we may need to add provisioned_throughput to indexes to handle situations where the local table is provisioned
       #   but the index will be added to a production table that is on-demand.
-      requests = make_safe_index_requests(repo, data, table)
-      prepared_data = maybe_default_throughput_local(repo, requests, table_info)
+      prepared_data =
+        data
+        |> make_safe_index_requests(repo, table)
+        |> maybe_add_opt(:stream_enabled, data[:stream_enabled])
+        |> maybe_add_opt(:stream_view_type, data[:stream_view_type])
+        |> maybe_default_throughput_local(repo, table_info)
+        |> Enum.reject(fn {_, v} -> Enum.member?([[], %{}, nil], v) end)
 
-      case prepared_data[:global_secondary_index_updates] do
-        [] ->
-          {:ok, []}
+      if Enum.count(prepared_data) != 0 do
+        result =
+          table.name
+          |> Dynamo.update_table(prepared_data)
+          |> ExAws.request(ex_aws_config(repo))
 
-        _ ->
-          result =
-            Dynamo.update_table(table.name, prepared_data) |> ExAws.request(ex_aws_config(repo))
+        ecto_dynamo_log(
+          :info,
+          "#{inspect(__MODULE__)}.update_table_recursive: DynamoDB/ExAws response",
+          %{"#{inspect(__MODULE__)}.update_table_recursive-result" => inspect(result)}
+        )
 
-          ecto_dynamo_log(
-            :info,
-            "#{inspect(__MODULE__)}.update_table_recursive: DynamoDB/ExAws response",
-            %{"#{inspect(__MODULE__)}.update_table_recursive-result" => inspect(result)}
-          )
+        case result do
+          {:ok, _} ->
+            ecto_dynamo_log(
+              :info,
+              "#{inspect(__MODULE__)}.update_table_recursive: table altered successfully.",
+              %{table_name: table.name}
+            )
 
-          case result do
-            {:ok, _} ->
+            {:ok, []}
+
+          {:error, {error, _message}}
+          when error in [
+                 "LimitExceededException",
+                 "ProvisionedThroughputExceededException",
+                 "ThrottlingException"
+               ] ->
+            to_wait =
+              if time_waited == 0,
+                do: wait_interval,
+                else: round(:math.pow(wait_interval, wait_exponent(repo)))
+
+            if time_waited + to_wait <= max_wait(repo) do
               ecto_dynamo_log(
                 :info,
-                "#{inspect(__MODULE__)}.update_table_recursive: table altered successfully.",
-                %{table_name: table.name}
+                "#{inspect(__MODULE__)}.update_table_recursive: #{inspect(error)} ... waiting #{inspect(to_wait)} milliseconds (waited so far: #{inspect(time_waited)} ms)"
               )
 
-              {:ok, []}
+              :timer.sleep(to_wait)
+              update_table_recursive(repo, table, data, to_wait, time_waited + to_wait)
+            else
+              raise "#{inspect(error)} ... wait exceeding configured max wait time, stopping migration at update table #{inspect(table.name)}...\nData: #{inspect(data)}"
+            end
 
-            {:error, {error, _message}}
-            when error in [
-                   "LimitExceededException",
-                   "ProvisionedThroughputExceededException",
-                   "ThrottlingException"
-                 ] ->
-              to_wait =
-                if time_waited == 0,
-                  do: wait_interval,
-                  else: round(:math.pow(wait_interval, wait_exponent(repo)))
-
-              if time_waited + to_wait <= max_wait(repo) do
-                ecto_dynamo_log(
-                  :info,
-                  "#{inspect(__MODULE__)}.update_table_recursive: #{inspect(error)} ... waiting #{inspect(to_wait)} milliseconds (waited so far: #{inspect(time_waited)} ms)"
-                )
-
-                :timer.sleep(to_wait)
-                update_table_recursive(repo, table, data, to_wait, time_waited + to_wait)
-              else
-                raise "#{inspect(error)} ... wait exceeding configured max wait time, stopping migration at update table #{inspect(table.name)}...\nData: #{inspect(data)}"
-              end
-
-            {:error, error_tuple} ->
-              ecto_dynamo_log(
-                :info,
-                "#{inspect(__MODULE__)}.update_table_recursive: error attempting to update table. Stopping...",
-                %{
-                  "#{inspect(__MODULE__)}.update_table_recursive-error" => %{
-                    table_name: table.name,
-                    error_tuple: error_tuple,
-                    data: inspect(data)
-                  }
+          {:error, error_tuple} ->
+            ecto_dynamo_log(
+              :info,
+              "#{inspect(__MODULE__)}.update_table_recursive: error attempting to update table. Stopping...",
+              %{
+                "#{inspect(__MODULE__)}.update_table_recursive-error" => %{
+                  table_name: table.name,
+                  error_tuple: error_tuple,
+                  data: inspect(data)
                 }
-              )
+              }
+            )
 
-              raise ExAws.Error, message: "ExAws Request Error! #{inspect(error_tuple)}"
-          end
+            raise ExAws.Error, message: "ExAws Request Error! #{inspect(error_tuple)}"
+        end
+      else
+        {:ok, []}
       end
     end
   end
 
   # When running against local Dynamo, we may need to perform some additional special handling for indexes.
-  defp maybe_default_throughput_local(repo, data, table_info),
+  defp maybe_default_throughput_local(data, repo, table_info),
     do:
       do_maybe_default_throughput_local(
         RepoConfig.config_val(repo, :dynamodb_local),
@@ -514,20 +521,24 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       build_key_schema_and_definitions(table_name, field_clauses, options)
 
     [read_capacity, write_capacity] = options[:provisioned_throughput] || [nil, nil]
-    global_indexes = build_secondary_indexes(options[:global_indexes])
-    local_indexes = build_secondary_indexes(options[:local_indexes])
-    billing_mode = options[:billing_mode] || :provisioned
+
+    opts =
+      [
+        global_indexes: build_secondary_indexes(options[:global_indexes]),
+        local_indexes: build_secondary_indexes(options[:local_indexes]),
+        billing_mode: options[:billing_mode] || :provisioned
+      ]
+      |> maybe_add_opt(:read_capacity, read_capacity)
+      |> maybe_add_opt(:write_capacity, write_capacity)
+      |> maybe_add_opt(:stream_enabled, options[:stream_enabled])
+      |> maybe_add_opt(:stream_view_type, options[:stream_view_type])
 
     create_table_recursive(
       repo,
       table_name,
       key_schema,
       key_definitions,
-      read_capacity,
-      write_capacity,
-      global_indexes,
-      local_indexes,
-      billing_mode,
+      opts,
       initial_wait(repo),
       0
     )
@@ -535,16 +546,16 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     set_ttl(repo, table_name, options)
   end
 
+  defp maybe_add_opt(opts, _opt, nil), do: opts
+  defp maybe_add_opt(opts, opt, value) when is_list(opts), do: Keyword.put(opts, opt, value)
+  defp maybe_add_opt(opts, opt, value) when is_map(opts), do: Map.put(opts, opt, value)
+
   defp create_table_recursive(
          repo,
          table_name,
          key_schema,
          key_definitions,
-         read_capacity,
-         write_capacity,
-         global_indexes,
-         local_indexes,
-         billing_mode,
+         opts,
          wait_interval,
          time_waited
        ) do
@@ -553,11 +564,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         table_name,
         key_schema,
         key_definitions,
-        read_capacity,
-        write_capacity,
-        global_indexes,
-        local_indexes,
-        billing_mode
+        opts
       )
       |> ExAws.request(ex_aws_config(repo))
 
@@ -601,11 +608,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
             table_name,
             key_schema,
             key_definitions,
-            read_capacity,
-            write_capacity,
-            global_indexes,
-            local_indexes,
-            billing_mode,
+            opts,
             to_wait,
             time_waited + to_wait
           )
@@ -779,7 +782,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   # Compare the list of existing global secondary indexes with the indexes flagged with
   # :create_if_not_exists and/or :drop_if_exists options and filter them accordingly -
   # skipping any that already exist or do not exist, respectively.
-  defp make_safe_index_requests(repo, data, table) do
+  defp make_safe_index_requests(data, repo, table) do
     existing_index_names = list_existing_global_secondary_index_names(repo, table.name)
     {create_if_not_exist_indexes, drop_if_exists_indexes} = get_existence_options(table.options)
 
