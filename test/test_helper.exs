@@ -195,6 +195,7 @@ defmodule TestHelper do
     # Just to make sure, we'll clean up here anyway.
     Dynamo.delete_table("dog") |> request()
     Dynamo.delete_table("cat") |> request()
+    Dynamo.delete_table("stream") |> request()
     Dynamo.delete_table("rabbit") |> request()
     Dynamo.delete_table("billing_mode_test") |> request()
     Dynamo.delete_table("test_schema_migrations") |> request()
