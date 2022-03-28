@@ -2,6 +2,10 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.3.0
+
+- Add support for table stream configuration
+
 ## v3.2.0
 
 - Fix migrations support for ecto_sql 3.7.2
