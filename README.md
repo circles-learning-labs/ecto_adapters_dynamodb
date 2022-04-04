@@ -4,7 +4,7 @@
 
 This is a partial implementation of an Elixir Ecto adapter for Amazon's DynamoDB. It's very much a work in progress, and has plenty of rough edges. It's complete enough that we're actually using it in other projects, so we're opening it up to the community in hopes that others will find it useful as well :-)
 
-Keep in mind that DynamoDB is a key-value store designed for very high scale, while the Ecto abstractions are primarily designed to work with relational databases. As such, we've had to make significant compromises in the implementation of this adapter to make it work. Please understand that, while we are using it in production, it should be considered **beta** - **do not deploy it without thouroughly testing it for your use cases.**
+Keep in mind that DynamoDB is a key-value store designed for very high scale, while the Ecto abstractions are primarily designed to work with relational databases. As such, we've had to make significant compromises in the implementation of this adapter to make it work. Please understand that, while we are using it in production, it should be considered **beta** - **do not deploy it without thoroughly testing it for your use cases.**
 
 If you wish to contribute, please run `$ mix test` and confirm that the test results are error-free before you push your commits. (Bonus points for improving our tests and adding your own tests for your changes. Patches with corresponding tests are more likely to be accepted, especially if they are significant.)
 
@@ -293,9 +293,9 @@ config :my_app, MyApp.Repo,
 
 #### Configuring a Production environment using Dynamo running on AWS
 
-For a production setup, it's much simpler. No need to specify the `host`/`port` for `dynamodb`, as it will default to the appriopriate AWS service in the region selected.
+For a production setup, it's much simpler. No need to specify the `host`/`port` for `dynamodb`, as it will default to the appropriate AWS service in the region selected.
 
-In this example configration we do not hard code the secret or access key. These following settings tell ExAws to first attempt to pull the secret and access key from environment variables labelled `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. If it cannot find those environment variables, it will attempt to fall back on AWS role-based authentication (this only applies if this instance is running in an appropriately configured Amazon instance).
+In this example configuration we do not hard code the secret or access key. These following settings tell ExAws to first attempt to pull the secret and access key from environment variables labelled `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. If it cannot find those environment variables, it will attempt to fall back on AWS role-based authentication (this only applies if this instance is running in an appropriately configured Amazon instance).
 
 To reiterate, this is just standard ExAws configuration that we're wrapping up in our adapter config. Please consult the ExAws docs for further information.
 

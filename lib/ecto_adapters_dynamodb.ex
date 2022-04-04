@@ -1220,7 +1220,7 @@ defmodule Ecto.Adapters.DynamoDB do
      |> String.trim(), to_add ++ to_delete, [set: to_set, push: to_push, pull: to_pull]}
   end
 
-  # The update callback supplies fields in the paramaters
+  # The update callback supplies fields in the parameters
   # whereas update_all includes a more complicated updates structure
   defp construct_update_expression(repo, fields, opts) do
     set_statement = construct_set_statement(repo, fields, opts)
