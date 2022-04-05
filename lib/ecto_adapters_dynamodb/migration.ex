@@ -484,7 +484,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   # disagreement between the table's billing mode and the options specified in the index migration.
   defp do_maybe_default_throughput_local(false, data, _table_info), do: data
 
-  # However, when runnning against the local dev version of Dynamo, it will hang on index migrations
+  # However, when running against the local dev version of Dynamo, it will hang on index migrations
   # that attempt to add an index to a provisioned table without specifying throughput. The problem doesn't exist
   # the other way around; local Dynamo will ignore throughput specified for indexes where the table is on-demand.
   defp do_maybe_default_throughput_local(_using_ddb_local, data, table_info) do

@@ -10,7 +10,7 @@ To create a *pay-per-request* table, you would add the `billing_mode: :pay_per_r
 
 In version `1.1.0`, we introduced a new configuration option, the boolean `:dynamodb_local`. Due to slight differences in behaviour between production and local versions of DynamoDB, there are some times when special handling needs to be applied.
 
-This configuration option defaults to `false`, so it assumes that you are runnning against production DynamoDB unless you explicitly set it to `true`. Although you would probably be fine if you didn't set this, we *highly* recommend setting it in any environment that you will be running against the local development version of DynamoDB. 
+This configuration option defaults to `false`, so it assumes that you are running against production DynamoDB unless you explicitly set it to `true`. Although you would probably be fine if you didn't set this, we *highly* recommend setting it in any environment that you will be running against the local development version of DynamoDB. 
 
 ## Local DynamoDB version
 
