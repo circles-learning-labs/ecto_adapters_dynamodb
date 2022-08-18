@@ -294,7 +294,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
 
     case opts[:projection_expression] do
       nil -> [select: opts[:select] || :all_attributes]
-      _ -> Keyword.take(opts, [:projection_expression])
+      _ -> Keyword.take(opts, [:projection_expression, :expression_attribute_names])
     end ++ Keyword.take(opts, take_opts)
   end
 
@@ -454,7 +454,8 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   end
 
   defp construct_batch_get_item_query(table, indexes, hash_values, search, opts) do
-    take_opts = Keyword.take(opts, [:consistent_read, :projection_expression])
+    take_opts =
+      Keyword.take(opts, [:consistent_read, :projection_expression, :expression_attribute_names])
 
     keys =
       case indexes do

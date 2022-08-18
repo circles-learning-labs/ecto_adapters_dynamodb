@@ -342,8 +342,23 @@ defmodule Ecto.Adapters.DynamoDB do
     scan_or_query = Ecto.Adapters.DynamoDB.Query.scan_or_query?(repo, table, lookup_fields)
     recursive = Ecto.Adapters.DynamoDB.Query.parse_recursive_option(scan_or_query, opts)
 
+    projection_expression =
+      key_list
+      |> Enum.map(&("#" <> &1))
+      |> Enum.join(", ")
+
+    expression_attribute_names =
+      key_list
+      |> Enum.map(&{"#" <> &1, &1})
+
     updated_opts =
-      prepare_recursive_opts(opts ++ [projection_expression: Enum.join(key_list, ", ")])
+      prepare_recursive_opts(
+        opts ++
+          [
+            projection_expression: projection_expression,
+            expression_attribute_names: expression_attribute_names
+          ]
+      )
 
     delete_all_recursive(repo, table, lookup_fields, updated_opts, recursive, %{}, 0)
   end
