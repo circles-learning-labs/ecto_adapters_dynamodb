@@ -756,8 +756,12 @@ defmodule Ecto.Adapters.DynamoDB do
 
     replace_all =
       case on_conflict do
-        {l, _, _} when is_list(l) -> Enum.sort(l) == Enum.sort(Keyword.keys(fields))
-        _ -> false
+        {l, _, _} when is_list(l) ->
+          # All fields being set are to be replaced
+          Enum.all?(Keyword.keys(fields), &(&1 in l))
+
+        _ ->
+          false
       end
 
     options =
