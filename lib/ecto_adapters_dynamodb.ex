@@ -742,7 +742,7 @@ defmodule Ecto.Adapters.DynamoDB do
     model = schema_meta.schema
     fields_map = Enum.into(fields, %{})
 
-    record = maybe_replace_empty_mapsets(fields_map, repo_meta.repo, opts)
+    record = maybe_replace_empty_mapsets_for_insert(fields_map, repo_meta.repo, opts)
 
     insert_nil_fields = opt_config(:insert_nil_fields, repo_meta.repo, opts, true)
     record = unless insert_nil_fields, do: record, else: build_record_map(model, record)
@@ -833,7 +833,7 @@ defmodule Ecto.Adapters.DynamoDB do
         mapped_fields =
           row
           |> Enum.into(%{})
-          |> maybe_replace_empty_mapsets(repo, opts)
+          |> maybe_replace_empty_mapsets_for_insert(repo, opts)
 
         record =
           if do_not_insert_nil_fields,
@@ -1007,6 +1007,8 @@ defmodule Ecto.Adapters.DynamoDB do
     updated_filters =
       maybe_update_filters_for_range_key(repo, table, schema_meta, filters, opts, "update")
 
+    fields = maybe_replace_empty_mapsets_for_update(fields, repo, opts)
+
     update_expression = construct_update_expression(repo, fields, opts)
     # add updated_filters to attribute_ names and values for condition_expression
     attribute_names = construct_expression_attribute_names(fields ++ keys_to_atoms(filters))
@@ -1173,7 +1175,6 @@ defmodule Ecto.Adapters.DynamoDB do
     # we're removing this attribute, not updating it, so filter out any such fields:
 
     fields
-    |> maybe_replace_empty_mapsets(repo, opts)
     |> Enum.reduce([], &format_update_field(&1, &2, remove_rather_than_set_to_null, opts))
     |> Enum.filter(fn {x, _} -> not Keyword.has_key?(maybe_list(opts[:pull]), x) end)
   end
@@ -1708,11 +1709,30 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  defp maybe_replace_empty_mapsets(record, repo, opts) do
+  defp maybe_replace_empty_mapsets_for_insert(record, repo, opts) do
+    empty_mapset_to_nil = opt_config(:empty_mapset_to_nil, repo, opts)
+    insert_nil = opt_config(:insert_nil_fields, repo, opts, true)
+
+    cond do
+      empty_mapset_to_nil and insert_nil ->
+        record
+        |> Enum.map(fn {k, v} -> {k, empty_mapset_to_nil(v)} end)
+        |> Enum.into(%{})
+
+      empty_mapset_to_nil ->
+        record
+        |> Enum.reject(fn {_k, v} -> v == MapSet.new() end)
+        |> Enum.into(%{})
+
+      true ->
+        record
+    end
+  end
+
+  defp maybe_replace_empty_mapsets_for_update(record, repo, opts) do
     if opt_config(:empty_mapset_to_nil, repo, opts) do
       record
       |> Enum.map(fn {k, v} -> {k, empty_mapset_to_nil(v)} end)
-      |> Enum.into(%{})
     else
       record
     end
