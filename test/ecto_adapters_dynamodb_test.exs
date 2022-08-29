@@ -201,6 +201,47 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       end
     end
 
+    test "Repo.insert with nil_to_empty_mapset true and insert_nil fields false" do
+      item =
+        TestRepo.insert!(base_person_record(), empty_mapset_to_nil: true, insert_nil_fields: false)
+
+      %{"Item" => result} =
+        "test_person"
+        |> ExAws.Dynamo.get_item(%{id: item.id})
+        |> request!()
+
+      refute Map.has_key?(result, "tags_to_tags")
+    end
+
+    test "Repo.insert_all with nil_to_empty_mapset true and remove_nil_fields false" do
+      struct = base_person_struct()
+
+      {1, nil} =
+        TestRepo.insert_all(Person, [struct], empty_mapset_to_nil: true, insert_nil_fields: false)
+
+      %{"Item" => result} =
+        "test_person"
+        |> ExAws.Dynamo.get_item(%{id: struct.id})
+        |> request!()
+
+      refute Map.has_key?(result, "tags_to_tags")
+    end
+
+    test "update with nil_to_empty_mapset true and remove_nil_fields_on_update" do
+      struct =
+        %{base_person_record() | tags_to_tags: MapSet.new(["a", "b"])}
+        |> TestRepo.insert!()
+        |> Person.changeset(%{tags_to_tags: MapSet.new()})
+        |> TestRepo.update!(empty_mapset_to_nil: true, remove_nil_fields_on_update: true)
+
+      %{"Item" => result} =
+        "test_person"
+        |> ExAws.Dynamo.get_item(%{id: struct.id})
+        |> request!()
+
+      refute Map.has_key?(result, "tags_to_tags")
+    end
+
     defp base_person_struct() do
       base_person_record()
       |> Map.from_struct()
