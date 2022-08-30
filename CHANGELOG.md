@@ -2,6 +2,12 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.3.1
+
+- Allow `replace` and `replace_all` to work in more situations
+- Fix reserved word names in `delete_all`
+- Fix removal of empty mapsets when `remove_nil_fields_on_update` is set
+
 ## v3.3.0
 
 - Add support for table stream configuration
