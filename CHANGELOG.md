@@ -2,6 +2,11 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.3.2
+
+- Revert "Allow `replace` and `replace_all` to work in more situations" as
+  it prevented it working in other situations.
+
 ## v3.3.1
 
 - Allow `replace` and `replace_all` to work in more situations
