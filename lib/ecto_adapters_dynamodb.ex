@@ -1687,7 +1687,9 @@ defmodule Ecto.Adapters.DynamoDB do
     |> Keyword.merge(Keyword.get(config, :dynamodb, []))
   end
 
-  defp chisel(str, _depth) when is_binary(str), do: str
+  defp chisel(str, _depth) when is_binary(str),
+    do: if(String.valid?(str), do: str, else: Base.encode64(str))
+
   defp chisel(num, _depth) when is_number(num), do: num
   defp chisel(any, _depth) when not is_map(any) and not is_list(any), do: inspect(any)
   defp chisel(_, 0), do: "beyond_log_depth"
