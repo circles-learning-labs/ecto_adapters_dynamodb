@@ -14,8 +14,8 @@ defmodule Ecto.Adapters.DynamoDB do
 
   use Bitwise, only_operators: true
 
-  alias Confex.Resolver
   alias Ecto.Adapters.DynamoDB.Cache
+  alias Ecto.Adapters.DynamoDB.Config
   alias Ecto.Adapters.DynamoDB.DynamoDBSet
   alias Ecto.Adapters.DynamoDB.RepoConfig
   alias Ecto.Query.BooleanExpr
@@ -1679,13 +1679,7 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  def ex_aws_config(repo) do
-    config = Resolver.resolve!(repo.config())
-
-    config
-    |> Keyword.take([:debug_requests, :access_key_id, :secret_access_key, :region])
-    |> Keyword.merge(Keyword.get(config, :dynamodb, []))
-  end
+  def ex_aws_config(repo), do: Config.get(repo)
 
   defp chisel(str, _depth) when is_binary(str),
     do: if(String.valid?(str), do: str, else: Base.encode64(str))

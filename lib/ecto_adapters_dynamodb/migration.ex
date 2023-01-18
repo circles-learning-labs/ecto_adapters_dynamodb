@@ -1,7 +1,8 @@
 defmodule Ecto.Adapters.DynamoDB.Migration do
-  import Ecto.Adapters.DynamoDB, only: [ecto_dynamo_log: 2, ecto_dynamo_log: 3, ex_aws_config: 1]
+  import Ecto.Adapters.DynamoDB, only: [ecto_dynamo_log: 2, ecto_dynamo_log: 3]
 
   alias ExAws.Dynamo
+  alias Ecto.Adapters.DynamoDB
   alias Ecto.Adapters.DynamoDB.RepoConfig
 
   @moduledoc """
@@ -149,7 +150,9 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   defp execute_ddl(repo, {:create_if_not_exists, %Ecto.Migration.Table{} = table, field_clauses}) do
     # :schema_migrations might be provided as an atom, while 'table.name' is now usually a binary
     table_name = if is_atom(table.name), do: Atom.to_string(table.name), else: table.name
-    %{"TableNames" => table_list} = Dynamo.list_tables() |> ExAws.request!(ex_aws_config(repo))
+
+    %{"TableNames" => table_list} =
+      Dynamo.list_tables() |> ExAws.request!(DynamoDB.ex_aws_config(repo))
 
     ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.execute_ddl: :create_if_not_exists (table)")
 
@@ -202,7 +205,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
       }
     )
 
-    Dynamo.delete_table(table.name) |> ExAws.request!(ex_aws_config(repo))
+    Dynamo.delete_table(table.name) |> ExAws.request!(DynamoDB.ex_aws_config(repo))
 
     {:ok, []}
   end
@@ -212,7 +215,8 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   defp execute_ddl(repo, {:drop_if_exists, %Ecto.Migration.Table{} = table, opts}) do
-    %{"TableNames" => table_list} = Dynamo.list_tables() |> ExAws.request!(ex_aws_config(repo))
+    %{"TableNames" => table_list} =
+      Dynamo.list_tables() |> ExAws.request!(DynamoDB.ex_aws_config(repo))
 
     ecto_dynamo_log(
       :info,
@@ -226,7 +230,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         %{table_name: table.name}
       )
 
-      Dynamo.delete_table(table.name) |> ExAws.request!(ex_aws_config(repo))
+      Dynamo.delete_table(table.name) |> ExAws.request!(DynamoDB.ex_aws_config(repo))
     else
       ecto_dynamo_log(
         :info,
@@ -320,7 +324,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   defp maybe_add_schema_migration_table_capacity(_repo, _migration_source, command), do: command
 
   defp poll_table(repo, table_name) do
-    table_info = Dynamo.describe_table(table_name) |> ExAws.request(ex_aws_config(repo))
+    table_info = Dynamo.describe_table(table_name) |> ExAws.request(DynamoDB.ex_aws_config(repo))
 
     case table_info do
       {:ok, %{"Table" => table}} ->
@@ -409,7 +413,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         result =
           table.name
           |> Dynamo.update_table(prepared_data)
-          |> ExAws.request(ex_aws_config(repo))
+          |> ExAws.request(DynamoDB.ex_aws_config(repo))
 
         ecto_dynamo_log(
           :info,
@@ -566,7 +570,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
         key_definitions,
         opts
       )
-      |> ExAws.request(ex_aws_config(repo))
+      |> ExAws.request(DynamoDB.ex_aws_config(repo))
 
     ecto_dynamo_log(
       :info,
@@ -646,7 +650,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     result =
       table_name
       |> Dynamo.update_time_to_live(attribute, enabled?)
-      |> ExAws.request(ex_aws_config(repo))
+      |> ExAws.request(DynamoDB.ex_aws_config(repo))
 
     case result do
       {:error, {"ValidationException", "TimeToLive is already disabled"}} when not enabled? -> :ok
