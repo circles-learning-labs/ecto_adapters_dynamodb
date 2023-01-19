@@ -955,7 +955,10 @@ defmodule Ecto.Adapters.DynamoDB do
     |> Map.delete(:__meta__)
     |> Map.from_struct()
     |> Enum.reduce(%{}, fn {k, v}, acc ->
-      Map.put(acc, Map.get(sources, k), v)
+      case Map.get(sources, k) do
+        nil -> acc
+        source -> Map.put(acc, source, v)
+      end
     end)
     |> Map.merge(empty_strings_to_nil)
   end
