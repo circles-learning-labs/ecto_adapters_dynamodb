@@ -114,3 +114,20 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Fruit do
     |> Ecto.Changeset.validate_required([:id, :name])
   end
 end
+
+defmodule Ecto.Adapters.DynamoDB.TestSchema.Keyword do
+  use Ecto.Schema
+  @primary_key {:key, :binary_id, []}
+
+  schema "test_keyword" do
+    field(:name, :string)
+
+    timestamps()
+  end
+
+  def changeset(struct, params \\ %{}) do
+    struct
+    |> Ecto.Changeset.cast(params, [:name])
+    |> Ecto.Changeset.validate_required([:key, :name])
+  end
+end

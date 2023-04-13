@@ -357,6 +357,10 @@ defmodule Ecto.Adapters.DynamoDB do
          query_info,
          total_processed
        ) do
+    IO.inspect repo
+    IO.inspect table
+    IO.inspect lookup_fields
+    IO.inspect opts
     # query the table for which records to delete
     fetch_result = Ecto.Adapters.DynamoDB.Query.get_item(repo, table, lookup_fields, opts)
 
@@ -377,7 +381,7 @@ defmodule Ecto.Adapters.DynamoDB do
         key_map =
           for {key, val_map} <- key_list, into: %{}, do: {key, Dynamo.Decoder.decode(val_map)}
 
-        [delete_request: [key: key_map]]
+        [delete_request: [key: key_map]] |> IO.inspect
       end
 
     unprocessed_items =

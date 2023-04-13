@@ -169,6 +169,11 @@ defmodule TestHelper do
     Dynamo.create_table("test_fruit", [id: :hash], %{id: :string}, 100, 100, [], [])
     |> request()
 
+    IO.puts("creating keyword table")
+
+    Dynamo.create_table("test_keyword", [key: :hash], %{key: :string}, 100, 100, [], [])
+    |> request()
+
     :ok
   end
 
@@ -186,6 +191,8 @@ defmodule TestHelper do
     Dynamo.delete_table("test_book_page") |> request()
     Dynamo.delete_table("test_planet") |> request()
     Dynamo.delete_table("test_fruit") |> request()
+    Dynamo.delete_table("test_fruit") |> request()
+    Dynamo.delete_table("test_keyword") |> request()
   end
 
   def on_exit(:migration) do

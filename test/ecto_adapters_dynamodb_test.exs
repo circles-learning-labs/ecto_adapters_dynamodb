@@ -9,7 +9,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
   alias Ecto.Adapters.DynamoDB
   alias Ecto.Adapters.DynamoDB.TestRepo
-  alias Ecto.Adapters.DynamoDB.TestSchema.{Person, Address, BookPage, Planet, Fruit}
+  alias Ecto.Adapters.DynamoDB.TestSchema.{Person, Address, BookPage, Planet, Fruit, Keyword}
 
   setup_all do
     TestHelper.setup_all()
@@ -429,6 +429,24 @@ defmodule Ecto.Adapters.DynamoDB.Test do
       |> TestRepo.delete_all()
 
     assert {2, nil} == result
+  end
+
+  test "delete_all with keyword id" do
+    item = %Keyword{
+      key: "key_value",
+      name: "Delete",
+    }
+
+    TestRepo.insert(item)
+
+    result =
+      Keyword
+      |> where(key: "key_value")
+      |> TestRepo.delete_all()
+
+    assert {1, nil} == result
+
+    assert TestRepo.get(Keyword, "key_value") == nil
   end
 
   describe "update, get_by" do
