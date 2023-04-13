@@ -1,4 +1,4 @@
-use Mix.Config
+import Config
 
 config :ecto_adapters_dynamodb, Ecto.Adapters.DynamoDB.TestRepo,
   migration_source: "test_schema_migrations",
