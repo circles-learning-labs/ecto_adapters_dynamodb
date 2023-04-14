@@ -21,6 +21,8 @@ defmodule Ecto.Adapters.DynamoDB do
   alias Ecto.Query.BooleanExpr
   alias ExAws.Dynamo
 
+  require Logger
+
   @pool_opts [:timeout, :pool_size, :migration_lock]
 
   # DynamoDB will reject attempts to batch write more than 25 records at once
@@ -1654,6 +1656,14 @@ defmodule Ecto.Adapters.DynamoDB do
   Logs message to console and optionally to file. Log levels, colours and file path may be set in configuration (details in README.md).
   """
   def ecto_dynamo_log(level, message, attributes \\ %{}, opts \\ []) do
+    if Confex.get_env(:ecto_adapters_dynamodb, :use_logger) do
+      Logger.log(level, message, attributes)
+    else
+      write_console_log(level, message, attributes, opts)
+    end
+  end
+
+  defp write_console_log(level, message, attributes, opts) do
     log_levels = Confex.get_env(:ecto_adapters_dynamodb, :log_levels) || [:info]
 
     if level in log_levels do

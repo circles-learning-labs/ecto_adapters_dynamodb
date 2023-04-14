@@ -409,7 +409,10 @@ ProvisionedThroughput as `[ReadCapacityUnits, WriteCapacityUnits]`, for the Sche
 
 #### Logging Configuration
 
-The adapter's logging options are configured during compile time, and can be altered in the application's configuration files (`config/config.exs`, `config/dev.exs`, `config/test.exs` and `config/test.exs`). To enable logging in colour, the `MIX_ENV` environment variable must be explicitly exported as `dev` during compilation.
+As of 3.3.4, setting the `use_logger` configuration option to `true` will to write logs using Elixir's built-in `Logger` system. This setting causes all other log-related settings below to be ignored, and
+instead has behaviour dictated by `Logger`'s configuration.
+
+If `use_logger` is not set, the adapter's logging options are configured during compile time, and can be altered in the application's configuration files (`config/config.exs`, `config/dev.exs`, `config/test.exs` and `config/test.exs`). To enable logging in colour, the `MIX_ENV` environment variable must be explicitly exported as `dev` during compilation.
 
 We provide a few informational log lines, such as which adapter call is being processed, as well as the table, lookup fields, and options detected. Configure an optional log path to have the messages recorded on file.
 
