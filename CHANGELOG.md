@@ -2,6 +2,12 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.3.4
+
+- Add support for logging via `Logger`.
+- Fix some deprecation warnings
+- Update github workflow to work again
+
 ## v3.3.3
 
 - Fix crash when logging binary values that aren't printable strings, by base64
