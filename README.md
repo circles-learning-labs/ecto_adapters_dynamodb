@@ -593,15 +593,15 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 
 ### 0.X.X -> 1.X.X
 
-Please see the instructions [here](/upgrade_guides/version_1_upgrade_guide.md)
+Please see the instructions [here](upgrade_guides/version_1_upgrade_guide.md)
 
 ### 1.X.X -> 2.X.X
 
-Please see the instructions [here](/upgrade_guides/version_2_upgrade_guide.md)
+Please see the instructions [here](upgrade_guides/version_2_upgrade_guide.md)
 
 ### 2.X.X -> 3.X.X
 
-Please see the instructions [here](/upgrade_guides/version_3_upgrade_guide.md)
+Please see the instructions [here](upgrade_guides/version_3_upgrade_guide.md)
 
 # License
 Copyright Circles Learning Labs
