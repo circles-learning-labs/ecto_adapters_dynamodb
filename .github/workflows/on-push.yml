@@ -4,22 +4,25 @@ env:
   MIX_ENV: test
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     strategy:
       matrix:
-        otp: ["23.3.3"]
-        elixir: ["1.10.4", "1.13.3"]
+        otp: ["23.3.4.6"]
+        elixir: ["1.10.4", "1.13.4"]
     steps:
       - uses: actions/checkout@v2
-      - uses: erlef/setup-elixir@v1
+        name: "Checkout"
+      - uses: erlef/setup-beam@v1
+        name: "Setup Elixir"
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
+          version-type: strict
       - uses: rrainn/dynamodb-action@v2.0.0
       - run: mix deps.get
       - run: mix compile
       - run: mix format --check-formatted
-        if: matrix.elixir == '1.13.3' # Only check formatting with the latest version
+        if: matrix.elixir == '1.13.4' # Only check formatting with the latest version
       - run: mix dialyzer
-        if: matrix.elixir == '1.13.3' # Only check dialyzer with latest version
+        if: matrix.elixir == '1.13.4' # Only check dialyzer with latest version
       - run: mix test
