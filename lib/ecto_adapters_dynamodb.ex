@@ -259,7 +259,7 @@ defmodule Ecto.Adapters.DynamoDB do
         update_all(repo, table, lookup_fields, updated_opts, prepared.updates, params)
 
       :all ->
-        ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.execute: :all", %{
+        ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.execute: :all", %{
           "#{inspect(__MODULE__)}.execute-all-vars" => %{
             table: table,
             lookup_fields: lookup_fields,
@@ -331,7 +331,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # delete_all allows for the recursive option, scanning through multiple pages
   defp delete_all(repo, table, lookup_fields, opts) do
-    ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.delete_all", %{
+    ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.delete_all", %{
       "#{inspect(__MODULE__)}.delete_all-params" => %{
         table: table,
         lookup_fields: lookup_fields,
@@ -457,7 +457,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp update_all(repo, table, lookup_fields, opts, updates, params) do
-    ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.update_all", %{
+    ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.update_all", %{
       "#{inspect(__MODULE__)}.update_all-params" => %{
         table: table,
         lookup_fields: lookup_fields,
@@ -480,7 +480,7 @@ defmodule Ecto.Adapters.DynamoDB do
     {update_expression, update_fields_sans_set_remove, set_remove_fields} =
       construct_update_expression(repo, updates, params, opts)
 
-    ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.update_all: update fields", %{
+    ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.update_all: update fields", %{
       "#{inspect(__MODULE__)}.update_all-update_fields" => %{
         update_fields_sans_set_remove: inspect(update_fields_sans_set_remove),
         set_remove_fields: inspect(set_remove_fields)
@@ -749,7 +749,7 @@ defmodule Ecto.Adapters.DynamoDB do
     insert_nil_fields = opt_config(:insert_nil_fields, repo_meta.repo, opts, true)
     record = unless insert_nil_fields, do: record, else: build_record_map(model, record)
 
-    ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.insert: local variables", %{
+    ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.insert: local variables", %{
       "#{inspect(__MODULE__)}.insert-vars" => %{table: table, record: record}
     })
 
@@ -852,7 +852,7 @@ defmodule Ecto.Adapters.DynamoDB do
         [put_request: [item: record]]
       end)
 
-    ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.insert_all: local variables", %{
+    ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.insert_all: local variables", %{
       "#{inspect(__MODULE__)}.insert_all-vars" => %{
         table: table,
         records: get_records_from_fields(prepared_rows)
@@ -911,7 +911,7 @@ defmodule Ecto.Adapters.DynamoDB do
       table => Enum.flat_map(results, fn res -> res[unprocessed_items_element][table] || [] end)
     }
 
-    ecto_dynamo_log(:info, "#{inspect(__MODULE__)}.batch_write: batch_write_attempt result", %{
+    ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.batch_write: batch_write_attempt result", %{
       "#{inspect(__MODULE__)}.insert_all-batch_write" =>
         inspect(%{
           unprocessed_items_element =>
@@ -1576,7 +1576,7 @@ defmodule Ecto.Adapters.DynamoDB do
 
       :error ->
         ecto_dynamo_log(
-          :info,
+          :debug,
           "#{inspect(__MODULE__)}.decode_embed: failed to decode embedded value: #{inspect(val)}"
         )
 
