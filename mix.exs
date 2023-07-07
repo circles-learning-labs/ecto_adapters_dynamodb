@@ -63,7 +63,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
       {:hackney, "~> 1.6"},
       {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
       {:eqc_ex, "~> 1.4.2", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.29.1", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.30.1", only: :dev, runtime: false}
     ]
   end
 
