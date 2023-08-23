@@ -2,6 +2,10 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.3.5
+
+- Move logging messages from `info` to `debug` level
+
 ## v3.3.4
 
 - Add support for logging via `Logger`.
