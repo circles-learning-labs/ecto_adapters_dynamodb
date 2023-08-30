@@ -2,6 +2,10 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.3.6
+
+- Make `Ecto.Adapters.DynamoDB.decode_item/4 public
+
 ## v3.3.5
 
 - Move logging messages from `info` to `debug` level
