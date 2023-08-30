@@ -1534,7 +1534,7 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  defp decode_item(item, types, repo, opts) do
+  def decode_item(item, types, repo, opts) do
     types
     |> Enum.map(fn {field, type} ->
       Map.get(item, Atom.to_string(field), %{"NULL" => true})
@@ -1543,7 +1543,7 @@ defmodule Ecto.Adapters.DynamoDB do
     end)
   end
 
-  defp decode_item(%{"version" => version}, _repo, _opts) do
+  def decode_item(%{"version" => version}, _repo, _opts) do
     [version |> Dynamo.Decoder.decode()]
   end
 
