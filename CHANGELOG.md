@@ -2,6 +2,11 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.3.7
+
+- Add retries to `insert`, `update` and `delete` when a transaction conflict occurs. Default
+  retry count is 10 but may be configured with `:max_transaction_conflict_retries`
+
 ## v3.3.6
 
 - Make `Ecto.Adapters.DynamoDB.decode_item/4 public
