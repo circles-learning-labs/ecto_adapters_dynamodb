@@ -3,9 +3,10 @@ defmodule Ecto.Adapters.DynamoDB.Test do
   Unit tests for the adapter's main public API.
   """
 
-  use ExUnit.Case
+  use ExUnit.Case, async: false
 
   import Ecto.Query
+  import Mock
 
   alias Ecto.Adapters.DynamoDB
   alias Ecto.Adapters.DynamoDB.TestRepo
@@ -940,6 +941,131 @@ defmodule Ecto.Adapters.DynamoDB.Test do
              select: {p.id, p.email}
            )
            |> TestRepo.all() == [{id, email}]
+  end
+
+  describe "TransactionConflictException successful retry handling" do
+    setup do
+      Process.put(:ex_aws_request_calls, 0)
+
+      fruit = %Fruit{name: "fruit"}
+      {:ok, fruit} = TestRepo.insert(fruit)
+
+      {:ok, fruit: fruit}
+    end
+
+    test_with_mock "insert retry success", ExAws, [:passthrough], conflict_mock() do
+      fruit = %Fruit{name: "Orange"}
+      {:ok, fruit} = TestRepo.insert(fruit)
+
+      result =
+        ExAws.Dynamo.get_item("test_fruit", %{id: fruit.id})
+        |> request!()
+
+      assert result["Item"]["name"]["S"] == fruit.name
+
+      assert_called_exactly(ExAws.request(:_, :_), 2)
+    end
+
+    test_with_mock "update retry success",
+                   %{fruit: fruit},
+                   ExAws,
+                   [:passthrough],
+                   conflict_mock() do
+      fruit
+      |> Fruit.changeset(%{name: "banana"})
+      |> TestRepo.update!()
+
+      assert %Fruit{name: "banana"} = TestRepo.get_by(Fruit, id: fruit.id)
+
+      assert_called_exactly(ExAws.request(:_, :_), 2)
+    end
+
+    test_with_mock "delete retry success",
+                   %{fruit: fruit},
+                   ExAws,
+                   [:passthrough],
+                   conflict_mock() do
+      fruit
+      |> TestRepo.delete()
+
+      assert nil == TestRepo.get_by(Fruit, id: fruit.id)
+
+      assert_called_exactly(ExAws.request(:_, :_), 2)
+    end
+
+    defp conflict_mock do
+      [
+        request: fn request, config ->
+          Process.put(:ex_aws_request_calls, (Process.get(:ex_aws_request_calls) || 0) + 1)
+
+          case Process.get(:ex_aws_request_calls) do
+            x when x < 2 ->
+              {:error, {"TransactionConflictException", "Transaction is ongoing for the item"}}
+
+            _ ->
+              passthrough([request, config])
+          end
+        end
+      ]
+    end
+  end
+
+  describe "TransactionConflictException failed retry handling" do
+    @raises ~r/maximum transaction conflict retries/
+
+    setup do
+      Process.put(:ex_aws_request_calls, 0)
+
+      fruit = %Fruit{name: "fruit"}
+      {:ok, fruit} = TestRepo.insert(fruit)
+
+      {:ok, fruit: fruit}
+    end
+
+    test_with_mock "insert retry success", ExAws, [:passthrough], conflict_fail_mock() do
+      fruit = %Fruit{name: "Orange"}
+
+      assert_raise RuntimeError, @raises, fn ->
+        TestRepo.insert(fruit)
+      end
+
+      assert_called_exactly(ExAws.request(:_, :_), DynamoDB.max_transaction_conflict_retries())
+    end
+
+    test_with_mock "update retry success",
+                   %{fruit: fruit},
+                   ExAws,
+                   [:passthrough],
+                   conflict_fail_mock() do
+      assert_raise RuntimeError, @raises, fn ->
+        fruit
+        |> Fruit.changeset(%{name: "banana"})
+        |> TestRepo.update!()
+      end
+
+      assert_called_exactly(ExAws.request(:_, :_), DynamoDB.max_transaction_conflict_retries())
+    end
+
+    test_with_mock "delete retry success",
+                   %{fruit: fruit},
+                   ExAws,
+                   [:passthrough],
+                   conflict_fail_mock() do
+      assert_raise RuntimeError, @raises, fn ->
+        fruit
+        |> TestRepo.delete()
+      end
+
+      assert_called_exactly(ExAws.request(:_, :_), DynamoDB.max_transaction_conflict_retries())
+    end
+
+    defp conflict_fail_mock do
+      [
+        request: fn _request, _config ->
+          {:error, {"TransactionConflictException", "Transaction is ongoing for the item"}}
+        end
+      ]
+    end
   end
 
   # Private

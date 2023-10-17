@@ -24,6 +24,11 @@ defmodule Ecto.Adapters.DynamoDB do
   require Logger
 
   @pool_opts [:timeout, :pool_size, :migration_lock]
+  @max_transaction_conflict_retries Application.get_env(
+                                      :ecto_adapters_dynamodb,
+                                      :max_transaction_conflict_retries,
+                                      10
+                                    )
 
   # DynamoDB will reject attempts to batch write more than 25 records at once
   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
@@ -305,6 +310,8 @@ defmodule Ecto.Adapters.DynamoDB do
         end
     end
   end
+
+  def max_transaction_conflict_retries, do: @max_transaction_conflict_retries
 
   defp handle_type_decode(table, result, types, repo, opts) do
     if !result["Count"] and !result["Responses"] do
@@ -739,6 +746,17 @@ defmodule Ecto.Adapters.DynamoDB do
       }
     })
 
+    do_insert(repo_meta, schema_meta, fields, on_conflict, opts, 0)
+  end
+
+  defp do_insert(_repo_meta, _schema_meta, _fields, _on_conflict, _opts, retries)
+       when retries >= @max_transaction_conflict_retries do
+    raise(
+      "#{inspect(__MODULE__)}.insert error: reached maximum transaction conflict retries without success"
+    )
+  end
+
+  defp do_insert(repo_meta, schema_meta, fields, on_conflict, opts, retries) do
     table = schema_meta.source
 
     model = schema_meta.schema
@@ -799,6 +817,9 @@ defmodule Ecto.Adapters.DynamoDB do
             constraint_name = "#{table}_#{hash_key}_index"
             {:invalid, [unique: constraint_name]}
         end
+
+      {:error, "TransactionConflictException"} ->
+        do_insert(repo_meta, schema_meta, fields, on_conflict, opts, retries + 1)
 
       %{} ->
         {:ok, []}
@@ -973,6 +994,17 @@ defmodule Ecto.Adapters.DynamoDB do
       }
     })
 
+    do_delete(repo, schema_meta, filters, opts, 0)
+  end
+
+  defp do_delete(_repo, _schema_meta, _filters, _opts, retries)
+       when retries >= @max_transaction_conflict_retries do
+    raise(
+      "#{inspect(__MODULE__)}.delete error: reached maximum transaction conflict retries without success"
+    )
+  end
+
+  defp do_delete(repo, schema_meta, filters, opts, retries) do
     table = schema_meta.source
 
     updated_filters =
@@ -993,8 +1025,14 @@ defmodule Ecto.Adapters.DynamoDB do
     case Dynamo.delete_item(table, updated_filters, options)
          |> ExAws.request(ex_aws_config(repo))
          |> handle_error!(repo, %{table: table, records: record ++ []}) do
-      %{} -> {:ok, []}
-      {:error, "ConditionalCheckFailedException"} -> {:error, :stale}
+      %{} ->
+        {:ok, []}
+
+      {:error, "ConditionalCheckFailedException"} ->
+        {:error, :stale}
+
+      {:error, "TransactionConflictException"} ->
+        do_delete(repo, schema_meta, filters, opts, retries + 1)
     end
   end
 
@@ -1011,6 +1049,17 @@ defmodule Ecto.Adapters.DynamoDB do
       }
     })
 
+    do_update(repo, schema_meta, fields, filters, returning, opts, 0)
+  end
+
+  defp do_update(_repo, _schema_meta, _fields, _filters, _returning, _opts, retries)
+       when retries >= @max_transaction_conflict_retries do
+    raise(
+      "#{inspect(__MODULE__)}.update error: reached maximum transaction conflict retries without success"
+    )
+  end
+
+  defp do_update(repo, schema_meta, fields, filters, returning, opts, retries) do
     table = schema_meta.source
 
     updated_filters =
@@ -1043,8 +1092,14 @@ defmodule Ecto.Adapters.DynamoDB do
     case Dynamo.update_item(table, updated_filters, options)
          |> ExAws.request(ex_aws_config(repo))
          |> handle_error!(repo, %{table: table, records: record ++ []}) do
-      %{} -> {:ok, []}
-      {:error, "ConditionalCheckFailedException"} -> {:error, :stale}
+      %{} ->
+        {:ok, []}
+
+      {:error, "ConditionalCheckFailedException"} ->
+        {:error, :stale}
+
+      {:error, "TransactionConflictException"} ->
+        do_update(repo, schema_meta, fields, filters, returning, opts, retries + 1)
     end
   end
 
@@ -1613,42 +1668,38 @@ defmodule Ecto.Adapters.DynamoDB do
   # be more instructive - when trying to set an indexed field to something
   # other than a string or number - so we're adding a more helpful message.
   # The parameter, 'params', has the type %{table: :string, records: [:map]}
-  defp handle_error!(ex_aws_request_result, repo, params) do
-    case ex_aws_request_result do
-      {:ok, result} ->
-        result
+  defp handle_error!({:ok, result}, _repo, _params), do: result
 
-      {:error, {error_name, _} = error} ->
-        # Check for inappropriate insert into indexed field
-        indexed_fields = Ecto.Adapters.DynamoDB.Info.indexed_attributes(repo, params.table)
+  defp handle_error!({:error, {error_name, _} = error}, repo, params) do
+    # Check for inappropriate insert into indexed field
+    indexed_fields = Ecto.Adapters.DynamoDB.Info.indexed_attributes(repo, params.table)
 
-        # Repo.insert_all can present multiple records at once
-        forbidden_insert_on_indexed_field =
-          Enum.reduce(params.records, false, fn record, acc ->
-            acc ||
-              Enum.any?(record, fn {field, val} ->
-                [type] = Dynamo.Encoder.encode(val) |> Map.keys()
+    # Repo.insert_all can present multiple records at once
+    forbidden_insert_on_indexed_field =
+      Enum.reduce(params.records, false, fn record, acc ->
+        acc ||
+          Enum.any?(record, fn {field, val} ->
+            [type] = Dynamo.Encoder.encode(val) |> Map.keys()
 
-                # Ecto does not convert Empty strings to nil before passing them to Repo.update_all or
-                # Repo.insert_all DynamoDB provides an instructive message during an update (forwarded by ExAws),
-                # but less so for batch_write_item, so we catch the empty string as well.
-                # Dynamo does not allow insertion of empty strings in any case.
-                (Enum.member?(indexed_fields, to_string(field)) and type not in ["S", "N"]) ||
-                  val == ""
-              end)
+            # Ecto does not convert Empty strings to nil before passing them to Repo.update_all or
+            # Repo.insert_all DynamoDB provides an instructive message during an update (forwarded by ExAws),
+            # but less so for batch_write_item, so we catch the empty string as well.
+            # Dynamo does not allow insertion of empty strings in any case.
+            (Enum.member?(indexed_fields, to_string(field)) and type not in ["S", "N"]) ||
+              val == ""
           end)
+      end)
 
-        cond do
-          # we use this error to check if an update or delete record does not exist
-          error_name == "ConditionalCheckFailedException" ->
-            {:error, error_name}
+    cond do
+      # we use this error to check if an update or delete record does not exist
+      error_name in ["ConditionalCheckFailedException", "TransactionConflictException"] ->
+        {:error, error_name}
 
-          forbidden_insert_on_indexed_field ->
-            raise "The following request error could be related to attempting to insert an empty string or attempting to insert a type other than a string or number on an indexed field. Indexed fields: #{inspect(indexed_fields)}. Records: #{inspect(params.records)}.\n\nExAws Request Error! #{inspect(error)}"
+      forbidden_insert_on_indexed_field ->
+        raise "The following request error could be related to attempting to insert an empty string or attempting to insert a type other than a string or number on an indexed field. Indexed fields: #{inspect(indexed_fields)}. Records: #{inspect(params.records)}.\n\nExAws Request Error! #{inspect(error)}"
 
-          true ->
-            raise ExAws.Error, message: "ExAws Request Error! #{inspect(error)}"
-        end
+      true ->
+        raise ExAws.Error, message: "ExAws Request Error! #{inspect(error)}"
     end
   end
 
