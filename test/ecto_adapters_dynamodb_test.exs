@@ -204,7 +204,10 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
     test "Repo.insert with nil_to_empty_mapset true and insert_nil fields false" do
       item =
-        TestRepo.insert!(base_person_record(), empty_mapset_to_nil: true, insert_nil_fields: false)
+        TestRepo.insert!(base_person_record(),
+          empty_mapset_to_nil: true,
+          insert_nil_fields: false
+        )
 
       %{"Item" => result} =
         "test_person"
@@ -518,7 +521,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert from(p in BookPage,
                where:
-                 p.id == "houseofleaves" and
+                 p.id == ^"houseofleaves" and
                    p.page_num == 1
              )
              |> TestRepo.all() == [page_1]
@@ -543,8 +546,8 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert from(p in Person,
                where:
-                 p.id == "person:jamesholden" and
-                   p.email == "jholden@expanse.com",
+                 p.id == ^"person:jamesholden" and
+                   p.email == ^"jholden@expanse.com",
                select: p.id
              )
              |> TestRepo.all()
@@ -581,7 +584,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
              |> Enum.sort() == sorted_ids
 
       assert from(p in Person,
-               where: p.id in ["person-moe", "person-larry"],
+               where: p.id in ^["person-moe", "person-larry"],
                select: p.id
              )
              |> TestRepo.all()
@@ -618,7 +621,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert from(bp in BookPage,
                where:
-                 bp.id in ["page:test-1", "page:test-2"] and
+                 bp.id in ^["page:test-1", "page:test-2"] and
                    bp.page_num in [1, 2]
              )
              |> TestRepo.all()
@@ -656,7 +659,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
              |> Enum.sort() == sorted_ids
 
       assert from(p in Person,
-               where: p.email in ["jerry@test.com", "bob@test.com"],
+               where: p.email in ^["jerry@test.com", "bob@test.com"],
                select: p.id
              )
              |> TestRepo.all()
@@ -672,7 +675,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert from(p in Person,
                where:
-                 p.email in ["jerry@test.com", "bob@test.com"] and
+                 p.email in ^["jerry@test.com", "bob@test.com"] and
                    p.age < 69,
                select: p.id
              )
@@ -739,7 +742,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert from(p in Planet,
                where:
-                 p.id == "planet" and
+                 p.id == ^"planet" and
                    fragment("begins_with(?, ?)", p.name, ^name_fragment),
                select: p.moons
              )
@@ -769,7 +772,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
       assert from(p in Person,
                where:
-                 p.first_name == "Michael" and
+                 p.first_name == ^"Michael" and
                    fragment("begins_with(?, ?)", p.email, ^email_fragment),
                select: p.id
              )
