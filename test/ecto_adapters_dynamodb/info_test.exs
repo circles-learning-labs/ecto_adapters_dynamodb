@@ -18,12 +18,16 @@ defmodule Ecto.Adapters.DynamoDB.Info.Test do
   end
 
   test "table_info" do
-    assert %{
+    info = normalise_info(table_info(TestRepo, "test_planet"))
+
+    assert normalise_info(%{
              "AttributeDefinitions" => [
                %{"AttributeName" => "id", "AttributeType" => "S"},
                %{"AttributeName" => "mass", "AttributeType" => "N"},
                %{"AttributeName" => "name", "AttributeType" => "S"}
              ],
+             "CreationDateTime" => info["CreationDateTime"],
+             "DeletionProtectionEnabled" => false,
              "GlobalSecondaryIndexes" => [
                %{
                  "IndexArn" =>
@@ -43,6 +47,7 @@ defmodule Ecto.Adapters.DynamoDB.Info.Test do
                  }
                }
              ],
+             "ItemCount" => 0,
              "KeySchema" => [
                %{"AttributeName" => "id", "KeyType" => "HASH"},
                %{"AttributeName" => "name", "KeyType" => "RANGE"}
@@ -56,12 +61,15 @@ defmodule Ecto.Adapters.DynamoDB.Info.Test do
              },
              "TableArn" => "arn:aws:dynamodb:ddblocal:000000000000:table/test_planet",
              "TableName" => "test_planet",
+             "TableSizeBytes" => 0,
              "TableStatus" => "ACTIVE"
-           } = table_info(TestRepo, "test_planet")
+           }) == info
   end
 
   test "index_details" do
-    assert %{
+    info = normalise_info(index_details(TestRepo, "test_person"))
+
+    assert normalise_info(%{
              primary: [%{"AttributeName" => "id", "KeyType" => "HASH"}],
              secondary: [
                %{
@@ -144,7 +152,7 @@ defmodule Ecto.Adapters.DynamoDB.Info.Test do
                  }
                }
              ]
-           } = index_details(TestRepo, "test_person")
+           }) == info
   end
 
   test "indexes" do
@@ -185,4 +193,18 @@ defmodule Ecto.Adapters.DynamoDB.Info.Test do
   test "indexed_attributes" do
     assert indexed_attributes(TestRepo, "test_planet") == ["id", "name", "mass"]
   end
+
+  defp normalise_info(info) when is_map(info) do
+    info
+    |> Enum.map(fn {k, v} -> {k, normalise_info(v)} end)
+    |> Map.new()
+  end
+
+  defp normalise_info(info) when is_list(info) do
+    info
+    |> Enum.map(&normalise_info/1)
+    |> Enum.sort()
+  end
+
+  defp normalise_info(info), do: info
 end
