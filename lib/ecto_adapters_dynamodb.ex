@@ -151,6 +151,9 @@ defmodule Ecto.Adapters.DynamoDB do
 
         %DateTime{} ->
           datetime |> DateTime.to_iso8601()
+
+        nil ->
+          nil
       end
 
     {:ok, iso_string}
@@ -243,9 +246,9 @@ defmodule Ecto.Adapters.DynamoDB do
           %{}
         )
 
-        Keyword.drop(opts, [:timeout, :log]) ++ [recursive: true]
+        Keyword.drop(opts, [:timeout, :log, :telemetry_options]) ++ [recursive: true]
       else
-        Keyword.drop(opts, [:scan_limit, :limit]) ++ scan_limit
+        Keyword.drop(opts, [:scan_limit, :limit, :telemetry_options]) ++ scan_limit
       end
 
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.execute: local variables", %{
@@ -984,7 +987,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   @impl Ecto.Adapter.Schema
-  def delete(adapter_meta = %{repo: repo}, schema_meta, filters, opts) do
+  def delete(adapter_meta = %{repo: repo}, schema_meta, filters, _returning, opts) do
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.delete", %{
       "#{inspect(__MODULE__)}.delete-params" => %{
         adapter_meta: adapter_meta,

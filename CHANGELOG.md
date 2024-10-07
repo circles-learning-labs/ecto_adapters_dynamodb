@@ -2,6 +2,11 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.4.0
+
+- Support for Ecto 3.11 (note that this breaks support for earlier versions of Ecto).
+- Increase minimum Elixir version to 1.11
+
 ## v3.3.7
 
 - Add retries to `insert`, `update` and `delete` when a transaction conflict occurs. Default
@@ -9,7 +14,7 @@
 
 ## v3.3.6
 
-- Make `Ecto.Adapters.DynamoDB.decode_item/4 public
+- Make `Ecto.Adapters.DynamoDB.decode_item/4` public
 
 ## v3.3.5
 

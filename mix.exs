@@ -4,8 +4,8 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   def project do
     [
       app: :ecto_adapters_dynamodb,
-      version: "3.3.7",
-      elixir: "~> 1.10",
+      version: "3.4.0",
+      elixir: "~> 1.11",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -57,7 +57,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   defp deps do
     [
       {:confex, "~> 3.5.0"},
-      {:ecto_sql, "~> 3.6"},
+      {:ecto_sql, "~> 3.11"},
       {:ex_aws_dynamo, "~> 4.1"},
       {:jason, "~> 1.0"},
       {:hackney, "~> 1.6"},
