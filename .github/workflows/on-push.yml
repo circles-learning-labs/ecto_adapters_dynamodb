@@ -4,18 +4,29 @@ env:
   MIX_ENV: test
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     # See https://hexdocs.pm/elixir/compatibility-and-deprecations.html#compatibility-between-elixir-and-erlang-otp
     strategy:
       matrix:
         include:
           - pair:
-              otp: 26.x
-              elixir: 1.16.x
-            lint: lint
+              otp: 27.x
+              elixir: 1.17.x
+              lint: lint
+
           - pair:
               otp: 26.x
+              elixir: 1.17.x
+          - pair:
+              otp: 26.x
+              elixir: 1.16.x
+          - pair:
+              otp: 26.x
               elixir: 1.15.x
+
+          - pair:
+              otp: 25.x
+              elixir: 1.17.x
           - pair:
               otp: 25.x
               elixir: 1.16.x
@@ -25,9 +36,7 @@ jobs:
           - pair:
               otp: 25.x
               elixir: 1.14.x
-          - pair:
-              otp: 25.x
-              elixir: 1.13.x
+
           - pair:
               otp: 24.x
               elixir: 1.16.x
@@ -40,33 +49,15 @@ jobs:
           - pair:
               otp: 24.x
               elixir: 1.13.x
-          - pair:
-              otp: 24.x
-              elixir: 1.12.x
-          - pair:
-              otp: 24.x
-              elixir: 1.11.x
-          - pair:
-              otp: 23.x
-              elixir: 1.14.x
-          - pair:
-              otp: 23.x
-              elixir: 1.13.x
-          - pair:
-              otp: 23.x
-              elixir: 1.12.x
-          - pair:
-              otp: 23.x
-              elixir: 1.11.x
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         name: "Checkout"
       - uses: erlef/setup-beam@v1
         name: "Setup Elixir"
         with:
           otp-version: ${{matrix.pair.otp}}
           elixir-version: ${{matrix.pair.elixir}}
-      - uses: rrainn/dynamodb-action@v2.0.0
+      - uses: rrainn/dynamodb-action@v4.0.0
       - run: mix deps.get
       - run: mix compile
       - run: mix format --check-formatted
