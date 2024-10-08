@@ -12,7 +12,7 @@ defmodule Ecto.Adapters.DynamoDB do
     # Nothing to see here, yet...
   end
 
-  use Bitwise, only_operators: true
+  import Bitwise
 
   alias Confex.Resolver
   alias Ecto.Adapters.DynamoDB.Cache
@@ -24,11 +24,6 @@ defmodule Ecto.Adapters.DynamoDB do
   require Logger
 
   @pool_opts [:timeout, :pool_size, :migration_lock]
-  @max_transaction_conflict_retries Application.get_env(
-                                      :ecto_adapters_dynamodb,
-                                      :max_transaction_conflict_retries,
-                                      10
-                                    )
 
   # DynamoDB will reject attempts to batch write more than 25 records at once
   # https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchWriteItem.html
@@ -314,7 +309,13 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  def max_transaction_conflict_retries, do: @max_transaction_conflict_retries
+  def max_transaction_conflict_retries do
+    Application.get_env(
+      :ecto_adapters_dynamodb,
+      :max_transaction_conflict_retries,
+      10
+    )
+  end
 
   defp handle_type_decode(table, result, types, repo, opts) do
     if !result["Count"] and !result["Responses"] do
@@ -752,14 +753,13 @@ defmodule Ecto.Adapters.DynamoDB do
     do_insert(repo_meta, schema_meta, fields, on_conflict, opts, 0)
   end
 
-  defp do_insert(_repo_meta, _schema_meta, _fields, _on_conflict, _opts, retries)
-       when retries >= @max_transaction_conflict_retries do
-    raise(
-      "#{inspect(__MODULE__)}.insert error: reached maximum transaction conflict retries without success"
-    )
-  end
-
   defp do_insert(repo_meta, schema_meta, fields, on_conflict, opts, retries) do
+    if retries >= max_transaction_conflict_retries() do
+      raise(
+        "#{inspect(__MODULE__)}.insert error: reached maximum transaction conflict retries without success"
+      )
+    end
+
     table = schema_meta.source
 
     model = schema_meta.schema
@@ -977,7 +977,7 @@ defmodule Ecto.Adapters.DynamoDB do
       |> Enum.map(fn {field, val} -> {field, if(val == "", do: nil, else: val)} end)
       |> Enum.into(%{})
 
-    model.__struct__
+    model.__struct__()
     |> Map.delete(:__meta__)
     |> Map.from_struct()
     |> Enum.reduce(%{}, fn {k, v}, acc ->
@@ -1000,14 +1000,13 @@ defmodule Ecto.Adapters.DynamoDB do
     do_delete(repo, schema_meta, filters, opts, 0)
   end
 
-  defp do_delete(_repo, _schema_meta, _filters, _opts, retries)
-       when retries >= @max_transaction_conflict_retries do
-    raise(
-      "#{inspect(__MODULE__)}.delete error: reached maximum transaction conflict retries without success"
-    )
-  end
-
   defp do_delete(repo, schema_meta, filters, opts, retries) do
+    if retries >= max_transaction_conflict_retries() do
+      raise(
+        "#{inspect(__MODULE__)}.delete error: reached maximum transaction conflict retries without success"
+      )
+    end
+
     table = schema_meta.source
 
     updated_filters =
@@ -1056,13 +1055,14 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp do_update(_repo, _schema_meta, _fields, _filters, _returning, _opts, retries)
-       when retries >= @max_transaction_conflict_retries do
-    raise(
-      "#{inspect(__MODULE__)}.update error: reached maximum transaction conflict retries without success"
-    )
-  end
 
   defp do_update(repo, schema_meta, fields, filters, returning, opts, retries) do
+    if retries >= max_transaction_conflict_retries() do
+      raise(
+        "#{inspect(__MODULE__)}.update error: reached maximum transaction conflict retries without success"
+      )
+    end
+
     table = schema_meta.source
 
     updated_filters =

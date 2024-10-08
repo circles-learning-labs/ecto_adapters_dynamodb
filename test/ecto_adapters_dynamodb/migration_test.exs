@@ -59,8 +59,8 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
       assert length(result) == 1
       assert index["IndexName"] == "name"
-      assert index["ProvisionedThroughput"]["ReadCapacityUnits"] == 0
-      assert index["ProvisionedThroughput"]["WriteCapacityUnits"] == 0
+      assert index["OnDemandThroughput"]["MaxReadRequestUnits"] == -1
+      assert index["OnDemandThroughput"]["MaxWriteRequestUnits"] == -1
 
       {:ok, ttl_description} = Ecto.Adapters.DynamoDB.Info.ttl_info(TestRepo, "dog")
 
@@ -90,11 +90,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration.Test do
 
       assert length(result) == 1
       assert name_index["IndexName"] == "name"
-      assert name_index["ProvisionedThroughput"]["ReadCapacityUnits"] == 0
-      assert name_index["ProvisionedThroughput"]["WriteCapacityUnits"] == 0
       assert foo_index["IndexName"] == "foo"
-      assert foo_index["ProvisionedThroughput"]["ReadCapacityUnits"] == 0
-      assert foo_index["ProvisionedThroughput"]["WriteCapacityUnits"] == 0
     end
 
     test "alter table: modify index throughput" do
