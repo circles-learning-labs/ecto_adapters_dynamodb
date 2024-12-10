@@ -104,6 +104,21 @@ We currently support DynamoDB's **BatchWriteItem** via Ecto's `insert_all` and `
 
 We currently support DynamoDB's **BatchGetItem** via an **:in** clause in `all` queries - for example, `Repo.all(from m in Model, where: m.id in ["id_1", "id_2"])` or `Repo.all(from m in Model, where: m.id in ^model_ids)`. For tables with a composite primary key, range keys must be supplied in another **:in** clause in matching order - for example, `TestRepo.all(from bp in BookPage, where: bp.id in ["page:test-1", "page:test-2"] and bp.page_num in [1, 2])`. DynamoDB enforces a limit of 100 records per batch get, but we allow for an unlimited number of records by chunking large groups into separate requests.
 
+#### Concurrent fetches
+
+An important cororally to the above is that DynamoDB does not support **BatchGetItem** on secondary keys. The default (and, prior to 3.4.2, only) behaviour in this case is to do a series of individual, sequential fetches. This is generally fine for a small number of keys, but can blow out the query time dramatically for larger numbers. Performance in this case can be improved dramatically by running a series of concurrent processes, each fetching a chunk of the keyspace. You can enable this behaviour by setting the `concurrent_fetches` option to `true` in the adapter configuration. There are two further configuration options to tune the behaviour:
+
+* `max_fetch_concurrency` - the maximum number of concurrent processes to run. Defaults to 10.
+* `min_concurrent_fetch_batch` - the minium number of keys to fetch in each process. Defaults to 10.
+
+The number of processes and keys per process is then determined by trying to maximise the number of processes (up to `max_fetch_concurrency`) while ensuring that each process fetches at least `min_concurrent_fetch_batch` keys. In the case that the number of processes ends up being 1, no additional processes will be spawned and the behaviour will be the same as if `concurrent_fetches` was set to `false`.
+
+The "best" value for these settings will of course depend on your hardware, network conditions, and the size of the keyspace you're fetching. You may need to experiment to find the best settings for your use case, but the defaults should give a good starting point and a considerable speedup for large fetches.
+
+Note that this functionality only applies to queries that end up mapping to an `:in` clause on a secondary index.
+
+It's important to note that this is really a bit of a hack - the "right" solution is to rejig your data so that you can fetch it with the primary key. But for occasional queries that don't fit neatly into your usual use cases, this can be useful.
+
 #### DynamoDB LIMIT & Paging
 
 By default, we configure the adapter to fetch all pages recursively for a DynamoDB `query` operation, and to *not* fetch all pages recursively in the case of a DynamoDB `scan` operation. This default can be overridden with the inline **:recursive** and **:page_limit** options (see below). We do not respond to the Ecto `limit` option; rather, we support a **:scan_limit** option, which corresponds with DynamoDB's [limit option](http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.html#Query.Limit), limiting "the number of items that it returns in the result."

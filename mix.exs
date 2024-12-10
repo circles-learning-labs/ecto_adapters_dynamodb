@@ -4,11 +4,12 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   def project do
     [
       app: :ecto_adapters_dynamodb,
-      version: "3.4.1",
+      version: "3.5.0",
       elixir: "~> 1.13",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      test_coverage: [tool: ExCoveralls],
       dialyzer: [
         ignore_warnings: "dialyzer_ignore.exs",
         plt_add_apps: [:ecto]
@@ -17,7 +18,13 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
       description:
         "A DynamoDB adapter for Ecto supporting basic queries. See https://github.com/circles-learning-labs/ecto_adapters_dynamodb for detailed instructions.",
       package: package(),
-      source_url: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb"
+      source_url: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb",
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test
+      ]
     ]
   end
 
@@ -59,6 +66,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
       {:confex, "~> 3.5.0"},
       {:ecto_sql, "~> 3.11"},
       {:ex_aws_dynamo, "~> 4.1"},
+      {:excoveralls, "~> 0.18", only: :test},
       {:jason, "~> 1.0"},
       {:hackney, "~> 1.6"},
       {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},

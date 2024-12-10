@@ -424,7 +424,7 @@ defmodule Ecto.Adapters.DynamoDB do
         if map == %{}, do: %{}, else: %{table => map[table] ++ unprocessed_items[table]}
       end)
 
-    updated_recursive = Ecto.Adapters.DynamoDB.Query.update_recursive_option(recursive)
+    updated_recursive = Ecto.Adapters.DynamoDB.RecursiveFetch.update_recursive_option(recursive)
 
     if fetch_result["LastEvaluatedKey"] != nil and updated_recursive.continue do
       opts_with_offset = opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
@@ -594,7 +594,7 @@ defmodule Ecto.Adapters.DynamoDB do
         0
       end
 
-    updated_recursive = Ecto.Adapters.DynamoDB.Query.update_recursive_option(recursive)
+    updated_recursive = Ecto.Adapters.DynamoDB.RecursiveFetch.update_recursive_option(recursive)
 
     if fetch_result["LastEvaluatedKey"] != nil and updated_recursive.continue do
       opts_with_offset = opts ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]]
