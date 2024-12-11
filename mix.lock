@@ -1,6 +1,6 @@
 %{
   "certifi": {:hex, :certifi, "2.12.0", "2d1cca2ec95f59643862af91f001478c9863c2ac9cb6e2f89780bfd8de987329", [:rebar3], [], "hexpm", "ee68d85df22e554040cdb4be100f33873ac6051387baf6a8f6ce82272340ff1c"},
-  "confex": {:hex, :confex, "3.5.0", "163857c73dd8f88a3815663f4bc00bee1b9c65daf40aa6e0d6ef272757fd22c7", [:mix], [], "hexpm", "34a9e31230c7fbb3dbe60db00341d0c84ee44ba3caf84b498f501c0bc8563570"},
+  "confex": {:hex, :confex, "3.5.1", "c29ea741715de06afe6294ea2e127ee7a54382f2b33656b9ed7eedf3e7b6fcaf", [:mix], [], "hexpm", "c72824a267edc96c09a35f6556f48c139d00393dd1b726b18faeb8efee62c0b0"},
   "db_connection": {:hex, :db_connection, "2.7.0", "b99faa9291bb09892c7da373bb82cba59aefa9b36300f6145c5f201c7adf48ec", [:mix], [{:telemetry, "~> 0.4 or ~> 1.0", [hex: :telemetry, repo: "hexpm", optional: false]}], "hexpm", "dcf08f31b2701f857dfc787fbad78223d61a32204f217f15e881dd93e4bdd3ff"},
   "decimal": {:hex, :decimal, "2.1.1", "5611dca5d4b2c3dd497dec8f68751f1f1a54755e8ed2a966c2633cf885973ad6", [:mix], [], "hexpm", "53cfe5f497ed0e7771ae1a475575603d77425099ba5faef9394932b35020ffcc"},
   "dialyxir": {:hex, :dialyxir, "1.4.5", "ca1571ac18e0f88d4ab245f0b60fa31ff1b12cbae2b11bd25d207f865e8ae78a", [:mix], [{:erlex, ">= 0.2.7", [hex: :erlex, repo: "hexpm", optional: false]}], "hexpm", "b0fb08bb8107c750db5c0b324fa2df5ceaa0f9307690ee3c1f6ba5b9eb5d35c3"},
