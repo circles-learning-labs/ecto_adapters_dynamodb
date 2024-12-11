@@ -80,6 +80,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
       # files: ["lib", "priv", "mix.exs", "README*", "readme*", "LICENSE*", "license*"],
       maintainers: ["Franko Franicevich", "Darren Klein", "Gilad Barkan", "Nick Marino"],
       licenses: ["Apache 2.0"],
+      exclude_patterns: [~r/.*~/, ~r/src\/.*\.erl/],
       links: %{"GitHub" => "https://github.com/circles-learning-labs/ecto_adapters_dynamodb"}
     ]
   end
