@@ -682,6 +682,124 @@ defmodule Ecto.Adapters.DynamoDB.Test do
              |> TestRepo.all() == [person_1.id]
     end
 
+    test "'all... in...' query on a hash key global secondary index, hard-coded and variable list, range condition using concurrent tasks" do
+      Application.put_env(:ecto_adapters_dynamodb, :concurrent_batch, true)
+      Application.put_env(:ecto_adapters_dynamodb, :max_fetch_concurrency, 4)
+      Application.put_env(:ecto_adapters_dynamodb, :min_concurrent_fetch_batch, 1)
+
+      person_1 = %{
+        id: "person-jerrytest",
+        first_name: "Jerry",
+        last_name: "Garcia",
+        age: 55,
+        email: "jerry@test.com"
+      }
+
+      person_2 = %{
+        id: "person-bobtest",
+        first_name: "Bob",
+        last_name: "Weir",
+        age: 70,
+        email: "bob@test.com"
+      }
+
+      person_3 = %{
+        id: "person-neiltest",
+        first_name: "Neil",
+        last_name: "Young",
+        age: 71,
+        email: "neil@test.com"
+      }
+
+      person_4 = %{
+        id: "person-jamestest",
+        first_name: "James",
+        last_name: "Brown",
+        age: 72,
+        email: "james@test.com"
+      }
+
+      people = [person_1, person_2, person_3, person_4]
+
+      emails = Enum.map(people, & &1.email)
+      sorted_ids = Enum.sort(Enum.map(people, & &1.id))
+
+      TestRepo.insert_all(Person, people)
+
+      assert from(p in Person,
+               where: p.email in ^emails,
+               select: p.id
+             )
+             |> TestRepo.all()
+             |> Enum.sort() == sorted_ids
+
+      assert from(p in Person,
+               where: p.email in ^emails,
+               select: p.id
+             )
+             |> TestRepo.all()
+             |> Enum.sort() == sorted_ids
+
+      assert from(p in Person,
+               where:
+                 p.email in ^emails and
+                   p.age > 71,
+               select: p.id
+             )
+             |> TestRepo.all()
+             |> Enum.sort() == [person_4.id]
+
+      assert from(p in Person,
+               where:
+                 p.email in ^emails and
+                   p.age < 69,
+               select: p.id
+             )
+             |> TestRepo.all() == [person_1.id]
+
+      Application.delete_env(:ecto_adapters_dynamodb, :concurrent_batch)
+      Application.delete_env(:ecto_adapters_dynamodb, :max_fetch_concurrency)
+      Application.delete_env(:ecto_adapters_dynamodb, :min_concurrent_fetch_batch)
+    end
+
+    test "'all... in...' query on a hash key global secondary index, hard-coded and variable list, range condition with concurrent tasks enabled but only using one" do
+      Application.put_env(:ecto_adapters_dynamodb, :concurrent_batch, true)
+      Application.put_env(:ecto_adapters_dynamodb, :max_fetch_concurrency, 1)
+
+      person_1 = %{
+        id: "person-jerrytest",
+        first_name: "Jerry",
+        last_name: "Garcia",
+        age: 55,
+        email: "jerry@test.com"
+      }
+
+      person_2 = %{
+        id: "person-bobtest",
+        first_name: "Bob",
+        last_name: "Weir",
+        age: 70,
+        email: "bob@test.com"
+      }
+
+      people = [person_1, person_2]
+
+      emails = Enum.map(people, & &1.email)
+      sorted_ids = Enum.sort(Enum.map(people, & &1.id))
+
+      TestRepo.insert_all(Person, people)
+
+      assert from(p in Person,
+               where: p.email in ^emails,
+               select: p.id
+             )
+             |> TestRepo.all()
+             |> Enum.sort() == sorted_ids
+
+      Application.delete_env(:ecto_adapters_dynamodb, :concurrent_batch)
+      Application.delete_env(:ecto_adapters_dynamodb, :max_fetch_concurrency)
+    end
+
     test "query secondary index, :index option provided to resolve ambiguous index choice" do
       person1 = %{
         id: "person-methuselah-baby",

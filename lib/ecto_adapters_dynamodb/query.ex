@@ -7,17 +7,19 @@ defmodule Ecto.Adapters.DynamoDB.Query do
   import Ecto.Adapters.DynamoDB.Info
 
   alias Ecto.Adapters.DynamoDB
+  alias Ecto.Adapters.DynamoDB.ConcurrentBatch
+  alias Ecto.Adapters.DynamoDB.RecursiveFetch
   alias Ecto.Adapters.DynamoDB.RepoConfig
   alias Ecto.Repo
 
+  @type table_name :: String.t()
+  @type dynamo_response :: %{required(String.t()) => term}
   @typep key :: String.t()
-  @typep table_name :: String.t()
   @typep query_op :: :== | :> | :< | :>= | :<= | :is_nil | :between | :begins_with | :in
   @typep boolean_op :: :and | :or
   @typep match_clause :: {term, query_op}
   @typep search_clause :: {key, match_clause} | {boolean_op, [search_clause]}
   @typep search :: [search_clause]
-  @typep dynamo_response :: %{required(String.t()) => term}
   @typep query_opts :: [{atom(), any()}]
 
   # DynamoDB will reject an entire batch get query if the query is for more than 100 records, so these need to be batched.
@@ -114,24 +116,9 @@ defmodule Ecto.Adapters.DynamoDB.Query do
           query = construct_search(index, search, opts)
 
           if op == :in do
-            responses_element = "Responses"
-            response_map = %{responses_element => %{table => []}}
-
-            Enum.reduce(hash_values, response_map, fn hash_value, acc ->
-              # When receiving a list of values to query on, construct a custom query for each of those values to pass into do_fetch_recursive/1.
-              new_query =
-                Kernel.put_in(query, [:expression_attribute_values, :hash_key], hash_value)
-
-              %{"Items" => items} = do_fetch_recursive(repo, new_query, table, opts)
-
-              Kernel.put_in(
-                acc,
-                [responses_element, table],
-                acc[responses_element][table] ++ items
-              )
-            end)
+            ConcurrentBatch.fetch(repo, query, table, hash_values, opts)
           else
-            do_fetch_recursive(repo, query, table, opts)
+            RecursiveFetch.fetch_query(repo, query, table, opts)
           end
 
         :scan ->
@@ -139,17 +126,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
       end
 
     results
-  end
-
-  defp do_fetch_recursive(repo, query, table, opts) do
-    fetch_recursive(
-      repo,
-      &ExAws.Dynamo.query/2,
-      table,
-      query,
-      parse_recursive_option(:query, opts),
-      %{}
-    )
   end
 
   # In the case of a partial query on a composite key secondary index, the value of index in get_item/2 will be a three-element tuple, ex. {:secondary_partial, "person_id_entity", ["person_id"]}.
@@ -739,7 +715,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
         scan_limit = if is_integer(limit_option), do: [limit: limit_option], else: []
         updated_opts = Keyword.drop(opts, [:recursive, :limit, :scan]) ++ scan_limit
 
-        fetch_recursive(
+        RecursiveFetch.fetch(
           repo,
           &ExAws.Dynamo.scan/2,
           table,
@@ -772,7 +748,7 @@ defmodule Ecto.Adapters.DynamoDB.Query do
           expression_attribute_values: expression_attribute_values
         ] ++ updated_opts ++ filter_expression_tuple
 
-      fetch_recursive(
+      RecursiveFetch.fetch(
         repo,
         &ExAws.Dynamo.scan/2,
         table,
@@ -790,61 +766,6 @@ defmodule Ecto.Adapters.DynamoDB.Query do
     raise ArgumentError,
       message:
         "#{inspect(__MODULE__)}.maybe_scan/3 error: :scan option or configuration have not been specified, and could not confirm the table, #{inspect(table)}, as listed for scan or caching in the application's configuration. Please see README file for details."
-  end
-
-  @typep fetch_func :: (table_name, keyword -> ExAws.Operation.JSON.t())
-  @spec fetch_recursive(Repo.t(), fetch_func, table_name, keyword, boolean | number, map) ::
-          dynamo_response
-  defp fetch_recursive(repo, func, table, expressions, recursive, result) do
-    updated_expressions =
-      if recursive == true, do: Keyword.delete(expressions, :limit), else: expressions
-
-    fetch_result =
-      func.(table, updated_expressions) |> ExAws.request!(DynamoDB.ex_aws_config(repo))
-
-    # recursive can be a boolean or a page limit
-    updated_recursive = update_recursive_option(recursive)
-
-    if fetch_result["LastEvaluatedKey"] != nil and updated_recursive.continue do
-      fetch_recursive(
-        repo,
-        func,
-        table,
-        updated_expressions ++ [exclusive_start_key: fetch_result["LastEvaluatedKey"]],
-        updated_recursive.new_value,
-        combine_results(result, fetch_result)
-      )
-    else
-      combine_results(result, fetch_result)
-    end
-  end
-
-  @doc """
-  Updates the recursive option during a recursive fetch, according to whether the option is a boolean or an integer (as in the case of page_limit)
-  """
-  def update_recursive_option(r) when is_boolean(r), do: %{continue: r, new_value: r}
-  def update_recursive_option(r) when is_integer(r), do: %{continue: r > 1, new_value: r - 1}
-
-  @spec combine_results(map, map) :: map
-  defp combine_results(result, scan_result) do
-    if result == %{} do
-      scan_result
-    else
-      %{"Count" => result_count, "Items" => result_items, "ScannedCount" => result_scanned_count} =
-        result
-
-      %{
-        "Count" => scanned_count,
-        "Items" => scanned_items,
-        "ScannedCount" => scanned_scanned_count
-      } = scan_result
-
-      %{
-        "Count" => result_count + scanned_count,
-        "Items" => result_items ++ scanned_items,
-        "ScannedCount" => result_scanned_count + scanned_scanned_count
-      }
-    end
   end
 
   defp scannable_table?(repo, table), do: RepoConfig.table_in_list?(repo, table, :scan_tables)

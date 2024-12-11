@@ -2,6 +2,12 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.4.1
+
+- Update minimum Elixir to 1.13, update supported version to 1.17
+- Fix warnings on Elixir 1.17
+- Fix previously compile-time only config for maximum retry count to be runtime configurable
+
 ## v3.4.0
 
 - Support for Ecto 3.11 (note that this breaks support for earlier versions of Ecto).
