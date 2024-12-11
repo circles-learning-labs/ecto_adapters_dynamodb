@@ -2,6 +2,10 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.5.0
+
+- Add support for concurrent fetch. See README.
+
 ## v3.4.1
 
 - Update minimum Elixir to 1.13, update supported version to 1.17
