@@ -1191,13 +1191,14 @@ defmodule Ecto.Adapters.DynamoDB.Test do
 
   describe "decimal type handling" do
     test "insert and retrieve decimal fields" do
-      {:ok, product} = TestRepo.insert(%Product{
-        id: "product:decimal-test",
-        name: "Test Product",
-        price: Decimal.new("104.50"),
-        discount: Decimal.new("10.25"),
-        tax_rate: Decimal.new("0.08")
-      })
+      {:ok, product} =
+        TestRepo.insert(%Product{
+          id: "product:decimal-test",
+          name: "Test Product",
+          price: Decimal.new("104.50"),
+          discount: Decimal.new("10.25"),
+          tax_rate: Decimal.new("0.08")
+        })
 
       assert product.price == Decimal.new("104.50")
       assert product.discount == Decimal.new("10.25")
@@ -1210,13 +1211,14 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
 
     test "insert with string decimal values" do
-      {:ok, product} = TestRepo.insert(%Product{
-        id: "product:string-decimal-test",
-        name: "String Test Product",
-        price: "95.00",
-        discount: "5.50",
-        tax_rate: "0.12"
-      })
+      {:ok, product} =
+        TestRepo.insert(%Product{
+          id: "product:string-decimal-test",
+          name: "String Test Product",
+          price: "95.00",
+          discount: "5.50",
+          tax_rate: "0.12"
+        })
 
       retrieved = TestRepo.get(Product, "product:string-decimal-test")
       assert retrieved.price == Decimal.new("95.00")
@@ -1225,13 +1227,14 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
 
     test "insert with nil decimal values" do
-      {:ok, product} = TestRepo.insert(%Product{
-        id: "product:nil-decimal-test",
-        name: "Nil Test Product",
-        price: Decimal.new("50.00"),
-        discount: nil,
-        tax_rate: nil
-      })
+      {:ok, product} =
+        TestRepo.insert(%Product{
+          id: "product:nil-decimal-test",
+          name: "Nil Test Product",
+          price: Decimal.new("50.00"),
+          discount: nil,
+          tax_rate: nil
+        })
 
       retrieved = TestRepo.get(Product, "product:nil-decimal-test")
       assert retrieved.price == Decimal.new("50.00")
@@ -1240,21 +1243,25 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
 
     test "query with decimal fields" do
-      {:ok, _} = TestRepo.insert(%Product{
-        id: "product:query-test-1",
-        name: "Query Test 1",
-        price: Decimal.new("100.00")
-      })
+      {:ok, _} =
+        TestRepo.insert(%Product{
+          id: "product:query-test-1",
+          name: "Query Test 1",
+          price: Decimal.new("100.00")
+        })
 
-      {:ok, _} = TestRepo.insert(%Product{
-        id: "product:query-test-2", 
-        name: "Query Test 2",
-        price: Decimal.new("200.00")
-      })
+      {:ok, _} =
+        TestRepo.insert(%Product{
+          id: "product:query-test-2",
+          name: "Query Test 2",
+          price: Decimal.new("200.00")
+        })
 
-      products = from(p in Product, 
-        where: p.id in ["product:query-test-1", "product:query-test-2"],
-        select: [p.id, p.price])
+      products =
+        from(p in Product,
+          where: p.id in ["product:query-test-1", "product:query-test-2"],
+          select: [p.id, p.price]
+        )
         |> TestRepo.all()
         |> Enum.sort()
 
