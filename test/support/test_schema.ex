@@ -110,3 +110,23 @@ defmodule Ecto.Adapters.DynamoDB.TestSchema.Fruit do
     |> Ecto.Changeset.validate_required([:id, :name])
   end
 end
+
+defmodule Ecto.Adapters.DynamoDB.TestSchema.Product do
+  use Ecto.Schema
+  @primary_key {:id, :binary_id, autogenerate: true}
+
+  schema "test_product" do
+    field(:name, :string)
+    field(:price, :decimal)
+    field(:discount, :decimal)
+    field(:tax_rate, :decimal)
+
+    timestamps()
+  end
+
+  def changeset(struct, params \\ %{}) do
+    struct
+    |> Ecto.Changeset.cast(params, [:name, :price, :discount, :tax_rate])
+    |> Ecto.Changeset.validate_required([:id, :name])
+  end
+end
