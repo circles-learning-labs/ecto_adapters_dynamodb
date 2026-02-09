@@ -138,7 +138,6 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp load_decimal(%Decimal{} = value), do: {:ok, value}
-  defp load_decimal(nil), do: {:ok, nil}
   defp load_decimal(value), do: {:ok, value}
 
   defp load_utc_datetime(value) when is_binary(value) do
@@ -149,7 +148,6 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp load_utc_datetime(%DateTime{} = value), do: {:ok, value}
-  defp load_utc_datetime(nil), do: {:ok, nil}
   defp load_utc_datetime(value), do: {:ok, value}
 
   defp load_naive_datetime(value) when is_binary(value) do
@@ -163,7 +161,6 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp load_naive_datetime(%NaiveDateTime{} = value), do: {:ok, value}
-  defp load_naive_datetime(nil), do: {:ok, nil}
   defp load_naive_datetime(value), do: {:ok, value}
 
   @doc """
@@ -200,8 +197,7 @@ defmodule Ecto.Adapters.DynamoDB do
   end
 
   defp dump_decimal(%Decimal{} = decimal), do: {:ok, Decimal.to_string(decimal)}
-  defp dump_decimal(value) when is_binary(value), do: {:ok, value}
-  defp dump_decimal(nil), do: {:ok, nil}
+  defp dump_decimal(value), do: {:ok, value}
 
   @doc """
   Commands invoked to prepare a query for `all`, `update_all` and `delete_all`.
