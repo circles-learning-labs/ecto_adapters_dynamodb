@@ -131,8 +131,9 @@ defmodule Ecto.Adapters.DynamoDB do
   def loaders(_primitive, type), do: [type]
 
   defp load_decimal(value) when is_binary(value) do
-    case Decimal.new(value) do
-      %Decimal{} = decimal -> {:ok, decimal}
+    try do
+      {:ok, Decimal.new(value)}
+    rescue
       _error -> {:ok, value}
     end
   end
@@ -1672,8 +1673,9 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # Handle decimal type conversion for Ecto 3.13+ compatibility
   defp decode_type(val, :decimal, _repo, _opts) when is_binary(val) do
-    case Decimal.new(val) do
-      %Decimal{} = decimal -> decimal
+    try do
+      Decimal.new(val)
+    rescue
       _error -> val
     end
   end
