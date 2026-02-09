@@ -1211,7 +1211,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
 
     test "insert with string decimal values" do
-      {:ok, product} =
+      {:ok, _product} =
         TestRepo.insert(%Product{
           id: "product:string-decimal-test",
           name: "String Test Product",
@@ -1227,7 +1227,7 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
 
     test "insert with nil decimal values" do
-      {:ok, product} =
+      {:ok, _product} =
         TestRepo.insert(%Product{
           id: "product:nil-decimal-test",
           name: "Nil Test Product",
@@ -1243,14 +1243,14 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
 
     test "query with decimal fields" do
-      {:ok, _} =
+      {:ok, _product} =
         TestRepo.insert(%Product{
           id: "product:query-test-1",
           name: "Query Test 1",
           price: Decimal.new("100.00")
         })
 
-      {:ok, _} =
+      {:ok, _product} =
         TestRepo.insert(%Product{
           id: "product:query-test-2",
           name: "Query Test 2",

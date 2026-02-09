@@ -1667,7 +1667,7 @@ defmodule Ecto.Adapters.DynamoDB do
   # Support for Ecto 3.0-3.4
   defp decode_type(val, {:embed, _} = type, _repo, _opts), do: decode_embed(val, type)
 
-  # Handle decimal type conversion for Ecto 3.13+ compatibility
+  # Support for Ecto >= 3.13
   defp decode_type(val, :decimal, _repo, _opts) when is_binary(val) do
     case Decimal.parse(val) do
       {%Decimal{} = decimal, _rest} -> decimal
@@ -1675,17 +1675,24 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  # Handle decimal type when already a Decimal struct (backward compatibility)
-  defp decode_type(%Decimal{} = val, :decimal, _repo, _opts), do: val
-
   defp decode_type(val, _type, _repo, _opts), do: val
 
   defp decode_embed(val, type) do
-    case Ecto.Type.embedded_load(type, val, :json) do
-      {:ok, decoded_value} ->
-        handle_decoded_embeded(decoded_value)
+    try do
+      case Ecto.Type.embedded_load(type, val, :json) do
+        {:ok, decoded_value} ->
+          handle_decoded_embedded(decoded_value)
 
-      :error ->
+        :error ->
+          ecto_dynamo_log(
+            :debug,
+            "#{inspect(__MODULE__)}.decode_embed: failed to decode embedded value: #{inspect(val)}"
+          )
+
+          nil
+      end
+    rescue
+      _ ->
         ecto_dynamo_log(
           :debug,
           "#{inspect(__MODULE__)}.decode_embed: failed to decode embedded value: #{inspect(val)}"
@@ -1695,10 +1702,10 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  defp handle_decoded_embeded(embedded) when is_list(embedded),
+  defp handle_decoded_embedded(embedded) when is_list(embedded),
     do: Enum.map(embedded, &unload_parameterized_fields/1)
 
-  defp handle_decoded_embeded(embedded), do: unload_parameterized_fields(embedded)
+  defp handle_decoded_embedded(embedded), do: unload_parameterized_fields(embedded)
 
   # Rebuilds the embedded schema unloading the parameterized fields, so the parameterized
   # type can load it in the ecto schema.

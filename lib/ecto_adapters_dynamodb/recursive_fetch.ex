@@ -1,6 +1,7 @@
 defmodule Ecto.Adapters.DynamoDB.RecursiveFetch do
   alias Ecto.Adapters.DynamoDB
   alias Ecto.Adapters.DynamoDB.Query
+  alias Ecto.Repo
 
   @typep fetch_func :: (Query.table_name(), keyword -> ExAws.Operation.JSON.t())
 
