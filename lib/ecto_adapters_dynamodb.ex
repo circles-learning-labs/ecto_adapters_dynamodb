@@ -131,14 +131,12 @@ defmodule Ecto.Adapters.DynamoDB do
   def loaders(_primitive, type), do: [type]
 
   defp load_decimal(value) when is_binary(value) do
-    try do
-      {:ok, Decimal.new(value)}
-    rescue
+    case Decimal.parse(value) do
+      {%Decimal{} = decimal, _rest} -> {:ok, decimal}
       _error -> {:ok, value}
     end
   end
 
-  defp load_decimal(%Decimal{} = value), do: {:ok, value}
   defp load_decimal(value), do: {:ok, value}
 
   defp load_utc_datetime(value) when is_binary(value) do
@@ -148,7 +146,6 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  defp load_utc_datetime(%DateTime{} = value), do: {:ok, value}
   defp load_utc_datetime(value), do: {:ok, value}
 
   defp load_naive_datetime(value) when is_binary(value) do
@@ -161,7 +158,6 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  defp load_naive_datetime(%NaiveDateTime{} = value), do: {:ok, value}
   defp load_naive_datetime(value), do: {:ok, value}
 
   @doc """
@@ -1673,9 +1669,8 @@ defmodule Ecto.Adapters.DynamoDB do
 
   # Handle decimal type conversion for Ecto 3.13+ compatibility
   defp decode_type(val, :decimal, _repo, _opts) when is_binary(val) do
-    try do
-      Decimal.new(val)
-    rescue
+    case Decimal.parse(val) do
+      {%Decimal{} = decimal, _rest} -> decimal
       _error -> val
     end
   end
