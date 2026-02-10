@@ -149,9 +149,6 @@ defmodule Ecto.Adapters.DynamoDB do
   defp load_utc_datetime(value), do: {:ok, value}
 
   defp load_naive_datetime(value) when is_binary(value) do
-    # Remove Z suffix if present for naive datetime
-    clean_value = String.replace_suffix(value, "Z", "")
-
     case NaiveDateTime.from_iso8601(clean_value) do
       {:ok, datetime} -> {:ok, datetime}
       _error -> {:ok, value}
