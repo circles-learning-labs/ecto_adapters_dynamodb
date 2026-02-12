@@ -5,7 +5,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
     [
       app: :ecto_adapters_dynamodb,
       version: "3.5.0",
-      elixir: "~> 1.13",
+      elixir: "~> 1.14",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
       deps: deps(),

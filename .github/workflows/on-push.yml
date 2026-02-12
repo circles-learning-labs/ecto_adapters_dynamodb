@@ -46,9 +46,6 @@ jobs:
           - pair:
               otp: 24.x
               elixir: 1.14.x
-          - pair:
-              otp: 24.x
-              elixir: 1.13.x
     steps:
       - uses: actions/checkout@v4
         name: "Checkout"
