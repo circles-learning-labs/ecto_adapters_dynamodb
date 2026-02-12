@@ -117,21 +117,57 @@ defmodule Ecto.Adapters.DynamoDB do
   @doc """
   Returns the loaders for a given type.
 
-  Rather than use the Ecto adapter loaders callback, the adapter builds on ExAws' decoding functionality, please see ExAws's `ExAws.Dynamo.Decoder`, in this module, which at this time only loads :utc_datetime and :naive_datetime.
+  The adapter builds on ExAws' decoding functionality (see `ExAws.Dynamo.Decoder`) to convert DynamoDB wire format to basic Elixir types. However, Ecto 3.13+ requires additional type conversion from these basic types to proper Ecto types. This module provides custom loaders for :utc_datetime, :naive_datetime, and :decimal types to handle this conversion (e.g., converting string "104.50" to Decimal struct, ISO8601 strings to DateTime structs).
   """
   @impl Ecto.Adapter
+  def loaders(:decimal, _type), do: [&load_decimal/1]
+
+  def loaders(type, _type) when type in [:utc_datetime, :utc_datetime_usec],
+    do: [&load_utc_datetime/1]
+
+  def loaders(type, _type) when type in [:naive_datetime, :naive_datetime_usec],
+    do: [&load_naive_datetime/1]
+
   def loaders(_primitive, type), do: [type]
+
+  defp load_decimal(value) when is_binary(value) do
+    case Decimal.parse(value) do
+      {%Decimal{} = decimal, _rest} -> {:ok, decimal}
+      _error -> {:ok, value}
+    end
+  end
+
+  defp load_decimal(value), do: {:ok, value}
+
+  defp load_utc_datetime(value) when is_binary(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, datetime, _offset} -> {:ok, datetime}
+      _error -> {:ok, value}
+    end
+  end
+
+  defp load_utc_datetime(value), do: {:ok, value}
+
+  defp load_naive_datetime(value) when is_binary(value) do
+    case NaiveDateTime.from_iso8601(clean_value) do
+      {:ok, datetime} -> {:ok, datetime}
+      _error -> {:ok, value}
+    end
+  end
+
+  defp load_naive_datetime(value), do: {:ok, value}
 
   @doc """
   Returns the dumpers for a given type.
 
-  We rely on ExAws encoding functionality during insertion and update to properly format types for DynamoDB. Please see ExAws `ExAws.Dynamo.update_item` and `ExAws.Dynamo.put_item` for specifics. Currently, we only modify :utc_datetime and :naive_datetime, appending the UTC offset, "Z", to the datetime string before passing to ExAws.
+  The adapter relies on ExAws encoding functionality to format types for DynamoDB wire protocol. However, some Ecto types need preprocessing before ExAws can handle them. This module provides custom dumpers for :utc_datetime, :naive_datetime (to add ISO8601 formatting), and :decimal types (to convert Decimal structs to strings that ExAws can encode).
   """
   @impl Ecto.Adapter
   def dumpers(type, datetime)
       when type in [:naive_datetime, :naive_datetime_usec, :utc_datetime, :utc_datetime_usec],
       do: [datetime, &to_iso_string/1]
 
+  def dumpers(:decimal, _type), do: [&dump_decimal/1]
   def dumpers(_primitive, type), do: [type]
 
   # Add UTC offset
@@ -153,6 +189,9 @@ defmodule Ecto.Adapters.DynamoDB do
 
     {:ok, iso_string}
   end
+
+  defp dump_decimal(%Decimal{} = decimal), do: {:ok, Decimal.to_string(decimal)}
+  defp dump_decimal(value), do: {:ok, value}
 
   @doc """
   Commands invoked to prepare a query for `all`, `update_all` and `delete_all`.
@@ -1625,14 +1664,32 @@ defmodule Ecto.Adapters.DynamoDB do
   # Support for Ecto 3.0-3.4
   defp decode_type(val, {:embed, _} = type, _repo, _opts), do: decode_embed(val, type)
 
+  # Support for Ecto >= 3.13
+  defp decode_type(val, :decimal, _repo, _opts) when is_binary(val) do
+    case Decimal.parse(val) do
+      {%Decimal{} = decimal, _rest} -> decimal
+      _error -> val
+    end
+  end
+
   defp decode_type(val, _type, _repo, _opts), do: val
 
   defp decode_embed(val, type) do
-    case Ecto.Type.embedded_load(type, val, :json) do
-      {:ok, decoded_value} ->
-        handle_decoded_embeded(decoded_value)
+    try do
+      case Ecto.Type.embedded_load(type, val, :json) do
+        {:ok, decoded_value} ->
+          handle_decoded_embedded(decoded_value)
 
-      :error ->
+        :error ->
+          ecto_dynamo_log(
+            :debug,
+            "#{inspect(__MODULE__)}.decode_embed: failed to decode embedded value: #{inspect(val)}"
+          )
+
+          nil
+      end
+    rescue
+      _ ->
         ecto_dynamo_log(
           :debug,
           "#{inspect(__MODULE__)}.decode_embed: failed to decode embedded value: #{inspect(val)}"
@@ -1642,10 +1699,10 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  defp handle_decoded_embeded(embedded) when is_list(embedded),
+  defp handle_decoded_embedded(embedded) when is_list(embedded),
     do: Enum.map(embedded, &unload_parameterized_fields/1)
 
-  defp handle_decoded_embeded(embedded), do: unload_parameterized_fields(embedded)
+  defp handle_decoded_embedded(embedded), do: unload_parameterized_fields(embedded)
 
   # Rebuilds the embedded schema unloading the parameterized fields, so the parameterized
   # type can load it in the ecto schema.

@@ -22,6 +22,7 @@ defmodule TestHelper do
     Dynamo.delete_table("test_book_page") |> request()
     Dynamo.delete_table("test_planet") |> request()
     Dynamo.delete_table("test_fruit") |> request()
+    Dynamo.delete_table("test_product") |> request()
 
     IO.puts("creating test_person table")
     # Only need to define types for indexed fields:
@@ -169,6 +170,11 @@ defmodule TestHelper do
     Dynamo.create_table("test_fruit", [id: :hash], %{id: :string}, 100, 100, [], [])
     |> request()
 
+    IO.puts("creating test_product table")
+
+    Dynamo.create_table("test_product", [id: :hash], %{id: :string}, 100, 100, [], [])
+    |> request()
+
     :ok
   end
 
@@ -186,6 +192,7 @@ defmodule TestHelper do
     Dynamo.delete_table("test_book_page") |> request()
     Dynamo.delete_table("test_planet") |> request()
     Dynamo.delete_table("test_fruit") |> request()
+    Dynamo.delete_table("test_product") |> request()
   end
 
   def on_exit(:migration) do
