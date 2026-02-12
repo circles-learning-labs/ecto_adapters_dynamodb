@@ -2,6 +2,12 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.6.0
+
+- Add support for Ecto 3.13 - thanks to @vicentedpsantos for the contribution
+- Add test coverage for Elixir 1.18 and 1.19
+- Drop support for Elixir 1.13 and 1.14
+
 ## v3.5.0
 
 - Add support for concurrent fetch. See README.
