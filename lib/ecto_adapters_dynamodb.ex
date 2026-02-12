@@ -149,7 +149,7 @@ defmodule Ecto.Adapters.DynamoDB do
   defp load_utc_datetime(value), do: {:ok, value}
 
   defp load_naive_datetime(value) when is_binary(value) do
-    case NaiveDateTime.from_iso8601(clean_value) do
+    case NaiveDateTime.from_iso8601(value) do
       {:ok, datetime} -> {:ok, datetime}
       _error -> {:ok, value}
     end

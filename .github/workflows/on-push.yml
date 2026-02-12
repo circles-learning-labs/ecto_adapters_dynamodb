@@ -9,12 +9,30 @@ jobs:
     strategy:
       matrix:
         include:
+
+
           - pair:
-              otp: 27.x
-              elixir: 1.17.x
+              otp: 28.x
+              elixir: 1.19.x
               lint: lint
 
           - pair:
+              otp: 27.x
+              elixir: 1.19.x
+          - pair:
+              otp: 27.x
+              elixir: 1.18.x
+          - pair:
+              otp: 27.x
+              elixir: 1.17.x
+
+          - pair:
+              otp: 26.x
+              elixir: 1.19.x
+          - pair:
+              otp: 26.x
+              elixir: 1.18.x
+          - pair:
               otp: 26.x
               elixir: 1.17.x
           - pair:
@@ -33,9 +51,6 @@ jobs:
           - pair:
               otp: 25.x
               elixir: 1.15.x
-          - pair:
-              otp: 25.x
-              elixir: 1.14.x
 
           - pair:
               otp: 24.x
@@ -43,9 +58,6 @@ jobs:
           - pair:
               otp: 24.x
               elixir: 1.15.x
-          - pair:
-              otp: 24.x
-              elixir: 1.14.x
     steps:
       - uses: actions/checkout@v4
         name: "Checkout"
