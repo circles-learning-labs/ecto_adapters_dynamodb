@@ -1,6 +1,6 @@
 defmodule Ecto.Adapters.DynamoDB.Info do
   @moduledoc """
-  Get information on dynamo tables and schema 
+  Get information on dynamo tables and schema
   """
 
   alias Ecto.Adapters.DynamoDB
@@ -134,7 +134,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
   def table_exists?(repo, table_name) do
     case Dynamo.describe_table(table_name) |> ExAws.request(DynamoDB.ex_aws_config(repo)) do
       {:ok, _} -> true
-      {:error, _} -> false
+      {:error, _error_tuple} -> false
     end
   end
 
@@ -165,7 +165,7 @@ defmodule Ecto.Adapters.DynamoDB.Info do
       [%{"AttributeName" => fieldname}] ->
         [fieldname]
 
-      # Two entries, it's a HASH + SORT - but they might not be returned in order - So figure out 
+      # Two entries, it's a HASH + SORT - but they might not be returned in order - So figure out
       # which is the hash and which is the sort by matching for the "HASH" attribute in the first,
       # then second element of the list. Match explicitly as we want a crash if we get anything else.
       [
