@@ -2,6 +2,7 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   import Ecto.Adapters.DynamoDB, only: [ecto_dynamo_log: 2, ecto_dynamo_log: 3, ex_aws_config: 1]
 
   alias ExAws.Dynamo
+  alias Ecto.Adapters.DynamoDB.Info
   alias Ecto.Adapters.DynamoDB.RepoConfig
 
   @moduledoc """
@@ -150,19 +151,9 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
     # :schema_migrations might be provided as an atom, while 'table.name' is now usually a binary
     table_name = if is_atom(table.name), do: Atom.to_string(table.name), else: table.name
 
-    # Use describe_table instead of list_tables to check if table exists.
-    # list_tables returns max 100 tables without pagination, so tables beyond
-    # the first 100 won't be found, causing false "table doesn't exist" results.
-    table_exists =
-      case Dynamo.describe_table(table_name) |> ExAws.request(ex_aws_config(repo)) do
-        {:ok, _} -> true
-        {:error, {"ResourceNotFoundException", _}} -> false
-        {:error, _} -> false
-      end
-
     ecto_dynamo_log(:debug, "#{inspect(__MODULE__)}.execute_ddl: :create_if_not_exists (table)")
 
-    if not table_exists do
+    if not Info.table_exists?(repo, table_name) do
       ecto_dynamo_log(
         :debug,
         "#{inspect(__MODULE__)}.execute_ddl: create_if_not_exist: creating table",
@@ -221,23 +212,14 @@ defmodule Ecto.Adapters.DynamoDB.Migration do
   end
 
   defp execute_ddl(repo, {:drop_if_exists, %Ecto.Migration.Table{} = table, opts}) do
-    # Use describe_table instead of list_tables to check if table exists.
-    # list_tables returns max 100 tables without pagination.
     table_name = if is_atom(table.name), do: Atom.to_string(table.name), else: table.name
-
-    table_exists =
-      case Dynamo.describe_table(table_name) |> ExAws.request(ex_aws_config(repo)) do
-        {:ok, _} -> true
-        {:error, {"ResourceNotFoundException", _}} -> false
-        {:error, _} -> false
-      end
 
     ecto_dynamo_log(
       :debug,
       "#{inspect(__MODULE__)}.execute_ddl: drop_if_exists (table) opts (ignored): #{inspect(opts)}"
     )
 
-    if table_exists do
+    if Info.table_exists?(repo, table_name) do
       ecto_dynamo_log(
         :debug,
         "#{inspect(__MODULE__)}.execute_ddl: drop_if_exists: removing table",
