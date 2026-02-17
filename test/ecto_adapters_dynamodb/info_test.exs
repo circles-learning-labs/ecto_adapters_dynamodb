@@ -194,6 +194,16 @@ defmodule Ecto.Adapters.DynamoDB.Info.Test do
     assert indexed_attributes(TestRepo, "test_planet") == ["id", "name", "mass"]
   end
 
+  describe "table_exists?" do
+    test "returns true for existing table" do
+      assert table_exists?(TestRepo, "test_person") == true
+    end
+
+    test "returns false for non-existing table" do
+      assert table_exists?(TestRepo, "non_existing_table_12345") == false
+    end
+  end
+
   defp normalise_info(info) when is_map(info) do
     info
     |> Enum.map(fn {k, v} -> {k, normalise_info(v)} end)
