@@ -123,12 +123,6 @@ defmodule Ecto.Adapters.DynamoDB.Info do
 
   @doc """
   Returns a boolean indicating whether or not a given table exists.
-
-  Uses `DescribeTable` instead of `ListTables` to check table existence.
-  `ListTables` returns a maximum of 100 table names per request and doesn't
-  implement pagination, so tables beyond the first 100 won't be found.
-
-  See: https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_ListTables.html
   """
   @spec table_exists?(Repo.t(), String.t()) :: boolean()
   def table_exists?(repo, table_name) do
