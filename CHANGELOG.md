@@ -2,6 +2,11 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.6.0
+
+- Adds support for :ecto_sql 3.13
+- Adds table_exists?/2
+
 ## v3.5.0
 
 - Add support for concurrent fetch. See README.
