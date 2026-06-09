@@ -1741,8 +1741,8 @@ defmodule Ecto.Adapters.DynamoDB do
           Enum.any?(record, fn {field, val} ->
             [type] = Dynamo.Encoder.encode(val) |> Map.keys()
 
-            # Ecto does not convert Empty strings to nil before passing them to Repo.update_all or
-            # Repo.insert_all DynamoDB provides an instructive message during an update (forwarded by ExAws),
+            # Ecto does not convert empty strings to nil before passing them to Repo.update_all or
+            # Repo.insert_all. DynamoDB provides an instructive message during an update (forwarded by ExAws),
             # but less so for batch_write_item, so we catch the empty string as well.
             # Dynamo does not allow insertion of empty strings in any case.
             (Enum.member?(indexed_fields, to_string(field)) and type not in ["S", "N"]) ||
@@ -1761,6 +1761,12 @@ defmodule Ecto.Adapters.DynamoDB do
       true ->
         raise ExAws.Error, message: "ExAws Request Error! #{inspect(error)}"
     end
+  end
+
+  # Maybe more rarely seen, the tuple in the first argument may also have three elements, such as
+  # {:error, {:http_error, 500, "{\"__type\":\"com.amazonaws.dynamodb.v20120810#InternalServerError\",\"message\":\"Internal server error\"}"}}
+  defp handle_error!({:error, {_error_type, _status, _info} = error}, _repo, _params) do
+    raise ExAws.Error, message: "ExAws Request Error! #{inspect(error)}"
   end
 
   @doc """

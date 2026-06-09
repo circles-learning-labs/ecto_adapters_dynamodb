@@ -18,8 +18,13 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
       description:
         "A DynamoDB adapter for Ecto supporting basic queries. See https://github.com/circles-learning-labs/ecto_adapters_dynamodb for detailed instructions.",
       package: package(),
-      source_url: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb",
-      preferred_cli_env: [
+      source_url: "https://github.com/circles-learning-labs/ecto_adapters_dynamodb"
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
