@@ -1752,6 +1752,9 @@ defmodule Ecto.Adapters.DynamoDB do
 
     cond do
       # we use this error to check if an update or delete record does not exist
+
+      # FIXME - should the second value be "TransactionCanceledException"? Maybe some possible refactor with the other error handler below if so.
+      # Also see other use cases of that value in this file.
       error_name in ["ConditionalCheckFailedException", "TransactionConflictException"] ->
         {:error, error_name}
 
@@ -1763,10 +1766,15 @@ defmodule Ecto.Adapters.DynamoDB do
     end
   end
 
-  # Maybe more rarely seen, the tuple in the first argument may also have three elements, such as
-  # {:error, {:http_error, 500, "{\"__type\":\"com.amazonaws.dynamodb.v20120810#InternalServerError\",\"message\":\"Internal server error\"}"}}
-  defp handle_error!({:error, {_error_type, _status, _info} = error}, _repo, _params) do
-    raise ExAws.Error, message: "ExAws Request Error! #{inspect(error)}"
+  # In the case of 5XX errors, a three-element error tuple will be returned; this may also happen when the error_name
+  # is "TransactionCanceledException" or "ConditionalCheckFailedException" (the latter would only occur if
+  # return_values_on_condition_check_failure was set to :all_old, which is not the case at the moment).
+  defp handle_error!({:error, {error_name, _, _} = error}, _repo, _params) do
+    if error_name == :http_error do
+      raise ExAws.Error, message: "ExAws Request Error! #{inspect(error)}"
+    else
+      {:error, error_name}
+    end
   end
 
   @doc """
