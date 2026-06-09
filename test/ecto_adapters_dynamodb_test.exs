@@ -1189,6 +1189,56 @@ defmodule Ecto.Adapters.DynamoDB.Test do
     end
   end
 
+  describe "http_error (5XX) handling" do
+    setup do
+      fruit = TestRepo.insert!(%Fruit{name: "fruit"})
+
+      {:ok, fruit: fruit}
+    end
+
+    test_with_mock "update raises ExAws.Error",
+                   %{fruit: fruit},
+                   ExAws,
+                   [:passthrough],
+                   http_error_mock() do
+      assert_raise ExAws.Error, ~r/http_error/, fn ->
+        fruit
+        |> Fruit.changeset(%{name: "banana"})
+        |> TestRepo.update!()
+      end
+
+      assert_called_exactly(ExAws.request(:_, :_), 1)
+    end
+
+    test_with_mock "insert raises ExAws.Error", ExAws, [:passthrough], http_error_mock() do
+      assert_raise ExAws.Error, ~r/http_error/, fn ->
+        TestRepo.insert!(%Fruit{name: "Orange"})
+      end
+    end
+
+    test_with_mock "delete raises ExAws.Error",
+                   %{fruit: fruit},
+                   ExAws,
+                   [:passthrough],
+                   http_error_mock() do
+      assert_raise ExAws.Error, ~r/http_error/, fn ->
+        TestRepo.delete!(fruit)
+      end
+    end
+
+    defp http_error_mock do
+      # A real-life example of what the error body may look like in cases of a 500 error.
+      http_error_body =
+        ~s({"__type":"com.amazonaws.dynamodb.v20120810#InternalServerError","message":"Internal server error"})
+
+      [
+        request: fn _request, _config ->
+          {:error, {:http_error, 500, http_error_body}}
+        end
+      ]
+    end
+  end
+
   describe "decimal type handling" do
     test "insert and retrieve decimal fields" do
       {:ok, product} =
