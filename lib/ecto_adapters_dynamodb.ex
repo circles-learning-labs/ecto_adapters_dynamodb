@@ -1741,8 +1741,8 @@ defmodule Ecto.Adapters.DynamoDB do
           Enum.any?(record, fn {field, val} ->
             [type] = Dynamo.Encoder.encode(val) |> Map.keys()
 
-            # Ecto does not convert Empty strings to nil before passing them to Repo.update_all or
-            # Repo.insert_all DynamoDB provides an instructive message during an update (forwarded by ExAws),
+            # Ecto does not convert empty strings to nil before passing them to Repo.update_all or
+            # Repo.insert_all. DynamoDB provides an instructive message during an update (forwarded by ExAws),
             # but less so for batch_write_item, so we catch the empty string as well.
             # Dynamo does not allow insertion of empty strings in any case.
             (Enum.member?(indexed_fields, to_string(field)) and type not in ["S", "N"]) ||
@@ -1761,6 +1761,16 @@ defmodule Ecto.Adapters.DynamoDB do
       true ->
         raise ExAws.Error, message: "ExAws Request Error! #{inspect(error)}"
     end
+  end
+
+  # There are a few cases in which the second element of the :error tuple is a three-element tuple:
+  # - For 5XX errors (rare!), an :http_error tuple will be returned from ExAws.Request.
+  # - When error_name is "TransactionCanceledException" as returned by ExAws.Dynamo - not currently handled here,
+  #   as we do not use any of the Transact methods.
+  # - When error_name is "ConditionalCheckFailedException" and return_values_on_condition_check_failure option is
+  #   set to :all_old as returned by ExAws.Dynamo - also not currently handled here, as we do not use the :all_old option.
+  defp handle_error!({:error, {:http_error, _, _} = error}, _repo, _params) do
+    raise ExAws.Error, message: "ExAws Request Error! #{inspect(error)}"
   end
 
   @doc """
