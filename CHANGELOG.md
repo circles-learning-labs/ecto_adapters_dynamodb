@@ -2,6 +2,9 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## v3.6.1
+- Adds support for handling three-element HTTP error tuples.
+
 ## v3.6.0
 
 - Adds support for :ecto_sql 3.13
