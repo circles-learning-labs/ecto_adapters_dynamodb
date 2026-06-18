@@ -32,7 +32,7 @@ config :ecto_adapters_dynamodb, MyApp.MyRepo
 
 ### Global ExAws config
 
-Prior to v3, the adapter would overwrite any existing glboal ExAws config with its own values on
+Prior to v3, the adapter would overwrite any existing global ExAws config with its own values on
 startup. From v3 the adapter will only use the config it's given in the calls it makes itself.
 This may mean that you need to explicitly specify ExAws configuration options outside of the
 adapter's config if you're making your own ExAws calls elsewhere.
