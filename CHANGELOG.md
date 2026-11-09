@@ -2,6 +2,10 @@
 
 [v2.x.x -> v3.x.x upgrade guide](/upgrade_guides/version_3_upgrade_guide.md)
 
+## Unreleased
+
+- `hackney` is no longer a runtime dependency (it stays for dev/test only). The adapter does not call hackney itself; it only reaches it through ExAws' default HTTP client. Apps that use hackney must now list it in their own dependencies. Apps can also configure another ExAws HTTP client (for example `ExAws.Request.Req`) and drop hackney altogether. This also allows `ex_aws` 2.7+, which requires `hackney ~> 4.0` when hackney is present.
+
 ## v3.6.1
 - Adds support for handling three-element HTTP error tuples.
 
