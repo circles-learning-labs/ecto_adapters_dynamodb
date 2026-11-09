@@ -4,7 +4,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   def project do
     [
       app: :ecto_adapters_dynamodb,
-      version: "3.6.1",
+      version: "3.6.2",
       elixir: "~> 1.15",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
@@ -69,7 +69,7 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   defp deps do
     [
       {:confex, "~> 3.5.0"},
-      {:ecto_sql, "~> 3.13"},
+      {:ecto_sql, "~> 3.14"},
       {:ex_aws_dynamo, "~> 4.1"},
       {:excoveralls, "~> 0.18", only: :test},
       {:jason, "~> 1.0"},
@@ -83,7 +83,13 @@ defmodule Ecto.Adapters.DynamoDB.Mixfile do
   defp package do
     [
       # files: ["lib", "priv", "mix.exs", "README*", "readme*", "LICENSE*", "license*"],
-      maintainers: ["Franko Franicevich", "Darren Klein", "Gilad Barkan", "Nick Marino"],
+      maintainers: [
+        "Franko Franicevich",
+        "Darren Klein",
+        "Gilad Barkan",
+        "Nick Marino",
+        "Bernard Duggan"
+      ],
       licenses: ["Apache-2.0"],
       exclude_patterns: [~r/.*~/, ~r/src\/.*\.erl/],
       links: %{"GitHub" => "https://github.com/circles-learning-labs/ecto_adapters_dynamodb"}
