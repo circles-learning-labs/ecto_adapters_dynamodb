@@ -204,6 +204,12 @@ defp deps do
 end
 ```
 
+The adapter makes its requests through ExAws, which uses hackney by default. hackney is an optional dependency of this package, so add it to your own dependencies (`{:hackney, "~> 1.6 or ~> 4.0"}`), or point ExAws at another HTTP client, for example `ExAws.Request.Req`:
+
+```elixir
+config :ex_aws, http_client: ExAws.Request.Req
+```
+
 Otherwise, to fetch from GitHub:
 
 ```elixir
